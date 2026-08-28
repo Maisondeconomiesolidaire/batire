@@ -13,6 +13,7 @@ import { formatStock, formatUnitPrice } from "../../lib/format";
 import { MATERIAL_STATUSES, STATUS_LABELS, type MaterialStatus } from "../../lib/constants";
 import { useAccess, canAccess } from "../../lib/access";
 import { exportMaterials, parseWorkbook } from "../../lib/excel";
+import { taxonomyPath } from "../../lib/taxonomy";
 
 export function Materiaux() {
   const navigate = useNavigate();
@@ -176,7 +177,9 @@ export function Materiaux() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-[var(--muted-foreground)]">{material.category}</td>
+                  <td className="px-4 py-3 text-xs text-[var(--muted-foreground)]">
+                    {taxonomyPath(material.category, material.family, material.subcategory)}
+                  </td>
                   <td className="px-4 py-3 font-semibold">
                     {formatUnitPrice(material.price, material.unit)}
                   </td>

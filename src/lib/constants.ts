@@ -1,5 +1,5 @@
 /** Référentiel Bâtire, à garder identique à celui du backend. */
-export { CATEGORIES, TAXONOMY, subcategoriesOf } from "./taxonomy";
+export { CATEGORIES, TAXONOMY, familiesOf, subFamiliesOf, taxonomyPath } from "./taxonomy";
 
 /** Unité de vente : elle commande le prix et le stock. */
 export const UNITS = ["unité", "m²", "m³", "ml", "kg", "tonne", "palette", "sac", "lot"] as const;

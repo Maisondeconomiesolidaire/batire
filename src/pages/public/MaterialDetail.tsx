@@ -12,6 +12,7 @@ import { Field, Input } from "../../components/ui/Field";
 import { Pill } from "../../components/ui/Badge";
 import { formatDimensions, formatPrice, formatStock, formatUnitPrice } from "../../lib/format";
 import { UNIT_LABELS, type Unit } from "../../lib/constants";
+import { taxonomyPath } from "../../lib/taxonomy";
 import { QrCode } from "../../components/ui/QrCode";
 
 export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
@@ -49,7 +50,7 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
 
   const dimensions = formatDimensions(material);
   const specs: Array<[string, string | undefined]> = [
-    ["Catégorie", material.subcategory ? `${material.category} · ${material.subcategory}` : material.category],
+    ["Catégorie", taxonomyPath(material.category, material.family, material.subcategory)],
     ["État", material.condition],
     ["Dimensions", dimensions || undefined],
     ["Matière", material.material],

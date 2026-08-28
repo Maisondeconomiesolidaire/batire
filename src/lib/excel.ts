@@ -4,6 +4,7 @@ export type ImportRow = {
   title: string;
   description?: string;
   category?: string;
+  family?: string;
   subcategory?: string;
   condition?: string;
   unit?: string;
@@ -23,6 +24,8 @@ const HEADERS: Record<string, keyof ImportRow> = {
   libelle: "title",
   description: "description",
   categorie: "category",
+  famille: "family",
+  sousfamille: "subcategory",
   souscategorie: "subcategory",
   etat: "condition",
   unite: "unit",
@@ -83,7 +86,8 @@ export function exportMaterials(
     Titre: material.title,
     Description: material.description,
     Catégorie: material.category,
-    "Sous-catégorie": material.subcategory ?? "",
+    Famille: material.family ?? "",
+    "Sous-famille": material.subcategory ?? "",
     État: material.condition,
     Unité: material.unit,
     Quantité: material.quantity,

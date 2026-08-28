@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "convex/react";
 import { PackageOpen, SlidersHorizontal, X } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
@@ -7,7 +7,7 @@ import { FullSpinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { CONDITIONS, UNITS, type Condition, type Unit } from "../../lib/constants";
-import { CATEGORIES, subcategoriesOf } from "../../lib/taxonomy";
+import { CATEGORIES, familiesOf, subFamiliesOf } from "../../lib/taxonomy";
 import { cn } from "../../lib/cn";
 
 export function Boutique({
@@ -18,6 +18,7 @@ export function Boutique({
   search?: string;
 }) {
   const [category, setCategory] = useState("");
+  const [family, setFamily] = useState("");
   const [subcategory, setSubcategory] = useState("");
   const [unit, setUnit] = useState<"" | Unit>("");
   const [condition, setCondition] = useState<"" | Condition>("");
@@ -28,25 +29,22 @@ export function Boutique({
   const materials = useQuery(api.batire.listPublicMaterials, {
     search: search.trim() || undefined,
     category: category || undefined,
+    family: family || undefined,
+    subcategory: subcategory || undefined,
     unit: unit || undefined,
     condition: condition || undefined,
     depot: depot || undefined,
   }) as PublicMaterial[] | undefined;
 
-  const visible = useMemo(
-    () =>
-      (materials ?? []).filter(
-        (material) => !subcategory || material.subcategory === subcategory,
-      ),
-    [materials, subcategory],
-  );
+  const visible = materials ?? [];
 
   const filtersActive = Boolean(
-    search.trim() || category || subcategory || unit || condition || depot,
+    search.trim() || category || family || subcategory || unit || condition || depot,
   );
 
   function reset() {
     setCategory("");
+    setFamily("");
     setSubcategory("");
     setUnit("");
     setCondition("");
@@ -60,6 +58,7 @@ export function Boutique({
           type="button"
           onClick={() => {
             setCategory("");
+            setFamily("");
             setSubcategory("");
           }}
           className={cn(
@@ -70,39 +69,68 @@ export function Boutique({
           Tout le catalogue
         </button>
         {CATEGORIES.map((name) => {
-          const active = category === name;
+          const activeCategory = category === name;
           return (
             <div key={name}>
               <button
                 type="button"
                 onClick={() => {
-                  setCategory(active ? "" : name);
+                  setCategory(activeCategory ? "" : name);
+                  setFamily("");
                   setSubcategory("");
                 }}
                 className={cn(
                   "block w-full rounded-lg px-3 py-2 text-left text-sm font-medium transition",
-                  active ? "bg-brand-50 text-brand-800" : "hover:bg-[var(--muted)]",
+                  activeCategory ? "bg-brand-50 text-brand-800" : "hover:bg-[var(--muted)]",
                 )}
               >
                 {name}
               </button>
-              {active ? (
+
+              {activeCategory ? (
                 <div className="mb-1 ml-3 border-l border-[var(--border)] pl-2">
-                  {subcategoriesOf(name).map((sub) => (
-                    <button
-                      key={sub}
-                      type="button"
-                      onClick={() => setSubcategory(subcategory === sub ? "" : sub)}
-                      className={cn(
-                        "block w-full rounded-lg px-3 py-1.5 text-left text-sm transition",
-                        subcategory === sub
-                          ? "font-semibold text-brand-700"
-                          : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]",
-                      )}
-                    >
-                      {sub}
-                    </button>
-                  ))}
+                  {familiesOf(name).map((fam) => {
+                    const activeFamily = family === fam;
+                    return (
+                      <div key={fam}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFamily(activeFamily ? "" : fam);
+                            setSubcategory("");
+                          }}
+                          className={cn(
+                            "block w-full rounded-lg px-3 py-1.5 text-left text-sm transition",
+                            activeFamily
+                              ? "font-semibold text-brand-700"
+                              : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]",
+                          )}
+                        >
+                          {fam}
+                        </button>
+
+                        {activeFamily ? (
+                          <div className="ml-3 border-l border-[var(--border)] pl-2">
+                            {subFamiliesOf(name, fam).map((sub) => (
+                              <button
+                                key={sub}
+                                type="button"
+                                onClick={() => setSubcategory(subcategory === sub ? "" : sub)}
+                                className={cn(
+                                  "block w-full rounded-lg px-3 py-1 text-left text-xs transition",
+                                  subcategory === sub
+                                    ? "font-semibold text-brand-700"
+                                    : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]",
+                                )}
+                              >
+                                {sub}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
               ) : null}
             </div>
@@ -156,7 +184,8 @@ export function Boutique({
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
           {category || (kiosk ? "Nos matériaux" : "Catalogue")}
-          {subcategory ? <span className="text-brand-600"> · {subcategory}</span> : null}
+          {family ? <span className="text-brand-600"> › {family}</span> : null}
+          {subcategory ? <span className="text-brand-600"> › {subcategory}</span> : null}
         </h1>
         <p className="text-sm text-[var(--muted-foreground)]">
           {materials === undefined

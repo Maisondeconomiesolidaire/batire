@@ -19,12 +19,13 @@ import {
   type MaterialStatus,
   type Unit,
 } from "../../lib/constants";
-import { CATEGORIES, subcategoriesOf } from "../../lib/taxonomy";
+import { CATEGORIES, familiesOf, subFamiliesOf } from "../../lib/taxonomy";
 
 type FormState = {
   title: string;
   description: string;
   category: string;
+  family: string;
   subcategory: string;
   condition: Condition;
   unit: Unit;
@@ -53,6 +54,7 @@ const EMPTY: FormState = {
   title: "",
   description: "",
   category: CATEGORIES[0]!,
+  family: "",
   subcategory: "",
   condition: "Bon état",
   unit: "unité",
@@ -113,6 +115,7 @@ export function MaterialForm() {
       title: existing.title,
       description: existing.description,
       category: existing.category,
+      family: existing.family ?? "",
       subcategory: existing.subcategory ?? "",
       condition: existing.condition,
       unit: existing.unit,
@@ -171,6 +174,7 @@ export function MaterialForm() {
         title: result.title || current.title,
         description: result.description || current.description,
         category: result.category || current.category,
+        family: result.family ?? current.family,
         subcategory: result.subcategory ?? current.subcategory,
         condition: (result.condition as Condition) || current.condition,
         unit: (result.unit as Unit) || current.unit,
@@ -205,6 +209,7 @@ export function MaterialForm() {
         title: form.title,
         description: form.description,
         category: form.category,
+        family: text(form.family),
         subcategory: text(form.subcategory),
         condition: form.condition,
         unit: form.unit,
@@ -345,23 +350,44 @@ export function MaterialForm() {
                 searchable
                 value={form.category}
                 onChange={(value) => {
-                  // La sous-catégorie appartient à sa catégorie : la garder
-                  // après un changement laisserait une fiche incohérente.
+                  // Les niveaux inférieurs appartiennent à leur parent : les
+                  // garder après un changement laisserait une branche fausse.
                   set("category", value);
+                  set("family", "");
                   set("subcategory", "");
                 }}
                 options={CATEGORIES.map((value) => ({ value, label: value }))}
               />
             </Field>
-            <Field label="Sous-catégorie">
+            <Field label="Famille">
               <Dropdown
                 searchable
-                value={form.subcategory}
-                onChange={(value) => set("subcategory", value)}
-                placeholder="Toutes"
-                options={subcategoriesOf(form.category).map((value) => ({ value, label: value }))}
+                value={form.family}
+                onChange={(value) => {
+                  set("family", value);
+                  set("subcategory", "");
+                }}
+                placeholder="Choisir une famille"
+                options={familiesOf(form.category).map((value) => ({ value, label: value }))}
               />
             </Field>
+            <div className="sm:col-span-2">
+              <Field label="Sous-famille">
+                <Dropdown
+                  searchable
+                  value={form.subcategory}
+                  onChange={(value) => set("subcategory", value)}
+                  placeholder={
+                    form.family ? "Choisir une sous-famille" : "Choisissez d'abord une famille"
+                  }
+                  disabled={!form.family}
+                  options={subFamiliesOf(form.category, form.family).map((value) => ({
+                    value,
+                    label: value,
+                  }))}
+                />
+              </Field>
+            </div>
           </section>
 
           {/* ── Vente ────────────────────────────────────────────────────── */}
