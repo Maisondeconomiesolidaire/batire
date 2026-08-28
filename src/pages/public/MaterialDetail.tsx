@@ -2,17 +2,15 @@ import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { useUser } from "@clerk/clerk-react";
-import { ArrowLeft, CheckCircle2, MapPin, MessageSquare, PackageOpen, QrCode as QrIcon } from "lucide-react";
+import { CheckCircle2, MapPin, MessageSquare, PackageOpen, QrCode as QrIcon } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { FullSpinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Button } from "../../components/ui/Button";
 import { Field, Input } from "../../components/ui/Field";
-import { Pill } from "../../components/ui/Badge";
 import { formatDimensions, formatPrice, formatStock, formatUnitPrice } from "../../lib/format";
 import { UNIT_LABELS, type Unit } from "../../lib/constants";
-import { taxonomyPath } from "../../lib/taxonomy";
 import { QrCode } from "../../components/ui/QrCode";
 
 export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
@@ -48,43 +46,72 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
     );
   }
 
+  const base = kiosk ? "/kiosk" : "";
   const dimensions = formatDimensions(material);
+  const inStock = material.quantity > 0;
+
+  /** Caractéristiques : on n'affiche jamais une ligne vide. */
   const specs: Array<[string, string | undefined]> = [
-    ["Catégorie", taxonomyPath(material.category, material.family, material.subcategory)],
-    ["État", material.condition],
     ["Dimensions", dimensions || undefined],
     ["Matière", material.material],
-    ["Marque", material.brand],
-    ["Référence", material.modelReference],
     ["Couleur", material.color],
     ["Poids", material.weightKg ? `${material.weightKg} kg` : undefined],
     ["Conditionnement", material.packaging],
+    ["État", material.condition],
     ["Normes", material.standards],
     ["Caractéristiques", material.technicalNotes],
+    ["Marque", material.brand],
+    ["Référence fabricant", material.modelReference],
   ];
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
-      <Link
-        to={kiosk ? "/kiosk" : "/"}
-        className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-[var(--muted-foreground)] hover:text-brand-700"
-      >
-        <ArrowLeft className="h-4 w-4" /> Retour au catalogue
-      </Link>
+    <div className="w-full px-4 py-5 sm:px-6">
+      {/* Fil d'Ariane, jusqu'au produit courant. */}
+      <nav className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
+        <Link to={base || "/"} className="hover:text-brand-700">
+          Accueil
+        </Link>
+        {[material.category, material.family, material.subcategory]
+          .filter(Boolean)
+          .map((level, index, levels) => {
+            const params = new URLSearchParams();
+            if (material.category) params.set("categorie", material.category);
+            if (index >= 1 && material.family) params.set("famille", material.family);
+            if (index >= 2 && material.subcategory) params.set("sousfamille", material.subcategory);
+            return (
+              <span key={level} className="flex items-center gap-2">
+                <span>›</span>
+                <Link to={`${base || "/"}?${params.toString()}`} className="hover:text-brand-700">
+                  {level}
+                </Link>
+                {index === levels.length - 1 ? <span>›</span> : null}
+              </span>
+            );
+          })}
+        <span className="text-[var(--foreground)]">{material.title}</span>
+      </nav>
 
-      <div className="grid gap-8 lg:grid-cols-2">
-        <div>
-          <div className="aspect-[4/3] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--muted)]">
+      <h1 className="mt-3 text-3xl font-black tracking-tight text-[var(--foreground)]">
+        {material.title}
+      </h1>
+      {material.modelReference || material.qrReference ? (
+        <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+          Réf. : {material.modelReference || material.qrReference}
+        </p>
+      ) : null}
+
+      <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_1fr_360px] lg:items-start">
+        {/* ── Visuel ─────────────────────────────────────────────────── */}
+        <section>
+          <div className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl border border-[var(--border)] bg-white">
             {material.photoUrls[photoIndex] ? (
               <img
                 src={material.photoUrls[photoIndex]}
                 alt={material.title}
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain"
               />
             ) : (
-              <div className="flex h-full items-center justify-center text-[var(--muted-foreground)]">
-                <PackageOpen className="h-12 w-12" />
-              </div>
+              <PackageOpen className="h-16 w-16 text-zinc-300" />
             )}
           </div>
           {material.photoUrls.length > 1 ? (
@@ -94,80 +121,93 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
                   key={url}
                   type="button"
                   onClick={() => setPhotoIndex(index)}
-                  className={`h-16 w-20 shrink-0 overflow-hidden rounded-lg border-2 transition ${
-                    index === photoIndex ? "border-brand-500" : "border-transparent opacity-70"
+                  className={`h-20 w-20 shrink-0 overflow-hidden rounded-lg border-2 bg-white transition ${
+                    index === photoIndex ? "border-brand-500" : "border-[var(--border)]"
                   }`}
                 >
-                  <img src={url} alt="" className="h-full w-full object-cover" />
+                  <img src={url} alt="" className="h-full w-full object-contain" />
                 </button>
               ))}
             </div>
           ) : null}
-        </div>
+        </section>
 
-        <div>
-          <div className="flex flex-wrap gap-1.5">
-            <Pill className="bg-[var(--muted)] text-[var(--muted-foreground)]">
-              {material.category}
-            </Pill>
-            <Pill className="bg-brand-50 text-brand-700">{material.condition}</Pill>
-          </div>
-          <h1 className="mt-3 text-3xl font-black tracking-tight text-[var(--foreground)]">
-            {material.title}
-          </h1>
+        {/* ── Informations produit ───────────────────────────────────── */}
+        <section>
+          {material.brand ? (
+            <p className="text-lg font-bold text-[var(--foreground)]">{material.brand}</p>
+          ) : null}
 
-          <div className="mt-4 rounded-2xl border border-brand-200 bg-brand-50 p-4">
-            <p className="text-3xl font-black text-brand-700">
-              {formatUnitPrice(material.price, material.unit)}
-            </p>
-            <p className="mt-1 text-sm text-brand-800">
-              Vendu {UNIT_LABELS[material.unit]} ·{" "}
-              {formatStock(material.quantity, material.unit)} disponible
-            </p>
-          </div>
+          <h2 className="mt-4 font-semibold text-[var(--foreground)]">Informations produit :</h2>
+          <p className="mt-3 whitespace-pre-line leading-relaxed text-[var(--foreground)]">
+            {material.description}
+          </p>
 
-          <p className="mt-5 whitespace-pre-line text-[var(--foreground)]">{material.description}</p>
-
-          <dl className="mt-6 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+          <dl className="mt-6 divide-y divide-[var(--border)] border-t border-[var(--border)]">
             {specs
               .filter(([, value]) => Boolean(value))
               .map(([label, value]) => (
-                <div key={label}>
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
-                    {label}
-                  </dt>
-                  <dd className="mt-0.5 text-sm text-[var(--foreground)]">{value}</dd>
+                <div key={label} className="flex gap-4 py-2.5 text-sm">
+                  <dt className="w-40 shrink-0 text-[var(--muted-foreground)]">{label}</dt>
+                  <dd className="text-[var(--foreground)]">{value}</dd>
                 </div>
               ))}
           </dl>
 
           {material.depot ? (
-            <p className="mt-6 flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
+            <p className="mt-5 flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
               <MapPin className="h-4 w-4 text-brand-600" />
-              Disponible au dépôt {material.depot}
+              Dépôt {material.depot}
               {material.location ? ` · ${material.location}` : ""}
             </p>
           ) : null}
+        </section>
 
-          {kiosk ? (
-            <div className="mt-8 flex flex-col items-center gap-3 rounded-2xl border border-[var(--border)] bg-white p-5 text-center">
-              <QrCode value={`${window.location.origin}/materiau/${material._id}`} size={160} />
-              <p className="flex items-center gap-2 font-semibold text-zinc-900">
-                <QrIcon className="h-4 w-4" /> Scannez pour payer au comptoir
+        {/* ── Encart d'achat ─────────────────────────────────────────── */}
+        <aside className="lg:sticky lg:top-24">
+          <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
+            <div className="p-5">
+              <p className="text-3xl font-black text-brand-700">
+                {formatUnitPrice(material.price, material.unit)}
+              </p>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                Vendu {UNIT_LABELS[material.unit]} · {material.condition.toLowerCase()}
+              </p>
+
+              <p
+                className={`mt-4 flex items-center gap-2 text-sm font-semibold ${
+                  inStock ? "text-emerald-600" : "text-amber-600"
+                }`}
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                {inStock ? `En stock · ${formatStock(material.quantity, material.unit)}` : "Épuisé"}
               </p>
             </div>
-          ) : (
-            <>
-            <BuyBlock
-              materialId={material._id}
-              unit={material.unit}
-              price={material.price}
-              stock={material.quantity}
-            />
-            <AskBlock materialId={material._id} />
-            </>
-          )}
-        </div>
+
+            <div className="border-t border-[var(--border)] p-5">
+              {kiosk ? (
+                <div className="flex flex-col items-center gap-3 text-center">
+                  <div className="rounded-xl bg-white p-2">
+                    <QrCode value={`${window.location.origin}/materiau/${material._id}`} size={150} />
+                  </div>
+                  <p className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
+                    <QrIcon className="h-4 w-4" /> Scannez pour payer au comptoir
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <BuyBlock
+                    materialId={material._id}
+                    unit={material.unit}
+                    price={material.price}
+                    stock={material.quantity}
+                  />
+                  <AskBlock materialId={material._id} />
+                </>
+              )}
+            </div>
+          </div>
+        </aside>
       </div>
     </div>
   );
@@ -228,15 +268,15 @@ function BuyBlock({
 
   if (!open) {
     return (
-      <Button className="mt-8 w-full" onClick={() => setOpen(true)}>
-        Acheter
+      <Button className="w-full" onClick={() => setOpen(true)} disabled={stock <= 0}>
+        {stock > 0 ? "Acheter" : "Épuisé"}
       </Button>
     );
   }
 
   return (
-    <div className="mt-8 space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
-      <div className="grid gap-3 sm:grid-cols-2">
+    <div className="space-y-3">
+      <div className="grid gap-3">
         <Field label="Prénom" required>
           <Input value={form.firstName} onChange={(e) => set("firstName")(e.target.value)} />
         </Field>
@@ -362,7 +402,7 @@ function AskBlock({ materialId }: { materialId: Id<"btMaterials"> }) {
 
   if (!isSignedIn) {
     return (
-      <p className="mt-4 text-center text-sm text-[var(--muted-foreground)]">
+      <p className="mt-3 text-center text-xs text-[var(--muted-foreground)]">
         Connectez-vous pour poser une question à l'équipe.
       </p>
     );
@@ -370,7 +410,7 @@ function AskBlock({ materialId }: { materialId: Id<"btMaterials"> }) {
 
   if (sent) {
     return (
-      <p className="mt-4 rounded-xl bg-[var(--muted)] px-4 py-3 text-center text-sm">
+      <p className="mt-3 rounded-xl bg-[var(--muted)] px-3 py-2.5 text-center text-xs">
         Message envoyé. La réponse arrivera dans votre messagerie.
       </p>
     );
@@ -381,7 +421,7 @@ function AskBlock({ materialId }: { materialId: Id<"btMaterials"> }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-3 text-sm font-medium transition hover:border-brand-400"
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-medium transition hover:border-brand-400"
       >
         <MessageSquare className="h-4 w-4" /> Poser une question
       </button>
@@ -389,7 +429,7 @@ function AskBlock({ materialId }: { materialId: Id<"btMaterials"> }) {
   }
 
   return (
-    <div className="mt-4 space-y-2 rounded-2xl border border-[var(--border)] p-4">
+    <div className="mt-3 space-y-2 rounded-xl border border-[var(--border)] p-3">
       <textarea
         rows={3}
         autoFocus
