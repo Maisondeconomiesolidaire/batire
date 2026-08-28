@@ -12,7 +12,16 @@ import { cn } from "../../lib/cn";
  * Le survol suffit à changer de panneau, le clic sert à naviguer : parcourir
  * quinze catégories au clic serait pénible.
  */
-export function MegaMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function MegaMenu({
+  open,
+  onClose,
+  basePath = "/",
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** Racine de navigation : la vitrine du dépôt reste sur ses propres routes. */
+  basePath?: string;
+}) {
   const navigate = useNavigate();
   // La première catégorie est ouverte d'emblée : le volet de droite ne doit
   // pas rester vide à l'ouverture du menu.
@@ -45,7 +54,7 @@ export function MegaMenu({ open, onClose }: { open: boolean; onClose: () => void
     const params = new URLSearchParams({ categorie: category });
     if (family) params.set("famille", family);
     if (subFamily) params.set("sousfamille", subFamily);
-    navigate(`/?${params.toString()}`);
+    navigate(`${basePath}?${params.toString()}`);
     onClose();
   }
 
@@ -63,7 +72,7 @@ export function MegaMenu({ open, onClose }: { open: boolean; onClose: () => void
             drilled ? "hidden lg:flex" : "flex",
           )}
         >
-          <div className="flex items-center gap-4 px-5 py-5">
+          <div className="flex items-center gap-4 px-5 py-4">
             <button
               type="button"
               onClick={onClose}
@@ -77,10 +86,9 @@ export function MegaMenu({ open, onClose }: { open: boolean; onClose: () => void
             </span>
           </div>
 
-          <p className="px-5 pb-3 text-[15px] font-medium">Produits</p>
           <div className="mx-5 border-t border-[var(--border)]" />
 
-          <nav className="flex-1 overflow-y-auto px-2 py-2">
+          <nav className="flex-1 overflow-y-auto px-2 py-1.5">
             {CATEGORIES.map((category) => (
               <button
                 key={category}
@@ -90,7 +98,7 @@ export function MegaMenu({ open, onClose }: { open: boolean; onClose: () => void
                   setDrilled(true);
                 }}
                 className={cn(
-                  "flex w-full items-center justify-between gap-3 rounded-lg px-3 py-3 text-left text-[15px] transition",
+                  "flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-[15px] leading-snug transition",
                   active === category ? "font-semibold text-brand-600" : "hover:bg-[var(--muted)]",
                 )}
               >

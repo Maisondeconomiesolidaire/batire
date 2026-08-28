@@ -67,7 +67,14 @@ export function Dropdown({
   }
 
   return (
-    <div ref={containerRef} className={cn("relative", className)}>
+    <div
+      ref={containerRef}
+      className={cn("relative", className)}
+      // Un `<label>` parent réexpédie tout clic vers le premier élément
+      // « étiquetable » qu'il contient — ici le bouton d'ouverture. Sans cette
+      // barrière, choisir une option rouvrait la liste dans la foulée.
+      onClick={(event) => event.stopPropagation()}
+    >
       <button
         type="button"
         disabled={disabled}
