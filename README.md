@@ -15,9 +15,9 @@ l'emplacement au dépôt. L'IA la remplit à partir des photos.
 | Route | Pour qui |
 |---|---|
 | `/` | Boutique publique : catalogue, filtres, fiche matériau, demande de devis |
-| `/kiosk` | Vitrine du dépôt : même catalogue, sans formulaire |
+| `/kiosk` | Vitrine du dépôt : QR code à scanner pour encaisser au terminal |
 | `/qr/:reference` | Atterrissage d'un QR code collé sur un matériau |
-| `/crm` | Équipe : matériaux, demandes, QR codes |
+| `/crm` | Équipe : matériaux, ventes, QR codes |
 
 ## Backend
 
@@ -28,6 +28,9 @@ Tables préfixées `bt`, sans lien avec les `articles` de la Recyclerie.
 
 Les droits (`batire:materiaux`, `batire:demandes`, `batire:admin`)
 s'administrent depuis la page Admin de Mes Outils.
+
+Les paiements passent par le compte Stripe de la Recyclerie
+(`RECYCAPP_STRIPE_SECRET_KEY`), en attendant un compte propre à Bâtire.
 
 ## Développement
 

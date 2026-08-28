@@ -1,13 +1,13 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-react";
-import { Boxes, ClipboardList, QrCode, ShieldAlert } from "lucide-react";
+import { Boxes, QrCode, Receipt, ShieldAlert } from "lucide-react";
 import { useAccess, canAccess } from "../../lib/access";
 import { FullSpinner } from "../ui/Spinner";
 import { cn } from "../../lib/cn";
 
 const NAV = [
   { to: "/crm", label: "Matériaux", icon: Boxes, page: "batire:materiaux", end: true },
-  { to: "/crm/demandes", label: "Demandes", icon: ClipboardList, page: "batire:demandes" },
+  { to: "/crm/ventes", label: "Ventes", icon: Receipt, page: "batire:demandes" },
   { to: "/crm/qr", label: "QR codes", icon: QrCode, page: "batire:materiaux" },
 ];
 

@@ -4,7 +4,7 @@ import { MaterialDetail } from "./pages/public/MaterialDetail";
 import { QrLanding } from "./pages/public/QrLanding";
 import { CrmLayout } from "./components/crm/CrmLayout";
 import { Materiaux } from "./pages/crm/Materiaux";
-import { Demandes } from "./pages/crm/Demandes";
+import { Ventes } from "./pages/crm/Ventes";
 import { QrCodes } from "./pages/crm/QrCodes";
 
 export default function App() {
@@ -21,7 +21,7 @@ export default function App() {
 
       <Route path="/crm" element={<CrmLayout />}>
         <Route index element={<Materiaux />} />
-        <Route path="demandes" element={<Demandes />} />
+        <Route path="ventes" element={<Ventes />} />
         <Route path="qr" element={<QrCodes />} />
       </Route>
 

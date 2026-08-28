@@ -1,24 +1,33 @@
-import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft, CheckCircle2, MapPin, PackageOpen, Ruler } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
+import { useAction, useQuery } from "convex/react";
+import { ArrowLeft, CheckCircle2, MapPin, PackageOpen, QrCode as QrIcon } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { FullSpinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Button } from "../../components/ui/Button";
-import { Field, Input, Textarea } from "../../components/ui/Field";
+import { Field, Input } from "../../components/ui/Field";
 import { Pill } from "../../components/ui/Badge";
-import { formatDimensions, formatStock, formatUnitPrice } from "../../lib/format";
-import { UNIT_LABELS } from "../../lib/constants";
+import { formatDimensions, formatPrice, formatStock, formatUnitPrice } from "../../lib/format";
+import { UNIT_LABELS, type Unit } from "../../lib/constants";
+import { QrCode } from "../../components/ui/QrCode";
 
 export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const orderId = searchParams.get("order_id");
+  const sessionId = searchParams.get("session_id");
+  const paid = searchParams.get("status") === "success";
   const material = useQuery(
     api.batire.getPublicMaterial,
     id ? { id: id as Id<"btMaterials"> } : "skip",
   );
   const [photoIndex, setPhotoIndex] = useState(0);
+
+  if (paid && orderId && sessionId) {
+    return <CheckoutReturn orderId={orderId as Id<"btOrders">} sessionId={sessionId} />;
+  }
 
   if (material === undefined) return <FullSpinner label="Chargement du matériau…" />;
   if (material === null) {
@@ -139,12 +148,19 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
           ) : null}
 
           {kiosk ? (
-            <div className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--muted)] p-5 text-center">
-              <Ruler className="mx-auto h-6 w-6 text-brand-600" />
-              <p className="mt-2 font-semibold text-[var(--foreground)]">Renseignements au comptoir</p>
+            <div className="mt-8 flex flex-col items-center gap-3 rounded-2xl border border-[var(--border)] bg-white p-5 text-center">
+              <QrCode value={`${window.location.origin}/materiau/${material._id}`} size={160} />
+              <p className="flex items-center gap-2 font-semibold text-zinc-900">
+                <QrIcon className="h-4 w-4" /> Scannez pour payer au comptoir
+              </p>
             </div>
           ) : (
-            <RequestBlock materialId={material._id} title={material.title} unit={material.unit} />
+            <BuyBlock
+              materialId={material._id}
+              unit={material.unit}
+              price={material.price}
+              stock={material.quantity}
+            />
           )}
         </div>
       </div>
@@ -152,18 +168,19 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
   );
 }
 
-function RequestBlock({
+function BuyBlock({
   materialId,
-  title,
   unit,
+  price,
+  stock,
 }: {
   materialId: Id<"btMaterials">;
-  title: string;
-  unit: string;
+  unit: Unit;
+  price: number;
+  stock: number;
 }) {
-  const createRequest = useMutation(api.batire.createRequest);
+  const startCheckout = useAction(api.batire.startCheckout);
   const [open, setOpen] = useState(false);
-  const [sent, setSent] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -172,67 +189,48 @@ function RequestBlock({
     email: "",
     phone: "",
     company: "",
-    quantity: "",
-    message: "",
+    quantity: "1",
   });
 
   const set = (key: keyof typeof form) => (value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
 
-  async function submit() {
+  const quantity = Number(form.quantity.replace(",", ".")) || 0;
+  const total = quantity > 0 ? quantity * price : 0;
+
+  async function pay() {
     setSaving(true);
     setError(null);
     try {
-      await createRequest({
-        type: "devis",
+      const { checkoutUrl } = await startCheckout({
+        materialId,
+        quantity,
         customer: {
           firstName: form.firstName,
           lastName: form.lastName,
           email: form.email,
-          phone: form.phone,
+          phone: form.phone || undefined,
           company: form.company || undefined,
         },
-        items: [
-          {
-            materialId,
-            title,
-            quantity: Number(form.quantity.replace(",", ".")) || 0,
-            unit: unit as never,
-          },
-        ],
-        message: form.message || undefined,
+        returnUrl: `${window.location.origin}/materiau/${materialId}`,
       });
-      setSent(true);
+      window.location.assign(checkoutUrl);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Envoi impossible.");
-    } finally {
+      setError(caught instanceof Error ? caught.message : "Paiement indisponible.");
       setSaving(false);
     }
-  }
-
-  if (sent) {
-    return (
-      <div className="mt-8 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-        <div>
-          <p className="font-semibold text-emerald-900">Demande envoyée</p>
-          <p className="mt-1 text-sm text-emerald-800">Nous vous recontactons rapidement.</p>
-        </div>
-      </div>
-    );
   }
 
   if (!open) {
     return (
       <Button className="mt-8 w-full" onClick={() => setOpen(true)}>
-        Demander un devis
+        Acheter
       </Button>
     );
   }
 
   return (
     <div className="mt-8 space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
-      <p className="font-semibold text-[var(--foreground)]">Votre demande</p>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Prénom" required>
           <Input value={form.firstName} onChange={(e) => set("firstName")(e.target.value)} />
@@ -249,7 +247,7 @@ function RequestBlock({
         <Field label="Entreprise">
           <Input value={form.company} onChange={(e) => set("company")(e.target.value)} />
         </Field>
-        <Field label={`Quantité souhaitée (${unit})`}>
+        <Field label={`Quantité (${unit})`} required>
           <Input
             inputMode="decimal"
             value={form.quantity}
@@ -257,25 +255,93 @@ function RequestBlock({
           />
         </Field>
       </div>
-      <Field label="Précisions">
-        <Textarea
-          rows={3}
-          value={form.message}
-          onChange={(e) => set("message")(e.target.value)}
-        />
-      </Field>
+
+      <div className="flex items-baseline justify-between rounded-xl bg-[var(--muted)] px-4 py-3">
+        <span className="text-sm text-[var(--muted-foreground)]">Total</span>
+        <span className="text-xl font-bold text-brand-700">{formatPrice(total)}</span>
+      </div>
+
+      {quantity > stock ? (
+        <p className="text-sm text-amber-700">
+          Stock disponible : {formatStock(stock, unit)}.
+        </p>
+      ) : null}
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
+
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={() => setOpen(false)}>
           Annuler
         </Button>
         <Button
-          onClick={() => void submit()}
-          disabled={saving || !form.firstName || !form.lastName || !form.email}
+          onClick={() => void pay()}
+          disabled={
+            saving ||
+            !form.firstName ||
+            !form.lastName ||
+            !form.email ||
+            quantity <= 0 ||
+            quantity > stock
+          }
         >
-          {saving ? "Envoi…" : "Envoyer la demande"}
+          {saving ? "Redirection…" : "Payer en ligne"}
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** Retour de Stripe : le statut est relu chez eux avant d'annoncer la vente. */
+function CheckoutReturn({
+  orderId,
+  sessionId,
+}: {
+  orderId: Id<"btOrders">;
+  sessionId: string;
+}) {
+  const confirmCheckout = useAction(api.batire.confirmCheckout);
+  const [reference, setReference] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void confirmCheckout({ orderId, sessionId })
+      .then((result) => {
+        if (!cancelled) setReference(result.reference);
+      })
+      .catch((caught: unknown) => {
+        if (!cancelled) {
+          setError(caught instanceof Error ? caught.message : "Confirmation impossible.");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [confirmCheckout, orderId, sessionId]);
+
+  if (error) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-20 text-center">
+        <h1 className="text-2xl font-bold text-[var(--foreground)]">Commande non finalisée</h1>
+        <p className="mt-2 text-[var(--muted-foreground)]">{error}</p>
+        <Link to="/" className="mt-6 inline-block text-sm font-semibold text-brand-700">
+          Retour au catalogue
+        </Link>
+      </div>
+    );
+  }
+
+  if (!reference) return <FullSpinner label="Confirmation du paiement…" />;
+
+  return (
+    <div className="mx-auto max-w-2xl px-4 py-20 text-center">
+      <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
+      <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">Paiement confirmé</h1>
+      <p className="mt-2 text-[var(--muted-foreground)]">
+        Commande {reference}. Un reçu vous a été envoyé par email.
+      </p>
+      <Link to="/" className="mt-6 inline-block text-sm font-semibold text-brand-700">
+        Retour au catalogue
+      </Link>
     </div>
   );
 }
