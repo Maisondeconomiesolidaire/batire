@@ -14,11 +14,18 @@ import { cn } from "../../lib/cn";
  */
 export function MegaMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
-  const [active, setActive] = useState<string | null>(null);
+  // La première catégorie est ouverte d'emblée : le volet de droite ne doit
+  // pas rester vide à l'ouverture du menu.
+  const [active, setActive] = useState<string>(CATEGORIES[0]!);
+  // Sur mobile, les deux volets ne tiennent pas côte à côte : `drilled` dit si
+  // l'utilisateur est descendu dans une catégorie. Sur grand écran, il ne sert
+  // à rien — les deux colonnes sont toujours affichées.
+  const [drilled, setDrilled] = useState(false);
 
   useEffect(() => {
     if (!open) {
-      setActive(null);
+      setActive(CATEGORIES[0]!);
+      setDrilled(false);
       return;
     }
     const onKey = (event: KeyboardEvent) => {
@@ -53,7 +60,7 @@ export function MegaMenu({ open, onClose }: { open: boolean; onClose: () => void
         <div
           className={cn(
             "w-full shrink-0 flex-col border-[var(--border)] lg:flex lg:w-[340px] lg:border-r",
-            active ? "hidden lg:flex" : "flex",
+            drilled ? "hidden lg:flex" : "flex",
           )}
         >
           <div className="flex items-center gap-4 px-5 py-5">
@@ -78,8 +85,10 @@ export function MegaMenu({ open, onClose }: { open: boolean; onClose: () => void
               <button
                 key={category}
                 type="button"
-                onMouseEnter={() => setActive(category)}
-                onClick={() => setActive(category)}
+                onClick={() => {
+                  setActive(category);
+                  setDrilled(true);
+                }}
                 className={cn(
                   "flex w-full items-center justify-between gap-3 rounded-lg px-3 py-3 text-left text-[15px] transition",
                   active === category ? "font-semibold text-brand-600" : "hover:bg-[var(--muted)]",
@@ -96,16 +105,16 @@ export function MegaMenu({ open, onClose }: { open: boolean; onClose: () => void
         <div
           className={cn(
             "min-w-0 flex-1 flex-col overflow-y-auto",
-            active ? "flex" : "hidden lg:flex",
+            drilled ? "flex" : "hidden lg:flex",
           )}
         >
           {/* Retour vers les catégories : mobile seulement, la colonne de
               gauche jouant ce rôle sur grand écran. */}
-          {active ? (
+          {drilled ? (
             <div className="flex items-center gap-3 border-b border-[var(--border)] px-5 py-4 lg:hidden">
               <button
                 type="button"
-                onClick={() => setActive(null)}
+                onClick={() => setDrilled(false)}
                 className="inline-flex items-center gap-2 text-[15px] font-medium"
               >
                 <ArrowLeft className="h-4 w-4" /> Produits
@@ -122,7 +131,6 @@ export function MegaMenu({ open, onClose }: { open: boolean; onClose: () => void
           ) : null}
 
           <div className="p-5 lg:p-8">
-            {active ? (
               <>
                 <button
                   type="button"
@@ -159,11 +167,6 @@ export function MegaMenu({ open, onClose }: { open: boolean; onClose: () => void
                   ))}
                 </div>
               </>
-            ) : (
-              <p className="text-[15px] text-[var(--muted-foreground)]">
-                Survolez une catégorie pour voir ses familles.
-              </p>
-            )}
           </div>
         </div>
       </div>
