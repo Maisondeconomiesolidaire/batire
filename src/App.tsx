@@ -45,7 +45,7 @@ function PublicShell() {
   return (
     <div className="min-h-screen bg-[var(--background)]">
       <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--background)]/95 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-7xl items-center gap-4 px-4 py-3 sm:px-6 lg:px-8">
+        <div className="flex w-full items-center gap-4 px-4 py-3 sm:px-6">
           <Link to="/" className="shrink-0 text-xl font-black tracking-tight">
             Bâtire<span className="text-brand-600">.</span>
           </Link>
@@ -84,7 +84,7 @@ function PublicShell() {
       <Outlet context={{ search }} />
 
       <footer className="mt-16 border-t border-[var(--border)] py-8">
-        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 text-sm text-[var(--muted-foreground)] sm:px-6 lg:px-8">
+        <div className="flex w-full flex-wrap items-center justify-between gap-3 px-4 text-sm text-[var(--muted-foreground)] sm:px-6">
           <p>Bâtire</p>
           <Link to="/crm" className="hover:text-brand-700">
             Espace équipe

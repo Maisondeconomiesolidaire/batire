@@ -54,7 +54,7 @@ export function Boutique({
   }
 
   const sidebar = (
-    <aside className="w-full shrink-0 lg:w-64">
+    <aside className="w-full shrink-0 lg:sticky lg:top-20 lg:h-[calc(100vh-6rem)] lg:w-64 lg:overflow-y-auto lg:pb-4">
       <nav className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-2">
         <button
           type="button"
@@ -111,9 +111,6 @@ export function Boutique({
       </nav>
 
       <div className="mt-4 space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
-          Affiner
-        </p>
         <Dropdown
           value={unit}
           onChange={(value) => setUnit(value as Unit | "")}
@@ -155,7 +152,7 @@ export function Boutique({
   );
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div className="w-full px-4 py-6 sm:px-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
           {category || (kiosk ? "Nos matériaux" : "Catalogue")}

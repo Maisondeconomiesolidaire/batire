@@ -63,7 +63,7 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
   ];
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
       <Link
         to={kiosk ? "/kiosk" : "/"}
         className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-[var(--muted-foreground)] hover:text-brand-700"

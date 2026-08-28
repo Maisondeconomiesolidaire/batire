@@ -1,9 +1,11 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { useUser } from "@clerk/clerk-react";
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-react";
-import { Boxes, MessageSquare, QrCode, Receipt, ShieldAlert } from "lucide-react";
+import { Boxes, MessageSquare, Moon, QrCode, Receipt, ShieldAlert, Store, Sun } from "lucide-react";
 import { useAccess, canAccess } from "../../lib/access";
 import { FullSpinner } from "../ui/Spinner";
 import { cn } from "../../lib/cn";
+import { useTheme } from "../../lib/theme";
 
 const NAV = [
   { to: "/crm", label: "Matériaux", icon: Boxes, page: "batire:materiaux", end: true },
@@ -14,9 +16,11 @@ const NAV = [
 
 export function CrmLayout() {
   const access = useAccess();
+  const { theme, toggle } = useTheme();
+  const { user } = useUser();
 
   return (
-    <div className="dark min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+    <div className={cn(theme === "dark" && "dark", "min-h-screen bg-[var(--background)] text-[var(--foreground)]")}>
       <SignedOut>
         <div className="mx-auto max-w-lg px-4 py-24 text-center">
           <ShieldAlert className="mx-auto h-8 w-8 text-brand-500" />
@@ -46,7 +50,7 @@ export function CrmLayout() {
           <div className="flex min-h-screen">
             {/* Barre latérale : la navigation d'un back-office se lit d'un
                 coup d'œil et ne bouge pas d'une page à l'autre. */}
-            <aside className="hidden w-60 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--card)] lg:flex">
+            <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col border-r border-[var(--border)] bg-[var(--card)] lg:flex">
               <div className="px-5 py-5">
                 <NavLink to="/crm" className="text-lg font-black tracking-tight">
                   Bâtire<span className="text-brand-500">.</span>
@@ -73,18 +77,37 @@ export function CrmLayout() {
                   </NavLink>
                 ))}
               </nav>
-              <div className="border-t border-[var(--border)] p-3">
+              <div className="space-y-1 border-t border-[var(--border)] p-3">
                 <a
                   href="/"
-                  className="block rounded-xl px-3 py-2 text-sm text-[var(--muted-foreground)] hover:bg-[var(--accent)]"
+                  className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-[var(--muted-foreground)] transition hover:bg-[var(--accent)]"
                 >
-                  Voir la boutique
+                  <Store className="h-4 w-4" /> Voir la boutique
                 </a>
+                <button
+                  type="button"
+                  onClick={toggle}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-[var(--muted-foreground)] transition hover:bg-[var(--accent)]"
+                >
+                  {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                  {theme === "dark" ? "Thème clair" : "Thème sombre"}
+                </button>
+                <div className="flex items-center gap-3 rounded-xl px-3 py-2">
+                  <UserButton afterSignOutUrl="/" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">
+                      {user?.fullName ?? user?.primaryEmailAddress?.emailAddress ?? "Mon compte"}
+                    </span>
+                    <span className="block truncate text-xs text-[var(--muted-foreground)]">
+                      {access.isAdmin ? "Administrateur" : "Équipe"}
+                    </span>
+                  </span>
+                </div>
               </div>
             </aside>
 
-            <div className="min-w-0 flex-1">
-              <header className="flex items-center gap-3 border-b border-[var(--border)] bg-[var(--card)] px-4 py-3 sm:px-6">
+            <div className="min-w-0 flex-1 lg:ml-60">
+              <header className="flex items-center gap-3 border-b border-[var(--border)] bg-[var(--card)] px-4 py-3 sm:px-6 lg:hidden">
                 <nav className="flex flex-1 items-center gap-1 overflow-x-auto lg:hidden">
                   {NAV.filter((item) => canAccess(access, item.page)).map((item) => (
                     <NavLink
@@ -105,7 +128,15 @@ export function CrmLayout() {
                     </NavLink>
                   ))}
                 </nav>
-                <div className="ml-auto">
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={toggle}
+                    className="rounded-lg p-2 text-[var(--muted-foreground)] hover:bg-[var(--accent)]"
+                    aria-label="Changer de thème"
+                  >
+                    {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                  </button>
                   <UserButton afterSignOutUrl="/" />
                 </div>
               </header>
