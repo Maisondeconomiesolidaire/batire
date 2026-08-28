@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft, ImagePlus, Sparkles, X } from "lucide-react";
+import { ArrowLeft, ImagePlus, ScanLine, Sparkles, X } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "../ui/Button";
 import { Field, Input, Textarea } from "../ui/Field";
 import { Dropdown } from "../ui/Dropdown";
+import { CameraScanner } from "../ui/CameraScanner";
 import { Spinner } from "../ui/Spinner";
 import { useAnalyzePhotos, useUpload } from "../../lib/upload";
 import {
@@ -108,6 +109,7 @@ export function MaterialForm() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [extraDetails, setExtraDetails] = useState("");
+  const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
     if (!existing) return;
@@ -253,6 +255,18 @@ export function MaterialForm() {
 
   return (
     <div className="mx-auto max-w-5xl">
+      {scanning ? (
+        <CameraScanner
+          onClose={() => setScanning(false)}
+          onDetected={(code) => {
+            // L'étiquette encode l'URL du QR ; on n'en garde que la référence,
+            // qui est ce que porte la fiche.
+            const match = code.trim().match(/([A-Z]{2}-\d{4,})/i);
+            set("qrReference", (match?.[1] ?? code.trim()).toUpperCase());
+            setScanning(false);
+          }}
+        />
+      ) : null}
       <button
         type="button"
         onClick={onClose}
@@ -488,11 +502,22 @@ export function MaterialForm() {
               <Input value={form.location} onChange={(e) => set("location", e.target.value)} />
             </Field>
             <Field label="QR code">
-              <Input
-                value={form.qrReference}
-                onChange={(e) => set("qrReference", e.target.value.toUpperCase())}
-                placeholder="BT-00012"
-              />
+              <div className="flex gap-2">
+                <Input
+                  value={form.qrReference}
+                  onChange={(e) => set("qrReference", e.target.value.toUpperCase())}
+                  placeholder="BT-00012"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="shrink-0 px-3"
+                  onClick={() => setScanning(true)}
+                  aria-label="Scanner le QR code"
+                >
+                  <ScanLine className="h-4 w-4" />
+                </Button>
+              </div>
             </Field>
             <Field label="Statut">
               <Dropdown

@@ -14,6 +14,8 @@
     "@clerk/localizations": "^3.37.7",
     "@e965/xlsx": "^0.20.3",
     "@fontsource-variable/inter": "^5.2.8",
+    "@zxing/browser": "^0.2.1",
+    "@zxing/library": "^0.23.0",
     "clsx": "^2.1.1",
     "convex": "^1.45.0",
     "lucide-react": "^0.469.0",
