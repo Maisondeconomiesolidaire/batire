@@ -1,0 +1,517 @@
+import { useEffect, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
+import { ImagePlus, Sparkles, X } from "lucide-react";
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
+import { Button } from "../ui/Button";
+import { Field, Input, Select, Textarea } from "../ui/Field";
+import { Spinner } from "../ui/Spinner";
+import { useAnalyzePhotos, useUpload } from "../../lib/upload";
+import {
+  CATEGORIES,
+  CONDITIONS,
+  MATERIAL_STATUSES,
+  STATUS_LABELS,
+  UNITS,
+  UNIT_LABELS,
+  type Condition,
+  type MaterialStatus,
+  type Unit,
+} from "../../lib/constants";
+
+type FormState = {
+  title: string;
+  description: string;
+  category: string;
+  subcategory: string;
+  condition: Condition;
+  unit: Unit;
+  quantity: string;
+  price: string;
+  packaging: string;
+  lengthCm: string;
+  widthCm: string;
+  heightCm: string;
+  thicknessMm: string;
+  weightKg: string;
+  brand: string;
+  modelReference: string;
+  material: string;
+  color: string;
+  standards: string;
+  technicalNotes: string;
+  depot: string;
+  location: string;
+  qrReference: string;
+  status: MaterialStatus;
+  published: boolean;
+};
+
+const EMPTY: FormState = {
+  title: "",
+  description: "",
+  category: CATEGORIES[0],
+  subcategory: "",
+  condition: "Bon état",
+  unit: "unité",
+  quantity: "",
+  price: "",
+  packaging: "",
+  lengthCm: "",
+  widthCm: "",
+  heightCm: "",
+  thicknessMm: "",
+  weightKg: "",
+  brand: "",
+  modelReference: "",
+  material: "",
+  color: "",
+  standards: "",
+  technicalNotes: "",
+  depot: "",
+  location: "",
+  qrReference: "",
+  status: "disponible",
+  published: false,
+};
+
+const number = (value: string) => {
+  const parsed = Number(value.replace(",", "."));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+};
+const text = (value: string) => (value.trim() ? value.trim() : undefined);
+
+/**
+ * Fiche d'un matériau.
+ *
+ * Les photos partent d'abord, puis l'IA en déduit la fiche : catégorie, unité
+ * de vente, dimensions, matière, normes. Elle propose, l'équipe dispose — rien
+ * n'est enregistré sans relecture, et le champ « À vérifier » rappelle ce dont
+ * le modèle n'était pas sûr.
+ */
+export function MaterialForm({
+  materialId,
+  onClose,
+}: {
+  materialId?: Id<"btMaterials">;
+  onClose: () => void;
+}) {
+  const existing = useQuery(
+    api.batire.getMaterial,
+    materialId ? { id: materialId } : "skip",
+  );
+  const createMaterial = useMutation(api.batire.createMaterial);
+  const updateMaterial = useMutation(api.batire.updateMaterial);
+  const analyze = useAnalyzePhotos();
+  const { upload, uploading } = useUpload();
+
+  const [form, setForm] = useState<FormState>(EMPTY);
+  const [photos, setPhotos] = useState<Id<"_storage">[]>([]);
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
+  const [aiNotes, setAiNotes] = useState<string | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [extraDetails, setExtraDetails] = useState("");
+
+  useEffect(() => {
+    if (!existing) return;
+    setForm({
+      title: existing.title,
+      description: existing.description,
+      category: existing.category,
+      subcategory: existing.subcategory ?? "",
+      condition: existing.condition,
+      unit: existing.unit,
+      quantity: String(existing.quantity ?? ""),
+      price: String(existing.price ?? ""),
+      packaging: existing.packaging ?? "",
+      lengthCm: existing.lengthCm ? String(existing.lengthCm) : "",
+      widthCm: existing.widthCm ? String(existing.widthCm) : "",
+      heightCm: existing.heightCm ? String(existing.heightCm) : "",
+      thicknessMm: existing.thicknessMm ? String(existing.thicknessMm) : "",
+      weightKg: existing.weightKg ? String(existing.weightKg) : "",
+      brand: existing.brand ?? "",
+      modelReference: existing.modelReference ?? "",
+      material: existing.material ?? "",
+      color: existing.color ?? "",
+      standards: existing.standards ?? "",
+      technicalNotes: existing.technicalNotes ?? "",
+      depot: existing.depot ?? "",
+      location: existing.location ?? "",
+      qrReference: existing.qrReference ?? "",
+      status: existing.status,
+      published: existing.published ?? false,
+    });
+    setPhotos(existing.photos);
+    setPhotoUrls(existing.photoUrls);
+    setAiNotes(existing.aiNotes ?? null);
+  }, [existing]);
+
+  const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
+    setForm((current) => ({ ...current, [key]: value }));
+
+  async function addPhotos(files: FileList | null) {
+    if (!files?.length) return;
+    setError(null);
+    try {
+      const list = Array.from(files).slice(0, 8);
+      setPhotoUrls((current) => [...current, ...list.map((file) => URL.createObjectURL(file))]);
+      const ids = await upload(list);
+      setPhotos((current) => [...current, ...ids]);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Envoi des photos impossible.");
+    }
+  }
+
+  async function runAnalysis() {
+    if (photos.length === 0) {
+      setError("Ajoutez au moins une photo avant de lancer l'analyse.");
+      return;
+    }
+    setAnalyzing(true);
+    setError(null);
+    try {
+      const result = await analyze({ storageIds: photos, extraDetails: extraDetails || undefined });
+      setForm((current) => ({
+        ...current,
+        title: result.title || current.title,
+        description: result.description || current.description,
+        category: result.category || current.category,
+        subcategory: result.subcategory ?? current.subcategory,
+        condition: (result.condition as Condition) || current.condition,
+        unit: (result.unit as Unit) || current.unit,
+        quantity: result.quantity ? String(result.quantity) : current.quantity,
+        price: result.price ? String(result.price) : current.price,
+        packaging: result.packaging ?? current.packaging,
+        lengthCm: result.lengthCm ? String(result.lengthCm) : current.lengthCm,
+        widthCm: result.widthCm ? String(result.widthCm) : current.widthCm,
+        heightCm: result.heightCm ? String(result.heightCm) : current.heightCm,
+        thicknessMm: result.thicknessMm ? String(result.thicknessMm) : current.thicknessMm,
+        weightKg: result.weightKg ? String(result.weightKg) : current.weightKg,
+        brand: result.brand ?? current.brand,
+        modelReference: result.modelReference ?? current.modelReference,
+        material: result.material ?? current.material,
+        color: result.color ?? current.color,
+        standards: result.standards ?? current.standards,
+        technicalNotes: result.technicalNotes ?? current.technicalNotes,
+      }));
+      setAiNotes(result.aiNotes ?? null);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Analyse impossible.");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      const payload = {
+        title: form.title,
+        description: form.description,
+        category: form.category,
+        subcategory: text(form.subcategory),
+        condition: form.condition,
+        unit: form.unit,
+        quantity: Number(form.quantity.replace(",", ".")) || 0,
+        price: Number(form.price.replace(",", ".")) || 0,
+        packaging: text(form.packaging),
+        lengthCm: number(form.lengthCm),
+        widthCm: number(form.widthCm),
+        heightCm: number(form.heightCm),
+        thicknessMm: number(form.thicknessMm),
+        weightKg: number(form.weightKg),
+        brand: text(form.brand),
+        modelReference: text(form.modelReference),
+        material: text(form.material),
+        color: text(form.color),
+        standards: text(form.standards),
+        technicalNotes: text(form.technicalNotes),
+        depot: text(form.depot),
+        location: text(form.location),
+        qrReference: text(form.qrReference)?.toUpperCase(),
+        photos,
+        aiNotes: aiNotes ?? undefined,
+      };
+      if (materialId) {
+        await updateMaterial({
+          id: materialId,
+          ...payload,
+          status: form.status,
+          published: form.published,
+        });
+      } else {
+        await createMaterial({ ...payload, status: form.status, published: form.published });
+      }
+      onClose();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Enregistrement impossible.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4">
+      <div className="mx-auto max-w-4xl rounded-2xl border border-[var(--border)] bg-[var(--card)]">
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--card)] px-6 py-4">
+          <h2 className="text-lg font-bold">
+            {materialId ? "Modifier le matériau" : "Nouveau matériau"}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-2 text-[var(--muted-foreground)] hover:bg-[var(--accent)]"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="space-y-6 p-6">
+          {/* ── Photos et génération ─────────────────────────────────────── */}
+          <section className="space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--muted)] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="font-semibold">Photos</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void runAnalysis()}
+                disabled={analyzing || uploading || photos.length === 0}
+              >
+                {analyzing ? <Spinner className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {analyzing ? "Analyse…" : "Générer la fiche"}
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {photoUrls.map((url, index) => (
+                <div key={url} className="relative">
+                  <img
+                    src={url}
+                    alt=""
+                    className="h-20 w-20 rounded-lg border border-[var(--border)] object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPhotoUrls((current) => current.filter((_, i) => i !== index));
+                      setPhotos((current) => current.filter((_, i) => i !== index));
+                    }}
+                    className="absolute -right-1.5 -top-1.5 rounded-full bg-red-600 p-0.5 text-white"
+                    aria-label="Retirer la photo"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              <label className="flex h-20 w-20 cursor-pointer items-center justify-center rounded-lg border border-dashed border-[var(--border)] text-[var(--muted-foreground)] hover:border-brand-400">
+                {uploading ? <Spinner className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-5 w-5" />}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(event) => void addPhotos(event.target.files)}
+                />
+              </label>
+            </div>
+
+            <Field label="Précisions pour l'IA" hint="ce que la photo ne montre pas">
+              <Input
+                value={extraDetails}
+                onChange={(event) => setExtraDetails(event.target.value)}
+                placeholder="ex. 42 plaques, épaisseur 13 mm, stockées sous abri"
+              />
+            </Field>
+
+            {aiNotes ? (
+              <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
+                À vérifier : {aiNotes}
+              </p>
+            ) : null}
+          </section>
+
+          {/* ── Identité ─────────────────────────────────────────────────── */}
+          <section className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <Field label="Titre" required>
+                <Input value={form.title} onChange={(e) => set("title", e.target.value)} />
+              </Field>
+            </div>
+            <div className="sm:col-span-2">
+              <Field label="Description" required>
+                <Textarea
+                  value={form.description}
+                  onChange={(e) => set("description", e.target.value)}
+                />
+              </Field>
+            </div>
+            <Field label="Catégorie" required>
+              <Select value={form.category} onChange={(e) => set("category", e.target.value)}>
+                {CATEGORIES.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Sous-catégorie">
+              <Input value={form.subcategory} onChange={(e) => set("subcategory", e.target.value)} />
+            </Field>
+          </section>
+
+          {/* ── Vente ────────────────────────────────────────────────────── */}
+          <section className="grid gap-4 rounded-2xl border border-[var(--border)] p-4 sm:grid-cols-3">
+            <div className="sm:col-span-3">
+              <p className="text-sm font-semibold">Vente</p>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                L'unité commande le prix et le stock : « 45 € » n'a de sens qu'avec « le m² ».
+              </p>
+            </div>
+            <Field label="Unité de vente" required>
+              <Select value={form.unit} onChange={(e) => set("unit", e.target.value as Unit)}>
+                {UNITS.map((value) => (
+                  <option key={value} value={value}>
+                    {value} — {UNIT_LABELS[value]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label={`Prix par ${form.unit}`} required>
+              <Input inputMode="decimal" value={form.price} onChange={(e) => set("price", e.target.value)} />
+            </Field>
+            <Field label={`Stock (${form.unit})`} required>
+              <Input
+                inputMode="decimal"
+                value={form.quantity}
+                onChange={(e) => set("quantity", e.target.value)}
+              />
+            </Field>
+            <Field label="État" required>
+              <Select
+                value={form.condition}
+                onChange={(e) => set("condition", e.target.value as Condition)}
+              >
+                {CONDITIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Conditionnement" hint="palette de 60 sacs…">
+              <Input value={form.packaging} onChange={(e) => set("packaging", e.target.value)} />
+            </Field>
+            <Field label="Poids (kg)">
+              <Input inputMode="decimal" value={form.weightKg} onChange={(e) => set("weightKg", e.target.value)} />
+            </Field>
+          </section>
+
+          {/* ── Caractéristiques ─────────────────────────────────────────── */}
+          <section className="grid gap-4 rounded-2xl border border-[var(--border)] p-4 sm:grid-cols-4">
+            <p className="text-sm font-semibold sm:col-span-4">Caractéristiques</p>
+            <Field label="Longueur (cm)">
+              <Input inputMode="decimal" value={form.lengthCm} onChange={(e) => set("lengthCm", e.target.value)} />
+            </Field>
+            <Field label="Largeur (cm)">
+              <Input inputMode="decimal" value={form.widthCm} onChange={(e) => set("widthCm", e.target.value)} />
+            </Field>
+            <Field label="Hauteur (cm)">
+              <Input inputMode="decimal" value={form.heightCm} onChange={(e) => set("heightCm", e.target.value)} />
+            </Field>
+            <Field label="Épaisseur (mm)">
+              <Input
+                inputMode="decimal"
+                value={form.thicknessMm}
+                onChange={(e) => set("thicknessMm", e.target.value)}
+              />
+            </Field>
+            <Field label="Matière">
+              <Input value={form.material} onChange={(e) => set("material", e.target.value)} />
+            </Field>
+            <Field label="Couleur">
+              <Input value={form.color} onChange={(e) => set("color", e.target.value)} />
+            </Field>
+            <Field label="Marque">
+              <Input value={form.brand} onChange={(e) => set("brand", e.target.value)} />
+            </Field>
+            <Field label="Référence fabricant">
+              <Input
+                value={form.modelReference}
+                onChange={(e) => set("modelReference", e.target.value)}
+              />
+            </Field>
+            <div className="sm:col-span-2">
+              <Field label="Normes et certifications" hint="CE, NF, classe d'emploi…">
+                <Input value={form.standards} onChange={(e) => set("standards", e.target.value)} />
+              </Field>
+            </div>
+            <div className="sm:col-span-2">
+              <Field label="Caractéristiques techniques" hint="lambda, section, résistance…">
+                <Input
+                  value={form.technicalNotes}
+                  onChange={(e) => set("technicalNotes", e.target.value)}
+                />
+              </Field>
+            </div>
+          </section>
+
+          {/* ── Stockage et publication ──────────────────────────────────── */}
+          <section className="grid gap-4 rounded-2xl border border-[var(--border)] p-4 sm:grid-cols-3">
+            <p className="text-sm font-semibold sm:col-span-3">Dépôt et mise en ligne</p>
+            <Field label="Dépôt">
+              <Input value={form.depot} onChange={(e) => set("depot", e.target.value)} />
+            </Field>
+            <Field label="Emplacement" hint="allée B3, extérieur…">
+              <Input value={form.location} onChange={(e) => set("location", e.target.value)} />
+            </Field>
+            <Field label="QR code" hint="référence imprimée">
+              <Input
+                value={form.qrReference}
+                onChange={(e) => set("qrReference", e.target.value.toUpperCase())}
+                placeholder="BT-00012"
+              />
+            </Field>
+            <Field label="Statut">
+              <Select
+                value={form.status}
+                onChange={(e) => set("status", e.target.value as MaterialStatus)}
+              >
+                {MATERIAL_STATUSES.map((value) => (
+                  <option key={value} value={value}>
+                    {STATUS_LABELS[value]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <label className="flex items-center gap-2 self-end pb-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.published}
+                onChange={(event) => set("published", event.target.checked)}
+                className="h-4 w-4 accent-[var(--color-brand-600)]"
+              />
+              Publier dans la boutique
+            </label>
+          </section>
+
+          {error ? <p className="text-sm text-red-500">{error}</p> : null}
+
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={onClose}>
+              Annuler
+            </Button>
+            <Button
+              onClick={() => void save()}
+              disabled={saving || uploading || !form.title.trim() || !form.description.trim()}
+            >
+              {saving ? "Enregistrement…" : materialId ? "Enregistrer" : "Créer le matériau"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

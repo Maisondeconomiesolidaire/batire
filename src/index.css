@@ -1,0 +1,50 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+/* Le CRM bascule en sombre via `.dark` ; la boutique reste claire. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* Palette Bâtire : un ocre de chantier, lisible sur fond clair comme sombre. */
+  --color-brand-50: #fdf6ec;
+  --color-brand-100: #f9e7cd;
+  --color-brand-200: #f1cb98;
+  --color-brand-300: #e6ab62;
+  --color-brand-400: #db8f3a;
+  --color-brand-500: #c9741f;
+  --color-brand-600: #a75c18;
+  --color-brand-700: #834717;
+  --color-brand-800: #653818;
+  --color-brand-900: #4f2d16;
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #18181b;
+  --card: #ffffff;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --border: #e4e4e7;
+  --accent: #fafafa;
+  color-scheme: light;
+}
+
+.dark {
+  --background: #0b0b0e;
+  --foreground: #fafafa;
+  --card: #17171b;
+  --muted: #1f1f24;
+  --muted-foreground: #a1a1aa;
+  --border: #2a2a31;
+  --accent: #202027;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
