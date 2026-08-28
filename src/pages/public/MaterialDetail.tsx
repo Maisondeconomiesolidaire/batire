@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { useAction, useQuery } from "convex/react";
-import { ArrowLeft, CheckCircle2, MapPin, PackageOpen, QrCode as QrIcon } from "lucide-react";
+import { useAction, useMutation, useQuery } from "convex/react";
+import { useUser } from "@clerk/clerk-react";
+import { ArrowLeft, CheckCircle2, MapPin, MessageSquare, PackageOpen, QrCode as QrIcon } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { FullSpinner } from "../../components/ui/Spinner";
@@ -155,12 +156,15 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
               </p>
             </div>
           ) : (
+            <>
             <BuyBlock
               materialId={material._id}
               unit={material.unit}
               price={material.price}
               stock={material.quantity}
             />
+            <AskBlock materialId={material._id} />
+            </>
           )}
         </div>
       </div>
@@ -342,6 +346,76 @@ function CheckoutReturn({
       <Link to="/" className="mt-6 inline-block text-sm font-semibold text-brand-700">
         Retour au catalogue
       </Link>
+    </div>
+  );
+}
+
+/** Question à l'équipe sur ce matériau : ouvre un fil dans la messagerie. */
+function AskBlock({ materialId }: { materialId: Id<"btMaterials"> }) {
+  const { isSignedIn } = useUser();
+  const send = useMutation(api.batire.sendMessage);
+  const [open, setOpen] = useState(false);
+  const [body, setBody] = useState("");
+  const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  if (!isSignedIn) {
+    return (
+      <p className="mt-4 text-center text-sm text-[var(--muted-foreground)]">
+        Connectez-vous pour poser une question à l'équipe.
+      </p>
+    );
+  }
+
+  if (sent) {
+    return (
+      <p className="mt-4 rounded-xl bg-[var(--muted)] px-4 py-3 text-center text-sm">
+        Message envoyé. La réponse arrivera dans votre messagerie.
+      </p>
+    );
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-3 text-sm font-medium transition hover:border-brand-400"
+      >
+        <MessageSquare className="h-4 w-4" /> Poser une question
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-4 space-y-2 rounded-2xl border border-[var(--border)] p-4">
+      <textarea
+        rows={3}
+        autoFocus
+        value={body}
+        onChange={(event) => setBody(event.target.value)}
+        placeholder="Disponibilité, découpe, enlèvement…"
+        className="w-full resize-none rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm outline-none focus:border-brand-500"
+      />
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" onClick={() => setOpen(false)}>
+          Annuler
+        </Button>
+        <Button
+          disabled={sending || !body.trim()}
+          onClick={async () => {
+            setSending(true);
+            try {
+              await send({ materialId, body });
+              setSent(true);
+            } finally {
+              setSending(false);
+            }
+          }}
+        >
+          Envoyer
+        </Button>
+      </div>
     </div>
   );
 }

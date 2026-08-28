@@ -1,19 +1,21 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "convex/react";
-import { Boxes, Eye, EyeOff, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Boxes, Download, Eye, EyeOff, Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "../../components/ui/Button";
-import { Input, Select } from "../../components/ui/Field";
+import { Input } from "../../components/ui/Field";
+import { Dropdown } from "../../components/ui/Dropdown";
 import { FullSpinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { StatusBadge } from "../../components/ui/Badge";
-import { MaterialForm } from "../../components/crm/MaterialForm";
 import { formatStock, formatUnitPrice } from "../../lib/format";
 import { MATERIAL_STATUSES, STATUS_LABELS, type MaterialStatus } from "../../lib/constants";
 import { useAccess, canAccess } from "../../lib/access";
+import { exportMaterials, parseWorkbook } from "../../lib/excel";
 
 export function Materiaux() {
+  const navigate = useNavigate();
   const access = useAccess();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"" | MaterialStatus>("");
@@ -22,9 +24,10 @@ export function Materiaux() {
     status: status || undefined,
   });
   const setPublished = useMutation(api.batire.setMaterialPublished);
+  const importMaterials = useMutation(api.batire.importMaterials);
+  const [importing, setImporting] = useState(false);
+  const [importReport, setImportReport] = useState<string | null>(null);
   const remove = useMutation(api.batire.removeMaterial);
-  const [editing, setEditing] = useState<Id<"btMaterials"> | null>(null);
-  const [creating, setCreating] = useState(false);
 
   const canCreate = canAccess(access, "batire:materiaux", "create");
   const canUpdate = canAccess(access, "batire:materiaux", "update");
@@ -40,12 +43,68 @@ export function Materiaux() {
             dépôt
           </p>
         </div>
-        {canCreate ? (
-          <Button onClick={() => setCreating(true)}>
-            <Plus className="h-4 w-4" /> Nouveau matériau
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => exportMaterials(materials ?? [])}
+            disabled={!materials?.length}
+          >
+            <Download className="h-4 w-4" /> Exporter
           </Button>
-        ) : null}
+          {canCreate ? (
+            <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-5 text-sm font-semibold transition hover:bg-[var(--accent)]">
+              <Upload className="h-4 w-4" />
+              {importing ? "Import…" : "Importer"}
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv,.ods"
+                className="hidden"
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (!file) return;
+                  setImporting(true);
+                  setImportReport(null);
+                  try {
+                    const rows = await parseWorkbook(file);
+                    if (rows.length === 0) {
+                      setImportReport("Aucune ligne exploitable : vérifiez les en-têtes.");
+                      return;
+                    }
+                    const result = await importMaterials({ rows });
+                    setImportReport(
+                      `${result.imported} matériau${result.imported > 1 ? "x" : ""} importé${result.imported > 1 ? "s" : ""} en brouillon` +
+                        (result.errors.length
+                          ? ` · ${result.errors.length} ligne(s) écartée(s) : ${result.errors
+                              .slice(0, 3)
+                              .map((error) => `L${error.line} ${error.reason}`)
+                              .join(", ")}`
+                          : ""),
+                    );
+                  } catch (caught) {
+                    setImportReport(
+                      caught instanceof Error ? caught.message : "Import impossible.",
+                    );
+                  } finally {
+                    setImporting(false);
+                  }
+                }}
+              />
+            </label>
+          ) : null}
+          {canCreate ? (
+            <Button onClick={() => navigate("/crm/materiaux/nouveau")}>
+              <Plus className="h-4 w-4" /> Nouveau matériau
+            </Button>
+          ) : null}
+        </div>
       </div>
+
+      {importReport ? (
+        <p className="rounded-xl border border-[var(--border)] bg-[var(--muted)] px-4 py-3 text-sm">
+          {importReport}
+        </p>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-[240px] flex-1">
@@ -57,18 +116,16 @@ export function Materiaux() {
             className="pl-9"
           />
         </div>
-        <Select
+        <Dropdown
+          className="w-52"
           value={status}
-          onChange={(event) => setStatus(event.target.value as MaterialStatus | "")}
-          className="w-48"
-        >
-          <option value="">Tous les statuts</option>
-          {MATERIAL_STATUSES.map((value) => (
-            <option key={value} value={value}>
-              {STATUS_LABELS[value]}
-            </option>
-          ))}
-        </Select>
+          onChange={(value) => setStatus(value as MaterialStatus | "")}
+          placeholder="Tous les statuts"
+          options={[
+            { value: "", label: "Tous les statuts" },
+            ...MATERIAL_STATUSES.map((value) => ({ value, label: STATUS_LABELS[value] })),
+          ]}
+        />
       </div>
 
       {materials === undefined ? (
@@ -79,7 +136,7 @@ export function Materiaux() {
           title="Aucun matériau"
           action={
             canCreate ? (
-              <Button onClick={() => setCreating(true)}>
+              <Button onClick={() => navigate("/crm/materiaux/nouveau")}>
                 <Plus className="h-4 w-4" /> Nouveau matériau
               </Button>
             ) : undefined
@@ -159,7 +216,7 @@ export function Materiaux() {
                       {canUpdate ? (
                         <button
                           type="button"
-                          onClick={() => setEditing(material._id)}
+                          onClick={() => navigate(`/crm/materiaux/${material._id}`)}
                           className="rounded-lg p-2 text-[var(--muted-foreground)] hover:bg-[var(--accent)]"
                           aria-label="Modifier"
                         >
@@ -189,8 +246,6 @@ export function Materiaux() {
         </div>
       )}
 
-      {creating ? <MaterialForm onClose={() => setCreating(false)} /> : null}
-      {editing ? <MaterialForm materialId={editing} onClose={() => setEditing(null)} /> : null}
     </div>
   );
 }

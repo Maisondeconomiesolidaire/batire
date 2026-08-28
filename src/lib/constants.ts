@@ -1,19 +1,5 @@
 /** Référentiel Bâtire, à garder identique à celui du backend. */
-
-export const CATEGORIES = [
-  "Gros œuvre et maçonnerie",
-  "Charpente et couverture",
-  "Menuiseries et fermetures",
-  "Isolation",
-  "Revêtements sols et murs",
-  "Plomberie et sanitaire",
-  "Électricité et éclairage",
-  "Chauffage et ventilation",
-  "Quincaillerie et fixations",
-  "Peinture et droguerie",
-  "Aménagement extérieur",
-  "Outillage et équipement",
-] as const;
+export { CATEGORIES, TAXONOMY, subcategoriesOf } from "./taxonomy";
 
 /** Unité de vente : elle commande le prix et le stock. */
 export const UNITS = ["unité", "m²", "m³", "ml", "kg", "tonne", "palette", "sac", "lot"] as const;
@@ -66,7 +52,6 @@ export const OUTCOME_LABELS: Record<RequestOutcome, string> = {
   perdue: "Perdue",
 };
 
-export type Category = (typeof CATEGORIES)[number];
 export type Unit = (typeof UNITS)[number];
 export type Condition = (typeof CONDITIONS)[number];
 export type MaterialStatus = (typeof MATERIAL_STATUSES)[number];

@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery } from "convex/react";
-import { ImagePlus, Sparkles, X } from "lucide-react";
+import { ArrowLeft, ImagePlus, Sparkles, X } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "../ui/Button";
-import { Field, Input, Select, Textarea } from "../ui/Field";
+import { Field, Input, Textarea } from "../ui/Field";
+import { Dropdown } from "../ui/Dropdown";
 import { Spinner } from "../ui/Spinner";
 import { useAnalyzePhotos, useUpload } from "../../lib/upload";
 import {
-  CATEGORIES,
   CONDITIONS,
   MATERIAL_STATUSES,
   STATUS_LABELS,
@@ -18,6 +19,7 @@ import {
   type MaterialStatus,
   type Unit,
 } from "../../lib/constants";
+import { CATEGORIES, subcategoriesOf } from "../../lib/taxonomy";
 
 type FormState = {
   title: string;
@@ -50,7 +52,7 @@ type FormState = {
 const EMPTY: FormState = {
   title: "",
   description: "",
-  category: CATEGORIES[0],
+  category: CATEGORIES[0]!,
   subcategory: "",
   condition: "Bon état",
   unit: "unité",
@@ -81,13 +83,12 @@ const number = (value: string) => {
 };
 const text = (value: string) => (value.trim() ? value.trim() : undefined);
 
-export function MaterialForm({
-  materialId,
-  onClose,
-}: {
-  materialId?: Id<"btMaterials">;
-  onClose: () => void;
-}) {
+export function MaterialForm() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const materialId = id ? (id as Id<"btMaterials">) : undefined;
+  const onClose = () => navigate("/crm");
+
   const existing = useQuery(
     api.batire.getMaterial,
     materialId ? { id: materialId } : "skip",
@@ -246,19 +247,19 @@ export function MaterialForm({
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4">
-      <div className="mx-auto max-w-4xl rounded-2xl border border-[var(--border)] bg-[var(--card)]">
-        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--card)] px-6 py-4">
-          <h2 className="text-lg font-bold">
+    <div className="mx-auto max-w-5xl">
+      <button
+        type="button"
+        onClick={onClose}
+        className="mb-4 inline-flex items-center gap-2 text-sm text-[var(--muted-foreground)] hover:text-brand-400"
+      >
+        <ArrowLeft className="h-4 w-4" /> Retour au catalogue
+      </button>
+      <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)]">
+        <div className="border-b border-[var(--border)] px-6 py-5">
+          <h1 className="text-xl font-bold">
             {materialId ? "Modifier le matériau" : "Nouveau matériau"}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-2 text-[var(--muted-foreground)] hover:bg-[var(--accent)]"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          </h1>
         </div>
 
         <div className="space-y-6 p-6">
@@ -340,16 +341,26 @@ export function MaterialForm({
               </Field>
             </div>
             <Field label="Catégorie" required>
-              <Select value={form.category} onChange={(e) => set("category", e.target.value)}>
-                {CATEGORIES.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </Select>
+              <Dropdown
+                searchable
+                value={form.category}
+                onChange={(value) => {
+                  // La sous-catégorie appartient à sa catégorie : la garder
+                  // après un changement laisserait une fiche incohérente.
+                  set("category", value);
+                  set("subcategory", "");
+                }}
+                options={CATEGORIES.map((value) => ({ value, label: value }))}
+              />
             </Field>
             <Field label="Sous-catégorie">
-              <Input value={form.subcategory} onChange={(e) => set("subcategory", e.target.value)} />
+              <Dropdown
+                searchable
+                value={form.subcategory}
+                onChange={(value) => set("subcategory", value)}
+                placeholder="Toutes"
+                options={subcategoriesOf(form.category).map((value) => ({ value, label: value }))}
+              />
             </Field>
           </section>
 
@@ -357,13 +368,15 @@ export function MaterialForm({
           <section className="grid gap-4 rounded-2xl border border-[var(--border)] p-4 sm:grid-cols-3">
             <p className="text-sm font-semibold sm:col-span-3">Vente</p>
             <Field label="Unité de vente" required>
-              <Select value={form.unit} onChange={(e) => set("unit", e.target.value as Unit)}>
-                {UNITS.map((value) => (
-                  <option key={value} value={value}>
-                    {value} — {UNIT_LABELS[value]}
-                  </option>
-                ))}
-              </Select>
+              <Dropdown
+                value={form.unit}
+                onChange={(value) => set("unit", value as Unit)}
+                options={UNITS.map((value) => ({
+                  value,
+                  label: value,
+                  hint: UNIT_LABELS[value],
+                }))}
+              />
             </Field>
             <Field label={`Prix par ${form.unit}`} required>
               <Input inputMode="decimal" value={form.price} onChange={(e) => set("price", e.target.value)} />
@@ -376,16 +389,11 @@ export function MaterialForm({
               />
             </Field>
             <Field label="État" required>
-              <Select
+              <Dropdown
                 value={form.condition}
-                onChange={(e) => set("condition", e.target.value as Condition)}
-              >
-                {CONDITIONS.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </Select>
+                onChange={(value) => set("condition", value as Condition)}
+                options={CONDITIONS.map((value) => ({ value, label: value }))}
+              />
             </Field>
             <Field label="Conditionnement">
               <Input value={form.packaging} onChange={(e) => set("packaging", e.target.value)} />
@@ -461,16 +469,14 @@ export function MaterialForm({
               />
             </Field>
             <Field label="Statut">
-              <Select
+              <Dropdown
                 value={form.status}
-                onChange={(e) => set("status", e.target.value as MaterialStatus)}
-              >
-                {MATERIAL_STATUSES.map((value) => (
-                  <option key={value} value={value}>
-                    {STATUS_LABELS[value]}
-                  </option>
-                ))}
-              </Select>
+                onChange={(value) => set("status", value as MaterialStatus)}
+                options={MATERIAL_STATUSES.map((value) => ({
+                  value,
+                  label: STATUS_LABELS[value],
+                }))}
+              />
             </Field>
             <label className="flex items-center gap-2 self-end pb-2 text-sm">
               <input
