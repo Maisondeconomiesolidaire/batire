@@ -70,9 +70,11 @@ export function Dropdown({
     <div
       ref={containerRef}
       className={cn("relative", className)}
-      // Un `<label>` parent réexpédie tout clic vers le premier élément
-      // « étiquetable » qu'il contient — ici le bouton d'ouverture. Sans cette
-      // barrière, choisir une option rouvrait la liste dans la foulée.
+      // Ceinture et bretelles : si un `<label>` venait un jour entourer cette
+      // liste, il réexpédierait le clic vers le bouton d'ouverture et la
+      // rouvrirait. `preventDefault` annule cette réexpédition, qui est un
+      // comportement par défaut du navigateur — `stopPropagation` seul
+      // interviendrait trop tard.
       onClick={(event) => event.stopPropagation()}
     >
       <button
@@ -149,7 +151,12 @@ export function Dropdown({
                     role="option"
                     aria-selected={option.value === value}
                     onMouseEnter={() => setHighlight(index)}
-                    onClick={() => pick(option.value)}
+                    onClick={(event) => {
+                      // Annule la réexpédition d'un éventuel <label> parent,
+                      // qui rouvrirait la liste juste après l'avoir fermée.
+                      event.preventDefault();
+                      pick(option.value);
+                    }}
                     className={cn(
                       "flex w-full items-start gap-2 px-3.5 py-2.5 text-left text-sm transition",
                       index === highlight ? "bg-brand-500/10" : "hover:bg-[var(--accent)]",

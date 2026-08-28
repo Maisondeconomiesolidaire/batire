@@ -15,8 +15,12 @@ export function Field({
   required?: boolean;
   children: ReactNode;
 }) {
+  // Volontairement un <div> et non un <label> : un label réexpédie tout clic
+  // vers le premier élément « étiquetable » qu'il contient. Avec une liste
+  // déroulante maison, choisir une option rouvrait aussitôt le menu — et la
+  // parade côté React arrive trop tard, le navigateur ayant déjà agi.
   return (
-    <label className="block">
+    <div className="block">
       <span className="mb-1.5 flex items-baseline gap-1.5 text-sm font-medium text-[var(--foreground)]">
         {label}
         {required ? <span className="text-brand-600">*</span> : null}
@@ -25,7 +29,7 @@ export function Field({
         ) : null}
       </span>
       {children}
-    </label>
+    </div>
   );
 }
 
