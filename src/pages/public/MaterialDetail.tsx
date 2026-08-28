@@ -242,6 +242,9 @@ function BuyBlock({
 
   const quantity = Number(form.quantity.replace(",", ".")) || 0;
   const total = quantity > 0 ? quantity * price : 0;
+  // Le pas suit l'unité : on n'achète pas 0,5 porte, mais 0,5 tonne se conçoit.
+  const step = ["unité", "palette", "sac", "lot"].includes(unit) ? 1 : 1;
+  const round = (value: number) => Math.round(value * 100) / 100;
 
   async function pay() {
     setSaving(true);
@@ -266,16 +269,70 @@ function BuyBlock({
     }
   }
 
+  const quantityPicker = (
+    <div className="space-y-2">
+      <p className="text-sm font-medium text-[var(--foreground)]">Quantité ({unit})</p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => set("quantity")(String(Math.max(step, round(quantity - step))))}
+          disabled={quantity <= step}
+          className="h-11 w-11 shrink-0 rounded-xl border border-[var(--border)] text-lg font-bold transition hover:bg-[var(--muted)] disabled:opacity-40"
+          aria-label="Diminuer la quantité"
+        >
+          −
+        </button>
+        <Input
+          inputMode="decimal"
+          value={form.quantity}
+          onChange={(e) => set("quantity")(e.target.value)}
+          className="text-center"
+        />
+        <button
+          type="button"
+          onClick={() => set("quantity")(String(round(Math.min(stock, quantity + step))))}
+          disabled={quantity >= stock}
+          className="h-11 w-11 shrink-0 rounded-xl border border-[var(--border)] text-lg font-bold transition hover:bg-[var(--muted)] disabled:opacity-40"
+          aria-label="Augmenter la quantité"
+        >
+          +
+        </button>
+      </div>
+      <p className="text-xs text-[var(--muted-foreground)]">
+        {formatStock(stock, unit)} disponible{stock > 1 ? "s" : ""}
+      </p>
+
+      <div className="flex items-baseline justify-between rounded-xl bg-[var(--muted)] px-3 py-2.5">
+        <span className="text-sm text-[var(--muted-foreground)]">Total</span>
+        <span className="text-lg font-bold text-brand-700">{formatPrice(total)}</span>
+      </div>
+
+      {quantity > stock ? (
+        <p className="text-sm text-amber-700">
+          Stock insuffisant : {formatStock(stock, unit)} au maximum.
+        </p>
+      ) : null}
+    </div>
+  );
+
   if (!open) {
     return (
-      <Button className="w-full" onClick={() => setOpen(true)} disabled={stock <= 0}>
-        {stock > 0 ? "Acheter" : "Épuisé"}
-      </Button>
+      <div className="space-y-3">
+        {quantityPicker}
+        <Button
+          className="w-full"
+          onClick={() => setOpen(true)}
+          disabled={stock <= 0 || quantity <= 0 || quantity > stock}
+        >
+          {stock > 0 ? "Acheter" : "Épuisé"}
+        </Button>
+      </div>
     );
   }
 
   return (
     <div className="space-y-3">
+      {quantityPicker}
       <div className="grid gap-3">
         <Field label="Prénom" required>
           <Input value={form.firstName} onChange={(e) => set("firstName")(e.target.value)} />
@@ -292,25 +349,8 @@ function BuyBlock({
         <Field label="Entreprise">
           <Input value={form.company} onChange={(e) => set("company")(e.target.value)} />
         </Field>
-        <Field label={`Quantité (${unit})`} required>
-          <Input
-            inputMode="decimal"
-            value={form.quantity}
-            onChange={(e) => set("quantity")(e.target.value)}
-          />
-        </Field>
       </div>
 
-      <div className="flex items-baseline justify-between rounded-xl bg-[var(--muted)] px-4 py-3">
-        <span className="text-sm text-[var(--muted-foreground)]">Total</span>
-        <span className="text-xl font-bold text-brand-700">{formatPrice(total)}</span>
-      </div>
-
-      {quantity > stock ? (
-        <p className="text-sm text-amber-700">
-          Stock disponible : {formatStock(stock, unit)}.
-        </p>
-      ) : null}
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       <div className="flex justify-end gap-2">

@@ -6,6 +6,7 @@ import { Boutique } from "./pages/public/Boutique";
 import { MaterialDetail } from "./pages/public/MaterialDetail";
 import { QrLanding } from "./pages/public/QrLanding";
 import { MegaMenu } from "./components/public/MegaMenu";
+import { UpdateAvailableBanner } from "./components/UpdateAvailableBanner";
 import { CrmLayout } from "./components/crm/CrmLayout";
 import { Materiaux } from "./pages/crm/Materiaux";
 import { MaterialForm } from "./components/crm/MaterialForm";
@@ -16,7 +17,9 @@ import { QrCodes } from "./pages/crm/QrCodes";
 
 export default function App() {
   return (
-    <Routes>
+    <>
+      <UpdateAvailableBanner appName="Bâtire" />
+      <Routes>
       <Route element={<PublicShell />}>
         <Route path="/" element={<BoutiqueRoute />} />
         <Route path="/materiau/:id" element={<MaterialDetail />} />
@@ -38,8 +41,9 @@ export default function App() {
         <Route path="qr" element={<QrCodes />} />
       </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }
 
