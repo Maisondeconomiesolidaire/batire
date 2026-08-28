@@ -432,7 +432,14 @@ export function MaterialForm() {
               <Dropdown
                 value={form.condition}
                 onChange={(value) => set("condition", value as Condition)}
-                options={CONDITIONS.map((value) => ({ value, label: value }))}
+                // Une fiche ancienne garde son état jusqu'à ce qu'on en
+                // choisisse un autre : le masquer afficherait un champ vide.
+                options={[
+                  ...CONDITIONS.map((value) => ({ value, label: value })),
+                  ...(CONDITIONS.includes(form.condition as never)
+                    ? []
+                    : [{ value: form.condition, label: `${form.condition} (ancien)` }]),
+                ]}
               />
             </Field>
             <Field label="Conditionnement">

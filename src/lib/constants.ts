@@ -20,9 +20,10 @@ export const UNIT_LABELS: Record<Unit, string> = {
 export const CONDITIONS = [
   "Neuf",
   "Déstockage",
+  "Reconditionné",
   "Très bon état",
   "Bon état",
-  "À rénover",
+  "À reconditionner",
 ] as const;
 
 export const MATERIAL_STATUSES = ["brouillon", "disponible", "reserve", "vendu"] as const;
@@ -53,7 +54,10 @@ export const OUTCOME_LABELS: Record<RequestOutcome, string> = {
 };
 
 export type Unit = (typeof UNITS)[number];
-export type Condition = (typeof CONDITIONS)[number];
+/** Valeur retirée du référentiel mais encore portée par d'anciennes fiches. */
+export const LEGACY_CONDITIONS = ["À rénover"] as const;
+
+export type Condition = (typeof CONDITIONS)[number] | (typeof LEGACY_CONDITIONS)[number];
 export type MaterialStatus = (typeof MATERIAL_STATUSES)[number];
 export type RequestType = (typeof REQUEST_TYPES)[number];
 export type RequestOutcome = (typeof REQUEST_OUTCOMES)[number];
