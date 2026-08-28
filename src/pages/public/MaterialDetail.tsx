@@ -12,7 +12,6 @@ import { Pill } from "../../components/ui/Badge";
 import { formatDimensions, formatStock, formatUnitPrice } from "../../lib/format";
 import { UNIT_LABELS } from "../../lib/constants";
 
-/** Fiche d'un matériau, avec sa demande de devis ou de réservation. */
 export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
   const { id } = useParams<{ id: string }>();
   const material = useQuery(
@@ -28,7 +27,6 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
         <EmptyState
           icon={<PackageOpen className="h-10 w-10" />}
           title="Matériau introuvable"
-          description="Il a peut-être été vendu ou retiré du catalogue."
           action={
             <Link to={kiosk ? "/kiosk" : "/"} className="text-sm font-semibold text-brand-700">
               Retour au catalogue
@@ -143,12 +141,7 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
           {kiosk ? (
             <div className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--muted)] p-5 text-center">
               <Ruler className="mx-auto h-6 w-6 text-brand-600" />
-              <p className="mt-2 font-semibold text-[var(--foreground)]">
-                Adressez-vous au comptoir
-              </p>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                Un membre de l'équipe vous renseigne sur les quantités et prépare votre commande.
-              </p>
+              <p className="mt-2 font-semibold text-[var(--foreground)]">Renseignements au comptoir</p>
             </div>
           ) : (
             <RequestBlock materialId={material._id} title={material.title} unit={material.unit} />
@@ -159,7 +152,6 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
   );
 }
 
-/** Demande de devis ou de réservation portant sur ce matériau. */
 function RequestBlock({
   materialId,
   title,
@@ -224,9 +216,7 @@ function RequestBlock({
         <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
         <div>
           <p className="font-semibold text-emerald-900">Demande envoyée</p>
-          <p className="mt-1 text-sm text-emerald-800">
-            L'équipe vous recontacte pour confirmer la disponibilité et le prix.
-          </p>
+          <p className="mt-1 text-sm text-emerald-800">Nous vous recontactons rapidement.</p>
         </div>
       </div>
     );
@@ -272,7 +262,6 @@ function RequestBlock({
           rows={3}
           value={form.message}
           onChange={(e) => set("message")(e.target.value)}
-          placeholder="Chantier, délai souhaité, contraintes de transport…"
         />
       </Field>
       {error ? <p className="text-sm text-red-600">{error}</p> : null}

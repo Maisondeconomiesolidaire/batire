@@ -17,7 +17,6 @@ import {
 } from "../../lib/constants";
 import { useAccess, canAccess } from "../../lib/access";
 
-/** Devis, réservations et propositions de reprise reçus du site. */
 export function Demandes() {
   const access = useAccess();
   const [outcome, setOutcome] = useState<"" | RequestOutcome>("");
@@ -54,7 +53,6 @@ export function Demandes() {
         <EmptyState
           icon={<ClipboardList className="h-10 w-10" />}
           title="Aucune demande"
-          description="Les devis, réservations et propositions de reprise arriveront ici."
         />
       ) : (
         <div className="space-y-3">

@@ -1,8 +1,4 @@
-/**
- * Référentiel Bâtire. Les valeurs doivent rester identiques à celles du
- * backend (`convex/batire.ts` et le schéma) : ce sont elles qui valident les
- * fiches, et l'IA n'a le droit de choisir que dedans.
- */
+/** Référentiel Bâtire, à garder identique à celui du backend. */
 
 export const CATEGORIES = [
   "Gros œuvre et maçonnerie",
@@ -19,13 +15,10 @@ export const CATEGORIES = [
   "Outillage et équipement",
 ] as const;
 
-/**
- * Unité de vente. Elle donne son sens au prix comme au stock : « 12 » ne veut
- * rien dire, « 12 m² » ou « 12 tonnes » désignent deux marchandises.
- */
+/** Unité de vente : elle commande le prix et le stock. */
 export const UNITS = ["unité", "m²", "m³", "ml", "kg", "tonne", "palette", "sac", "lot"] as const;
 
-/** Ce que l'unité signifie, affiché en aide de saisie et dans la boutique. */
+
 export const UNIT_LABELS: Record<Unit, string> = {
   "unité": "à l'unité",
   "m²": "au mètre carré",

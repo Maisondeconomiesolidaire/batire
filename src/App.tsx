@@ -1,29 +1,21 @@
 import { Link, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { Boutique } from "./pages/public/Boutique";
 import { MaterialDetail } from "./pages/public/MaterialDetail";
-import { Reprise } from "./pages/public/Reprise";
 import { QrLanding } from "./pages/public/QrLanding";
 import { CrmLayout } from "./components/crm/CrmLayout";
 import { Materiaux } from "./pages/crm/Materiaux";
 import { Demandes } from "./pages/crm/Demandes";
 import { QrCodes } from "./pages/crm/QrCodes";
 
-/**
- * Trois espaces, comme la Recyclerie : la boutique publique, la vitrine
- * kiosque (le même catalogue, sans achat ni formulaire, sur l'écran du dépôt)
- * et le CRM de l'équipe.
- */
 export default function App() {
   return (
     <Routes>
       <Route element={<PublicShell />}>
         <Route path="/" element={<Boutique />} />
         <Route path="/materiau/:id" element={<MaterialDetail />} />
-        <Route path="/reprise" element={<Reprise />} />
         <Route path="/qr/:reference" element={<QrLanding />} />
       </Route>
 
-      {/* Vitrine du dépôt : pas d'en-tête cliquable, pas de formulaire. */}
       <Route path="/kiosk" element={<Boutique kiosk />} />
       <Route path="/kiosk/materiau/:id" element={<MaterialDetail kiosk />} />
 
@@ -50,12 +42,6 @@ function PublicShell() {
             <Link to="/" className="text-[var(--muted-foreground)] hover:text-brand-700">
               Catalogue
             </Link>
-            <Link
-              to="/reprise"
-              className="rounded-xl bg-brand-600 px-4 py-2 font-semibold text-white transition hover:bg-brand-700"
-            >
-              Proposer des matériaux
-            </Link>
           </nav>
         </div>
       </header>
@@ -64,7 +50,7 @@ function PublicShell() {
 
       <footer className="mt-16 border-t border-[var(--border)] py-8">
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 text-sm text-[var(--muted-foreground)] sm:px-6 lg:px-8">
-          <p>Bâtire — matériaux de construction de réemploi.</p>
+          <p>Bâtire</p>
           <Link to="/crm" className="hover:text-brand-700">
             Espace équipe
           </Link>

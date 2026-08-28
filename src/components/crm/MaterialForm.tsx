@@ -81,14 +81,6 @@ const number = (value: string) => {
 };
 const text = (value: string) => (value.trim() ? value.trim() : undefined);
 
-/**
- * Fiche d'un matériau.
- *
- * Les photos partent d'abord, puis l'IA en déduit la fiche : catégorie, unité
- * de vente, dimensions, matière, normes. Elle propose, l'équipe dispose — rien
- * n'est enregistré sans relecture, et le champ « À vérifier » rappelle ce dont
- * le modèle n'était pas sûr.
- */
 export function MaterialForm({
   materialId,
   onClose,
@@ -318,11 +310,10 @@ export function MaterialForm({
               </label>
             </div>
 
-            <Field label="Précisions pour l'IA" hint="ce que la photo ne montre pas">
+            <Field label="Précisions pour l'IA">
               <Input
                 value={extraDetails}
                 onChange={(event) => setExtraDetails(event.target.value)}
-                placeholder="ex. 42 plaques, épaisseur 13 mm, stockées sous abri"
               />
             </Field>
 
@@ -364,12 +355,7 @@ export function MaterialForm({
 
           {/* ── Vente ────────────────────────────────────────────────────── */}
           <section className="grid gap-4 rounded-2xl border border-[var(--border)] p-4 sm:grid-cols-3">
-            <div className="sm:col-span-3">
-              <p className="text-sm font-semibold">Vente</p>
-              <p className="text-xs text-[var(--muted-foreground)]">
-                L'unité commande le prix et le stock : « 45 € » n'a de sens qu'avec « le m² ».
-              </p>
-            </div>
+            <p className="text-sm font-semibold sm:col-span-3">Vente</p>
             <Field label="Unité de vente" required>
               <Select value={form.unit} onChange={(e) => set("unit", e.target.value as Unit)}>
                 {UNITS.map((value) => (
@@ -401,7 +387,7 @@ export function MaterialForm({
                 ))}
               </Select>
             </Field>
-            <Field label="Conditionnement" hint="palette de 60 sacs…">
+            <Field label="Conditionnement">
               <Input value={form.packaging} onChange={(e) => set("packaging", e.target.value)} />
             </Field>
             <Field label="Poids (kg)">
@@ -444,12 +430,12 @@ export function MaterialForm({
               />
             </Field>
             <div className="sm:col-span-2">
-              <Field label="Normes et certifications" hint="CE, NF, classe d'emploi…">
+              <Field label="Normes et certifications">
                 <Input value={form.standards} onChange={(e) => set("standards", e.target.value)} />
               </Field>
             </div>
             <div className="sm:col-span-2">
-              <Field label="Caractéristiques techniques" hint="lambda, section, résistance…">
+              <Field label="Caractéristiques techniques">
                 <Input
                   value={form.technicalNotes}
                   onChange={(e) => set("technicalNotes", e.target.value)}
@@ -464,10 +450,10 @@ export function MaterialForm({
             <Field label="Dépôt">
               <Input value={form.depot} onChange={(e) => set("depot", e.target.value)} />
             </Field>
-            <Field label="Emplacement" hint="allée B3, extérieur…">
+            <Field label="Emplacement">
               <Input value={form.location} onChange={(e) => set("location", e.target.value)} />
             </Field>
-            <Field label="QR code" hint="référence imprimée">
+            <Field label="QR code">
               <Input
                 value={form.qrReference}
                 onChange={(e) => set("qrReference", e.target.value.toUpperCase())}

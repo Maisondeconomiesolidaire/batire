@@ -3,23 +3,18 @@
 Neuvième application de l'écosystème Groupe MES. Même trio que la Recyclerie —
 boutique en ligne, vitrine kiosque, CRM — appliqué aux matériaux du bâtiment.
 
-## Ce qui change par rapport à Recycapp
+## Modèle
 
-Un objet de brocante se compte à l'unité. Un matériau se vend **au m², au m³, à
-la tonne, au mètre linéaire, à la palette** : l'unité de vente commande le prix
-et le stock, et c'est le champ le plus structurant de la fiche. S'y ajoutent
+Un matériau se vend au m², au m³, à la tonne, au mètre linéaire ou à la
+palette : l'unité de vente commande le prix et le stock. La fiche porte aussi
 les dimensions, l'épaisseur, la matière, les normes, le conditionnement et
-l'emplacement au dépôt.
-
-L'IA remplit toute la fiche à partir des photos, unité de vente comprise, et
-signale ce qu'un humain doit vérifier avant publication.
+l'emplacement au dépôt. L'IA la remplit à partir des photos.
 
 ## Espaces
 
 | Route | Pour qui |
 |---|---|
 | `/` | Boutique publique : catalogue, filtres, fiche matériau, demande de devis |
-| `/reprise` | Proposition de reprise avec photos, pour les artisans |
 | `/kiosk` | Vitrine du dépôt : même catalogue, sans formulaire |
 | `/qr/:reference` | Atterrissage d'un QR code collé sur un matériau |
 | `/crm` | Équipe : matériaux, demandes, QR codes |

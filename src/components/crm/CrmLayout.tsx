@@ -11,7 +11,6 @@ const NAV = [
   { to: "/crm/qr", label: "QR codes", icon: QrCode, page: "batire:materiaux" },
 ];
 
-/** Coquille du CRM : navigation, session Clerk et garde de permissions. */
 export function CrmLayout() {
   const access = useAccess();
 
@@ -62,9 +61,7 @@ export function CrmLayout() {
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-10 text-center">
             <ShieldAlert className="mx-auto h-8 w-8 text-brand-500" />
             <p className="mt-3 font-semibold">Espace réservé à l'équipe</p>
-            <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-              Connectez-vous avec votre compte habituel de l'écosystème.
-            </p>
+
           </div>
         </SignedOut>
         <SignedIn>
@@ -75,8 +72,7 @@ export function CrmLayout() {
               <ShieldAlert className="mx-auto h-8 w-8 text-amber-500" />
               <p className="mt-3 font-semibold">Accès refusé</p>
               <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                Votre compte n'a pas encore de droits sur Bâtire. Demandez-les depuis la page Admin
-                de Mes Outils.
+                Votre compte n'a pas de droits sur Bâtire.
               </p>
             </div>
           ) : (

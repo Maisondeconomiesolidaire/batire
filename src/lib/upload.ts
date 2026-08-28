@@ -3,13 +3,7 @@ import { useCallback, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 
-/**
- * Envoi de photos vers le stockage Convex.
- *
- * Les fichiers partent un par un : sur un dépôt, la connexion est souvent
- * médiocre, et un lot entier qui échoue à cause d'une seule photo ferait
- * recommencer toute la saisie.
- */
+/** Envoi de photos vers le stockage Convex, une par une. */
 export function useUpload() {
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
   const [uploading, setUploading] = useState(false);

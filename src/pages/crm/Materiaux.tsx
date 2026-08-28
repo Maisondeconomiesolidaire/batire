@@ -13,7 +13,6 @@ import { formatStock, formatUnitPrice } from "../../lib/format";
 import { MATERIAL_STATUSES, STATUS_LABELS, type MaterialStatus } from "../../lib/constants";
 import { useAccess, canAccess } from "../../lib/access";
 
-/** Catalogue interne : l'inventaire du dépôt, publié ou non. */
 export function Materiaux() {
   const access = useAccess();
   const [search, setSearch] = useState("");
@@ -78,7 +77,6 @@ export function Materiaux() {
         <EmptyState
           icon={<Boxes className="h-10 w-10" />}
           title="Aucun matériau"
-          description="Créez une fiche : l'IA la remplit à partir des photos, vous n'avez qu'à vérifier."
           action={
             canCreate ? (
               <Button onClick={() => setCreating(true)}>

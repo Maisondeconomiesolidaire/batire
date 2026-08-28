@@ -22,10 +22,6 @@ export type PublicMaterial = {
   photoUrls: string[];
 };
 
-/**
- * Carte du catalogue. Le prix ne se lit jamais sans son unité, et le stock non
- * plus : « 45 € » et « 12 » ne veulent rien dire pour un matériau.
- */
 export function MaterialCard({ material, to }: { material: PublicMaterial; to: string }) {
   const dimensions = formatDimensions(material);
   return (

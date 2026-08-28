@@ -1,3 +1,4 @@
+import { useAuth } from "@clerk/clerk-react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 
@@ -9,9 +10,18 @@ export type CrmAccess = {
   grants: Array<{ pageKey: string; actions: string[] }>;
 };
 
-/** Droits de l'utilisateur connecté, tels que Mes Outils les administre. */
+/**
+ * Droits de l'utilisateur connecté.
+ *
+ * `myAccess` refuse les requêtes anonymes : on attend donc que Clerk confirme
+ * la session, sinon la page lève une erreur serveur avant même d'afficher
+ * l'écran de connexion.
+ */
 export function useAccess() {
-  return useQuery(api.permissions.myAccess, {}) as CrmAccess | undefined;
+  const { isLoaded, isSignedIn } = useAuth();
+  return useQuery(api.permissions.myAccess, isLoaded && isSignedIn ? {} : "skip") as
+    | CrmAccess
+    | undefined;
 }
 
 export function canAccess(access: CrmAccess | undefined, pageKey: string, action = "read") {

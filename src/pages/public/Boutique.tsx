@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
-import { Link } from "react-router-dom";
-import { PackageOpen, Search, SlidersHorizontal } from "lucide-react";
+import { PackageOpen, Search } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { MaterialCard, type PublicMaterial } from "../../components/public/MaterialCard";
 import { FullSpinner } from "../../components/ui/Spinner";
@@ -9,12 +8,7 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { Input, Select } from "../../components/ui/Field";
 import { CONDITIONS, UNITS, type Condition, type Unit } from "../../lib/constants";
 
-/**
- * Boutique en ligne : le catalogue des matériaux disponibles.
- *
- * Les filtres portent sur ce qui décide vraiment d'un achat de matériaux —
- * la catégorie, l'unité de vente et le dépôt où il faut aller les chercher.
- */
+/** Catalogue public des matériaux disponibles. */
 export function Boutique({ kiosk = false }: { kiosk?: boolean }) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
@@ -42,10 +36,11 @@ export function Boutique({ kiosk = false }: { kiosk?: boolean }) {
         <h1 className="text-3xl font-black tracking-tight text-[var(--foreground)] sm:text-4xl">
           {kiosk ? "Nos matériaux en dépôt" : "Matériaux de réemploi"}
         </h1>
-        <p className="mt-2 max-w-2xl text-[var(--muted-foreground)]">
-          Isolation, menuiseries, charpente, sanitaire, revêtements : des matériaux déposés,
-          contrôlés et vendus à prix de réemploi. {facets ? `${facets.total} références en stock.` : ""}
-        </p>
+        {facets ? (
+          <p className="mt-2 text-[var(--muted-foreground)]">
+            {facets.total} référence{facets.total > 1 ? "s" : ""} en stock
+          </p>
+        ) : null}
       </header>
 
       <div className="mb-6 grid gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -100,12 +95,8 @@ export function Boutique({ kiosk = false }: { kiosk?: boolean }) {
       ) : materials.length === 0 ? (
         <EmptyState
           icon={<PackageOpen className="h-10 w-10" />}
-          title={filtersActive ? "Aucun résultat" : "Catalogue en cours de constitution"}
-          description={
-            filtersActive
-              ? "Aucun matériau ne correspond à ces critères. Élargissez la recherche."
-              : "Les matériaux mis en ligne par l'équipe apparaîtront ici."
-          }
+          title={filtersActive ? "Aucun résultat" : "Catalogue vide"}
+          description={filtersActive ? "Aucun matériau ne correspond à ces critères." : undefined}
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -119,28 +110,6 @@ export function Boutique({ kiosk = false }: { kiosk?: boolean }) {
         </div>
       )}
 
-      {!kiosk ? (
-        <section className="mt-12 rounded-2xl border border-[var(--border)] bg-[var(--muted)] p-6 sm:p-8">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="max-w-xl">
-              <h2 className="flex items-center gap-2 text-xl font-bold text-[var(--foreground)]">
-                <SlidersHorizontal className="h-5 w-5 text-brand-600" />
-                Vous avez des matériaux à céder ?
-              </h2>
-              <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-                Fin de chantier, surplus de commande, dépose soignée : envoyez-nous quelques photos
-                et les quantités, nous revenons vers vous avec une proposition de reprise.
-              </p>
-            </div>
-            <Link
-              to="/reprise"
-              className="inline-flex h-11 items-center rounded-xl bg-brand-600 px-5 text-sm font-semibold text-white transition hover:bg-brand-700"
-            >
-              Proposer des matériaux
-            </Link>
-          </div>
-        </section>
-      ) : null}
     </div>
   );
 }

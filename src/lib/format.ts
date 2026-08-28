@@ -4,12 +4,12 @@ export function formatPrice(amount: number) {
   return amount.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 }
 
-/** « 45,00 € / m² » — le prix d'un matériau ne se lit pas sans son unité. */
+
 export function formatUnitPrice(price: number, unit: Unit) {
   return `${formatPrice(price)} / ${unit}`;
 }
 
-/** « 120 m² disponibles », « 3 palettes disponibles ». */
+
 export function formatStock(quantity: number, unit: Unit) {
   const rounded = Number.isInteger(quantity) ? quantity : Math.round(quantity * 100) / 100;
   const value = rounded.toLocaleString("fr-FR");
@@ -34,7 +34,7 @@ export function formatDateTime(timestamp: number) {
   });
 }
 
-/** Dimensions lisibles : on n'affiche que ce qui est renseigné. */
+
 export function formatDimensions(material: {
   lengthCm?: number;
   widthCm?: number;

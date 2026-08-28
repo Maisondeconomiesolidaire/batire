@@ -10,13 +10,6 @@ import { Pill } from "../../components/ui/Badge";
 import { QrCode } from "../../components/ui/QrCode";
 import { useAccess, canAccess } from "../../lib/access";
 
-/**
- * QR codes imprimés à l'avance.
- *
- * On les colle sur les matériaux à leur arrivée au dépôt, avant même d'avoir
- * créé la fiche : la référence imprimée sert ensuite de lien entre l'objet
- * physique et son annonce.
- */
 export function QrCodes() {
   const access = useAccess();
   const codes = useQuery(api.batire.listQrCodes, {});
@@ -32,10 +25,6 @@ export function QrCodes() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">QR codes</h1>
-          <p className="text-sm text-[var(--muted-foreground)]">
-            Imprimez des étiquettes vierges, collez-les sur les matériaux, puis saisissez la
-            référence dans la fiche.
-          </p>
         </div>
         <div className="flex items-end gap-2 print:hidden">
           <Input
@@ -71,7 +60,6 @@ export function QrCodes() {
         <EmptyState
           icon={<QrIcon className="h-10 w-10" />}
           title="Aucun QR code"
-          description="Générez un premier lot d'étiquettes à coller sur les matériaux."
         />
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
