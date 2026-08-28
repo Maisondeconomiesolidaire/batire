@@ -1,3 +1,5 @@
+import { useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { PackageOpen, SlidersHorizontal, X } from "lucide-react";
@@ -17,9 +19,33 @@ export function Boutique({
   kiosk?: boolean;
   search?: string;
 }) {
-  const [category, setCategory] = useState("");
-  const [family, setFamily] = useState("");
-  const [subcategory, setSubcategory] = useState("");
+  // L'arborescence vit dans l'URL : le méga-menu y renvoie, et un lien vers
+  // une famille se partage tel quel.
+  const [params, setParams] = useSearchParams();
+  const category = params.get("categorie") ?? "";
+  const family = params.get("famille") ?? "";
+  const subcategory = params.get("sousfamille") ?? "";
+
+  const setBranch = useCallback(
+    (next: { category?: string; family?: string; subcategory?: string }) => {
+      const updated = new URLSearchParams(params);
+      for (const [key, value] of [
+        ["categorie", next.category],
+        ["famille", next.family],
+        ["sousfamille", next.subcategory],
+      ] as const) {
+        if (value) updated.set(key, value);
+        else updated.delete(key);
+      }
+      setParams(updated, { replace: true });
+    },
+    [params, setParams],
+  );
+
+  const setCategory = (value: string) => setBranch({ category: value });
+  const setFamily = (value: string) => setBranch({ category, family: value });
+  const setSubcategory = (value: string) =>
+    setBranch({ category, family, subcategory: value });
   const [unit, setUnit] = useState<"" | Unit>("");
   const [condition, setCondition] = useState<"" | Condition>("");
   const [depot, setDepot] = useState("");

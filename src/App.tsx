@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Link, Navigate, Outlet, Route, Routes, useOutletContext } from "react-router-dom";
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-react";
-import { MessageSquare, Search } from "lucide-react";
+import { Menu, MessageSquare, Search } from "lucide-react";
 import { Boutique } from "./pages/public/Boutique";
 import { MaterialDetail } from "./pages/public/MaterialDetail";
 import { QrLanding } from "./pages/public/QrLanding";
+import { MegaMenu } from "./components/public/MegaMenu";
 import { CrmLayout } from "./components/crm/CrmLayout";
 import { Materiaux } from "./pages/crm/Materiaux";
 import { MaterialForm } from "./components/crm/MaterialForm";
@@ -42,10 +43,20 @@ export default function App() {
 
 function PublicShell() {
   const [search, setSearch] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
   return (
     <div className="min-h-screen bg-[var(--background)]">
       <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--background)]/95 backdrop-blur">
         <div className="flex w-full items-center gap-4 px-4 py-3 sm:px-6">
+          <button
+            type="button"
+            onClick={() => setMenuOpen(true)}
+            className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition hover:bg-[var(--muted)]"
+          >
+            <Menu className="h-5 w-5" />
+            <span className="hidden sm:inline">Menu</span>
+          </button>
+
           <Link to="/" className="shrink-0 text-xl font-black tracking-tight">
             Bâtire<span className="text-brand-600">.</span>
           </Link>
@@ -80,6 +91,8 @@ function PublicShell() {
           </div>
         </div>
       </header>
+
+      <MegaMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
 
       <Outlet context={{ search }} />
 
