@@ -6,6 +6,8 @@ import { Boutique } from "./pages/public/Boutique";
 import { MaterialDetail } from "./pages/public/MaterialDetail";
 import { QrLanding } from "./pages/public/QrLanding";
 import { MegaMenu } from "./components/public/MegaMenu";
+import { PAGE_X } from "./lib/constants";
+import { cn } from "./lib/cn";
 import { UpdateAvailableBanner } from "./components/UpdateAvailableBanner";
 import { CrmLayout } from "./components/crm/CrmLayout";
 import { Materiaux } from "./pages/crm/Materiaux";
@@ -53,11 +55,11 @@ function PublicShell() {
   return (
     <div className="min-h-screen bg-[var(--background)]">
       <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--background)]/95 backdrop-blur">
-        <div className="flex w-full items-center gap-4 px-4 py-3 sm:px-6">
+        <div className={cn("flex w-full items-center gap-4 py-3", PAGE_X)}>
           <button
             type="button"
             onClick={() => setMenuOpen(true)}
-            className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition hover:bg-[var(--muted)]"
+            className="-ml-3 inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition hover:bg-[var(--muted)]"
           >
             <Menu className="h-5 w-5" />
             <span className="hidden sm:inline">Menu</span>
@@ -103,7 +105,7 @@ function PublicShell() {
       <Outlet context={{ search }} />
 
       <footer className="mt-16 border-t border-[var(--border)] py-8">
-        <div className="flex w-full flex-wrap items-center justify-between gap-3 px-4 text-sm text-[var(--muted-foreground)] sm:px-6">
+        <div className={cn("flex w-full flex-wrap items-center justify-between gap-3 text-sm text-[var(--muted-foreground)]", PAGE_X)}>
           <p>Bâtire</p>
           <Link to="/crm" className="hover:text-brand-700">
             Espace équipe
@@ -131,11 +133,11 @@ function KioskShell() {
   return (
     <div className="min-h-screen bg-[var(--background)]">
       <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--background)]/95 backdrop-blur">
-        <div className="flex w-full items-center gap-4 px-4 py-3 sm:px-6">
+        <div className={cn("flex w-full items-center gap-4 py-3", PAGE_X)}>
           <button
             type="button"
             onClick={() => setMenuOpen(true)}
-            className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition hover:bg-[var(--muted)]"
+            className="-ml-3 inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition hover:bg-[var(--muted)]"
           >
             <Menu className="h-5 w-5" />
             <span className="hidden sm:inline">Menu</span>

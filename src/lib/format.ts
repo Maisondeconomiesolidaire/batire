@@ -10,14 +10,19 @@ export function formatUnitPrice(price: number, unit: Unit) {
 }
 
 
+/** Le nom de l'unité accordé en nombre : 1 palette, 2 palettes, 3 tonnes. */
+export function unitLabel(quantity: number, unit: Unit) {
+  const plural = quantity > 1;
+  if (unit === "unité") return plural ? "unités" : "unité";
+  if (unit === "palette") return plural ? "palettes" : "palette";
+  if (unit === "sac") return plural ? "sacs" : "sac";
+  if (unit === "lot") return plural ? "lots" : "lot";
+  return unit;
+}
+
 export function formatStock(quantity: number, unit: Unit) {
   const rounded = Number.isInteger(quantity) ? quantity : Math.round(quantity * 100) / 100;
-  const value = rounded.toLocaleString("fr-FR");
-  if (unit === "unité") return `${value} ${rounded > 1 ? "unités" : "unité"}`;
-  if (unit === "palette") return `${value} ${rounded > 1 ? "palettes" : "palette"}`;
-  if (unit === "sac") return `${value} ${rounded > 1 ? "sacs" : "sac"}`;
-  if (unit === "lot") return `${value} ${rounded > 1 ? "lots" : "lot"}`;
-  return `${value} ${unit}`;
+  return `${rounded.toLocaleString("fr-FR")} ${unitLabel(rounded, unit)}`;
 }
 
 export function formatDate(timestamp: number) {

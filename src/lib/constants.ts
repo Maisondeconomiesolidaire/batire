@@ -61,3 +61,10 @@ export type Condition = (typeof CONDITIONS)[number] | (typeof LEGACY_CONDITIONS)
 export type MaterialStatus = (typeof MATERIAL_STATUSES)[number];
 export type RequestType = (typeof REQUEST_TYPES)[number];
 export type RequestOutcome = (typeof REQUEST_OUTCOMES)[number];
+
+/**
+ * La gouttière commune à l'en-tête et aux pages : elles s'alignent au pixel
+ * parce qu'elles lisent la même valeur, pas parce qu'on a recopié la même
+ * classe à six endroits.
+ */
+export const PAGE_X = "px-4 sm:px-6";

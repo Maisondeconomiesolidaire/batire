@@ -8,7 +8,7 @@ import { MaterialCard, type PublicMaterial } from "../../components/public/Mater
 import { FullSpinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Dropdown } from "../../components/ui/Dropdown";
-import { CONDITIONS, UNITS, type Condition, type Unit } from "../../lib/constants";
+import { PAGE_X, CONDITIONS, UNITS, type Condition, type Unit } from "../../lib/constants";
 import { cn } from "../../lib/cn";
 
 export function Boutique({
@@ -76,7 +76,7 @@ export function Boutique({
   }
 
   return (
-    <div className="w-full px-4 py-6 sm:px-6">
+    <div className={cn("w-full py-6", PAGE_X)}>
       {/* Fil d'Ariane : le seul repère de navigation depuis que le catalogue
           se parcourt par le menu. Chaque niveau remonte d'un cran. */}
       {category ? (

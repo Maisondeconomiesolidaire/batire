@@ -4,6 +4,8 @@ import { api } from "../../../convex/_generated/api";
 import { FullSpinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { QrCode as QrIcon } from "lucide-react";
+import { PAGE_X } from "../../lib/constants";
+import { cn } from "../../lib/cn";
 
 export function QrLanding() {
   const { reference } = useParams<{ reference: string }>();
@@ -12,7 +14,7 @@ export function QrLanding() {
   if (material === undefined) return <FullSpinner label="Lecture du QR code…" />;
   if (material === null) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-20">
+      <div className={cn("mx-auto max-w-2xl py-20", PAGE_X)}>
         <EmptyState
           icon={<QrIcon className="h-10 w-10" />}
           title="Étiquette non attribuée"

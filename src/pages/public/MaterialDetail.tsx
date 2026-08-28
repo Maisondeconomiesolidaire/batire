@@ -9,9 +9,10 @@ import { FullSpinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Button } from "../../components/ui/Button";
 import { Field, Input } from "../../components/ui/Field";
-import { formatDimensions, formatPrice, formatStock, formatUnitPrice } from "../../lib/format";
-import { UNIT_LABELS, type Unit } from "../../lib/constants";
+import { formatDimensions, formatPrice, formatStock, formatUnitPrice, unitLabel } from "../../lib/format";
+import { PAGE_X, UNIT_LABELS, type Unit } from "../../lib/constants";
 import { QrCode } from "../../components/ui/QrCode";
+import { cn } from "../../lib/cn";
 
 export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
   const { id } = useParams<{ id: string }>();
@@ -32,7 +33,7 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
   if (material === undefined) return <FullSpinner label="Chargement du matériau…" />;
   if (material === null) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-16">
+      <div className={cn("mx-auto max-w-3xl py-16", PAGE_X)}>
         <EmptyState
           icon={<PackageOpen className="h-10 w-10" />}
           title="Matériau introuvable"
@@ -65,7 +66,7 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
   ];
 
   return (
-    <div className="w-full px-4 py-5 sm:px-6">
+    <div className={cn("w-full py-5", PAGE_X)}>
       {/* Fil d'Ariane, jusqu'au produit courant. */}
       <nav className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
         <Link to={base || "/"} className="hover:text-brand-700">
@@ -240,11 +241,29 @@ function BuyBlock({
   const set = (key: keyof typeof form) => (value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
 
+  const [capped, setCapped] = useState(false);
+
   const quantity = Number(form.quantity.replace(",", ".")) || 0;
   const total = quantity > 0 ? quantity * price : 0;
-  // Le pas suit l'unité : on n'achète pas 0,5 porte, mais 0,5 tonne se conçoit.
-  const step = ["unité", "palette", "sac", "lot"].includes(unit) ? 1 : 1;
+  const step = 1;
   const round = (value: number) => Math.round(value * 100) / 100;
+
+  /**
+   * La saisie est bornée au stock : plutôt que d'accepter un nombre qu'on
+   * refuserait au moment de payer, on le ramène au maximum disponible et on
+   * le dit.
+   */
+  function setQuantity(raw: string) {
+    const cleaned = raw.replace(/[^\d.,]/g, "");
+    const parsed = Number(cleaned.replace(",", "."));
+    if (Number.isFinite(parsed) && parsed > stock) {
+      setCapped(true);
+      set("quantity")(String(round(stock)));
+      return;
+    }
+    setCapped(false);
+    set("quantity")(cleaned);
+  }
 
   async function pay() {
     setSaving(true);
@@ -271,26 +290,32 @@ function BuyBlock({
 
   const quantityPicker = (
     <div className="space-y-2">
-      <p className="text-sm font-medium text-[var(--foreground)]">Quantité ({unit})</p>
+      <p className="text-sm font-medium text-[var(--foreground)]">Quantité</p>
       <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={() => set("quantity")(String(Math.max(step, round(quantity - step))))}
+          onClick={() => setQuantity(String(Math.max(step, round(quantity - step))))}
           disabled={quantity <= step}
           className="h-11 w-11 shrink-0 rounded-xl border border-[var(--border)] text-lg font-bold transition hover:bg-[var(--muted)] disabled:opacity-40"
           aria-label="Diminuer la quantité"
         >
           −
         </button>
-        <Input
-          inputMode="decimal"
-          value={form.quantity}
-          onChange={(e) => set("quantity")(e.target.value)}
-          className="text-center"
-        />
+        {/* L'unité vit dans le champ, à droite du nombre : on lit « 10 tonnes »
+            et non un 10 dont il faudrait deviner ce qu'il compte. */}
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3.5 py-2.5 text-sm transition focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20">
+          <input
+            inputMode="decimal"
+            value={form.quantity}
+            onChange={(event) => setQuantity(event.target.value)}
+            aria-label="Quantité"
+            className="w-full min-w-0 flex-1 bg-transparent text-right font-semibold text-[var(--foreground)] outline-none"
+          />
+          <span className="shrink-0 text-[var(--muted-foreground)]">{unitLabel(quantity, unit)}</span>
+        </div>
         <button
           type="button"
-          onClick={() => set("quantity")(String(round(Math.min(stock, quantity + step))))}
+          onClick={() => setQuantity(String(round(Math.min(stock, quantity + step))))}
           disabled={quantity >= stock}
           className="h-11 w-11 shrink-0 rounded-xl border border-[var(--border)] text-lg font-bold transition hover:bg-[var(--muted)] disabled:opacity-40"
           aria-label="Augmenter la quantité"
@@ -298,18 +323,16 @@ function BuyBlock({
           +
         </button>
       </div>
-      <p className="text-xs text-[var(--muted-foreground)]">
-        {formatStock(stock, unit)} disponible{stock > 1 ? "s" : ""}
-      </p>
+      <p className="text-xs text-[var(--muted-foreground)]">{formatStock(stock, unit)} en stock</p>
 
       <div className="flex items-baseline justify-between rounded-xl bg-[var(--muted)] px-3 py-2.5">
         <span className="text-sm text-[var(--muted-foreground)]">Total</span>
         <span className="text-lg font-bold text-brand-700">{formatPrice(total)}</span>
       </div>
 
-      {quantity > stock ? (
+      {capped ? (
         <p className="text-sm text-amber-700">
-          Stock insuffisant : {formatStock(stock, unit)} au maximum.
+          Il ne reste que {formatStock(stock, unit)} : la quantité a été ramenée au maximum.
         </p>
       ) : null}
     </div>
@@ -405,7 +428,7 @@ function CheckoutReturn({
 
   if (error) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-20 text-center">
+      <div className={cn("mx-auto max-w-2xl py-20 text-center", PAGE_X)}>
         <h1 className="text-2xl font-bold text-[var(--foreground)]">Commande non finalisée</h1>
         <p className="mt-2 text-[var(--muted-foreground)]">{error}</p>
         <Link to="/" className="mt-6 inline-block text-sm font-semibold text-brand-700">
@@ -418,7 +441,7 @@ function CheckoutReturn({
   if (!reference) return <FullSpinner label="Confirmation du paiement…" />;
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-20 text-center">
+    <div className={cn("mx-auto max-w-2xl py-20 text-center", PAGE_X)}>
       <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
       <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">Paiement confirmé</h1>
       <p className="mt-2 text-[var(--muted-foreground)]">

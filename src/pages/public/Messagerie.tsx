@@ -8,6 +8,7 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { Button } from "../../components/ui/Button";
 import { formatDateTime } from "../../lib/format";
 import { cn } from "../../lib/cn";
+import { PAGE_X } from "../../lib/constants";
 
 /** Fils du client connecté, un par matériau discuté. */
 export function Messagerie() {
@@ -38,7 +39,7 @@ export function Messagerie() {
 
   if (!isSignedIn) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-16">
+      <div className={cn("mx-auto max-w-3xl py-16", PAGE_X)}>
         <EmptyState
           icon={<MessageSquare className="h-10 w-10" />}
           title="Connectez-vous"
@@ -51,7 +52,7 @@ export function Messagerie() {
   if (messages === undefined) return <FullSpinner label="Chargement des messages…" />;
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+    <div className={cn("w-full py-6", PAGE_X)}>
       <h1 className="mb-5 text-2xl font-black tracking-tight">Messagerie</h1>
 
       {threads.length === 0 ? (
