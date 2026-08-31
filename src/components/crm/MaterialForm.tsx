@@ -284,18 +284,7 @@ export function MaterialForm() {
         <div className="space-y-6 p-6">
           {/* ── Photos et génération ─────────────────────────────────────── */}
           <section className="space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--muted)] p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="font-semibold">Photos</p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void runAnalysis()}
-                disabled={analyzing || uploading || photos.length === 0}
-              >
-                {analyzing ? <Spinner className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {analyzing ? "Analyse…" : "Générer la fiche"}
-              </Button>
-            </div>
+            <p className="font-semibold">Photos</p>
 
             <div className="flex flex-wrap gap-2">
               {photoUrls.map((url, index) => (
@@ -330,12 +319,35 @@ export function MaterialForm() {
               </label>
             </div>
 
-            <Field label="Précisions pour l'IA">
-              <Input
+            {/* Ce que l'équipe sait et que la photo ne montre pas. Ces mots
+                priment sur la lecture des photos et servent aussi à ranger le
+                matériau dans l'arborescence : c'est le moyen le plus direct de
+                corriger l'IA avant qu'elle ne se trompe. */}
+            <Field label="Mots-clés et précisions pour l'IA">
+              <Textarea
+                rows={2}
                 value={extraDetails}
                 onChange={(event) => setExtraDetails(event.target.value)}
+                placeholder="placo hydrofuge BA13, palette de 40 plaques, angles épaufrés"
               />
+              <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                Écrivez en style chantier, l'IA comprend. Ce que vous notez ici fait foi :
+                l'IA le reprend tel quel et s'en sert pour ranger le matériau.
+              </p>
             </Field>
+
+            {/* Le bouton vient APRÈS les précisions, et non dans l'en-tête de
+                la section : posé à côté du titre, il se cliquait avant même
+                d'avoir vu le champ, et l'analyse partait sans ce que l'équipe
+                avait à dire. */}
+            <Button
+              variant="outline"
+              onClick={() => void runAnalysis()}
+              disabled={analyzing || uploading || photos.length === 0}
+            >
+              {analyzing ? <Spinner className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {analyzing ? "Analyse…" : "Générer la fiche"}
+            </Button>
 
             {aiNotes ? (
               <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
