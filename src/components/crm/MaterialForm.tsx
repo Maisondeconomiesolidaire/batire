@@ -1,18 +1,25 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft, ImagePlus, ScanLine, Sparkles, X } from "lucide-react";
+import { ArrowLeft, FileText, ImagePlus, ScanLine, Sparkles, X } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "../ui/Button";
 import { Field, Input, Textarea } from "../ui/Field";
 import { Dropdown } from "../ui/Dropdown";
+import { MultiPicker } from "../ui/MultiPicker";
+import { StarRating } from "../ui/StarRating";
 import { CameraScanner } from "../ui/CameraScanner";
 import { Spinner } from "../ui/Spinner";
 import { useAnalyzePhotos, useUpload } from "../../lib/upload";
 import {
   CONDITIONS,
+  DIMENSION_UNITS,
+  MATERIALS,
   MATERIAL_STATUSES,
+  ORIGINS,
+  POTENTIALS,
+  PROFILES,
   STATUS_LABELS,
   UNITS,
   UNIT_LABELS,
@@ -49,6 +56,32 @@ type FormState = {
   qrReference: string;
   status: MaterialStatus;
   published: boolean;
+
+  /* Fiche réemploi */
+  reference: string;
+  origin: string;
+  profiles: string[];
+  materials: string[];
+  diameterCm: string;
+  dimensionUnit: string;
+  availableFrom: string;
+  availableUntil: string;
+  reusePotential: number;
+  repurposePotential: number;
+  recyclingPotential: number;
+  recoveryPotential: number;
+  disposalPotential: number;
+  assemblyMode: string;
+  transportTerms: string;
+  packagingTerms: string;
+  storageTerms: string;
+  accessTerms: string;
+  hazardousSubstances: string;
+  typology: string;
+  wasteCode: string;
+  carbonFootprintKg: string;
+  landfillCost: string;
+  internalNote: string;
 };
 
 const EMPTY: FormState = {
@@ -78,6 +111,32 @@ const EMPTY: FormState = {
   qrReference: "",
   status: "disponible",
   published: false,
+
+  reference: "",
+  origin: "",
+  profiles: [],
+  materials: [],
+  diameterCm: "",
+  // Les fiches déjà saisies ont toujours voulu dire des centimètres.
+  dimensionUnit: "cm",
+  availableFrom: "",
+  availableUntil: "",
+  reusePotential: 0,
+  repurposePotential: 0,
+  recyclingPotential: 0,
+  recoveryPotential: 0,
+  disposalPotential: 0,
+  assemblyMode: "",
+  transportTerms: "",
+  packagingTerms: "",
+  storageTerms: "",
+  accessTerms: "",
+  hazardousSubstances: "",
+  typology: "",
+  wasteCode: "",
+  carbonFootprintKg: "",
+  landfillCost: "",
+  internalNote: "",
 };
 
 const number = (value: string) => {
@@ -85,6 +144,14 @@ const number = (value: string) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 };
 const text = (value: string) => (value.trim() ? value.trim() : undefined);
+/** Champ date natif ⇄ horodatage. Midi, pour ne pas glisser d'un jour au fuseau. */
+const toDay = (ms?: number | null) =>
+  ms ? new Date(ms).toLocaleDateString("sv-SE") : "";
+const fromDay = (value: string) => {
+  if (!value) return undefined;
+  const parsed = new Date(`${value}T12:00:00`).getTime();
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
 
 export function MaterialForm() {
   const { id } = useParams<{ id: string }>();
@@ -110,6 +177,13 @@ export function MaterialForm() {
   const [error, setError] = useState<string | null>(null);
   const [extraDetails, setExtraDetails] = useState("");
   const [scanning, setScanning] = useState(false);
+  const [datasheet, setDatasheet] = useState<Id<"_storage"> | null>(null);
+  const [datasheetName, setDatasheetName] = useState<string | null>(null);
+
+  // Référentiel des matières : celui d'origine plus ce que l'équipe a ajouté.
+  const materialOptions = useQuery(api.batire.materialOptions);
+  const addMaterialOption = useMutation(api.batire.addMaterialOption);
+  const materialChoices = materialOptions ?? [...MATERIALS];
 
   useEffect(() => {
     if (!existing) return;
@@ -140,7 +214,40 @@ export function MaterialForm() {
       qrReference: existing.qrReference ?? "",
       status: existing.status,
       published: existing.published ?? false,
+
+      reference: existing.reference ?? "",
+      origin: existing.origin ?? "",
+      profiles: existing.profiles ?? [],
+      // Fiche d'avant la liste fermée : sa matière en texte libre reste
+      // affichée en pastille plutôt que de disparaître à l'ouverture.
+      materials:
+        existing.materials ??
+        (existing.material
+          ? existing.material.split(",").map((value) => value.trim()).filter(Boolean)
+          : []),
+      diameterCm: existing.diameterCm ? String(existing.diameterCm) : "",
+      dimensionUnit: existing.dimensionUnit ?? "cm",
+      availableFrom: toDay(existing.availableFrom),
+      availableUntil: toDay(existing.availableUntil),
+      reusePotential: existing.reusePotential ?? 0,
+      repurposePotential: existing.repurposePotential ?? 0,
+      recyclingPotential: existing.recyclingPotential ?? 0,
+      recoveryPotential: existing.recoveryPotential ?? 0,
+      disposalPotential: existing.disposalPotential ?? 0,
+      assemblyMode: existing.assemblyMode ?? "",
+      transportTerms: existing.transportTerms ?? "",
+      packagingTerms: existing.packagingTerms ?? "",
+      storageTerms: existing.storageTerms ?? "",
+      accessTerms: existing.accessTerms ?? "",
+      hazardousSubstances: existing.hazardousSubstances ?? "",
+      typology: existing.typology ?? "",
+      wasteCode: existing.wasteCode ?? "",
+      carbonFootprintKg: existing.carbonFootprintKg ? String(existing.carbonFootprintKg) : "",
+      landfillCost: existing.landfillCost ? String(existing.landfillCost) : "",
+      internalNote: existing.internalNote ?? "",
     });
+    setDatasheet(existing.datasheet ?? null);
+    setDatasheetName(existing.datasheetName ?? null);
     setPhotos(existing.photos);
     setPhotoUrls(existing.photoUrls);
     setAiNotes(existing.aiNotes ?? null);
@@ -159,6 +266,19 @@ export function MaterialForm() {
       setPhotos((current) => [...current, ...ids]);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Envoi des photos impossible.");
+    }
+  }
+
+  async function addDatasheet(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    setError(null);
+    try {
+      const [id] = await upload([file]);
+      setDatasheet(id ?? null);
+      setDatasheetName(file.name);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Envoi du fichier impossible.");
     }
   }
 
@@ -191,6 +311,7 @@ export function MaterialForm() {
         brand: result.brand ?? current.brand,
         modelReference: result.modelReference ?? current.modelReference,
         material: result.material ?? current.material,
+        materials: result.materials?.length ? result.materials : current.materials,
         color: result.color ?? current.color,
         standards: result.standards ?? current.standards,
         technicalNotes: result.technicalNotes ?? current.technicalNotes,
@@ -234,6 +355,33 @@ export function MaterialForm() {
         qrReference: text(form.qrReference)?.toUpperCase(),
         photos,
         aiNotes: aiNotes ?? undefined,
+
+        reference: text(form.reference),
+        origin: text(form.origin),
+        profiles: form.profiles.length ? form.profiles : undefined,
+        materials: form.materials.length ? form.materials : undefined,
+        diameterCm: number(form.diameterCm),
+        dimensionUnit: text(form.dimensionUnit),
+        availableFrom: fromDay(form.availableFrom),
+        availableUntil: fromDay(form.availableUntil),
+        reusePotential: form.reusePotential || undefined,
+        repurposePotential: form.repurposePotential || undefined,
+        recyclingPotential: form.recyclingPotential || undefined,
+        recoveryPotential: form.recoveryPotential || undefined,
+        disposalPotential: form.disposalPotential || undefined,
+        assemblyMode: text(form.assemblyMode),
+        transportTerms: text(form.transportTerms),
+        packagingTerms: text(form.packagingTerms),
+        storageTerms: text(form.storageTerms),
+        accessTerms: text(form.accessTerms),
+        hazardousSubstances: text(form.hazardousSubstances),
+        typology: text(form.typology),
+        wasteCode: text(form.wasteCode),
+        carbonFootprintKg: number(form.carbonFootprintKg),
+        landfillCost: number(form.landfillCost),
+        datasheet: datasheet ?? undefined,
+        datasheetName: datasheetName ?? undefined,
+        internalNote: text(form.internalNote),
       };
       if (materialId) {
         await updateMaterial({
@@ -371,6 +519,21 @@ export function MaterialForm() {
                 />
               </Field>
             </div>
+            <Field label="Référence">
+              <Input
+                value={form.reference}
+                onChange={(e) => set("reference", e.target.value)}
+                placeholder="Référence interne du dépôt"
+              />
+            </Field>
+            <Field label="Origine">
+              <Dropdown
+                value={form.origin}
+                onChange={(value) => set("origin", value)}
+                placeholder="Choisir une origine"
+                options={ORIGINS.map((value) => ({ value, label: value }))}
+              />
+            </Field>
             <Field label="Catégorie" required>
               <Dropdown
                 searchable
@@ -465,14 +628,30 @@ export function MaterialForm() {
           {/* ── Caractéristiques ─────────────────────────────────────────── */}
           <section className="grid gap-4 rounded-2xl border border-[var(--border)] p-4 sm:grid-cols-4">
             <p className="text-sm font-semibold sm:col-span-4">Caractéristiques</p>
-            <Field label="Longueur (cm)">
+            {/* L'unité s'applique aux quatre cotes à la fois : les saisir dans
+                des unités différentes rendrait la fiche incomparable. */}
+            <Field label="Unité des dimensions">
+              <Dropdown
+                value={form.dimensionUnit}
+                onChange={(value) => set("dimensionUnit", value)}
+                options={DIMENSION_UNITS.map((value) => ({ value, label: value }))}
+              />
+            </Field>
+            <Field label={`Longueur (${form.dimensionUnit})`}>
               <Input inputMode="decimal" value={form.lengthCm} onChange={(e) => set("lengthCm", e.target.value)} />
             </Field>
-            <Field label="Largeur (cm)">
+            <Field label={`Largeur (${form.dimensionUnit})`}>
               <Input inputMode="decimal" value={form.widthCm} onChange={(e) => set("widthCm", e.target.value)} />
             </Field>
-            <Field label="Hauteur (cm)">
+            <Field label={`Hauteur (${form.dimensionUnit})`}>
               <Input inputMode="decimal" value={form.heightCm} onChange={(e) => set("heightCm", e.target.value)} />
+            </Field>
+            <Field label={`Diamètre (${form.dimensionUnit})`}>
+              <Input
+                inputMode="decimal"
+                value={form.diameterCm}
+                onChange={(e) => set("diameterCm", e.target.value)}
+              />
             </Field>
             <Field label="Épaisseur (mm)">
               <Input
@@ -481,12 +660,24 @@ export function MaterialForm() {
                 onChange={(e) => set("thicknessMm", e.target.value)}
               />
             </Field>
-            <Field label="Matière">
-              <Input value={form.material} onChange={(e) => set("material", e.target.value)} />
-            </Field>
-            <Field label="Couleur">
+            <Field label="Couleurs">
               <Input value={form.color} onChange={(e) => set("color", e.target.value)} />
             </Field>
+            <Field label="Typologie">
+              <Input value={form.typology} onChange={(e) => set("typology", e.target.value)} />
+            </Field>
+            <div className="sm:col-span-4">
+              <Field label="Matériaux" hint="plusieurs choix possibles">
+                <MultiPicker
+                  values={form.materials}
+                  options={materialChoices}
+                  onChange={(values) => set("materials", values)}
+                  onCreate={(value) => addMaterialOption({ value })}
+                  placeholder="Rechercher une matière…"
+                  emptyLabel="Aucune matière"
+                />
+              </Field>
+            </div>
             <Field label="Marque">
               <Input value={form.brand} onChange={(e) => set("brand", e.target.value)} />
             </Field>
@@ -511,10 +702,144 @@ export function MaterialForm() {
             </div>
           </section>
 
+          {/* ── Diagnostic réemploi ──────────────────────────────────────── */}
+          <section className="grid gap-4 rounded-2xl border border-[var(--border)] p-4 sm:grid-cols-2">
+            <p className="text-sm font-semibold sm:col-span-2">Diagnostic réemploi</p>
+
+            <div className="sm:col-span-2">
+              <Field label="Profils concernés" hint="plusieurs choix possibles">
+                <MultiPicker
+                  values={form.profiles}
+                  options={[...PROFILES]}
+                  onChange={(values) => set("profiles", values)}
+                  emptyLabel="Aucun profil"
+                />
+              </Field>
+            </div>
+
+            {/* Les cinq potentiels se lisent ensemble : c'est leur écart qui
+                dit vers quel mode de traitement le lot doit partir. */}
+            <div className="space-y-2 rounded-xl border border-[var(--border)] p-3 sm:col-span-2">
+              <p className="text-sm font-medium">Potentiels</p>
+              {POTENTIALS.map(({ key, label }) => (
+                <StarRating
+                  key={key}
+                  label={label}
+                  value={form[key]}
+                  onChange={(value) => set(key, value)}
+                />
+              ))}
+              <p className="text-xs text-[var(--muted-foreground)]">
+                Recliquez une étoile déjà allumée pour revenir à « non évalué ».
+              </p>
+            </div>
+
+            <Field label="Début de disponibilité">
+              <Input
+                type="date"
+                value={form.availableFrom}
+                onChange={(e) => set("availableFrom", e.target.value)}
+              />
+            </Field>
+            <Field label="Fin de disponibilité">
+              <Input
+                type="date"
+                value={form.availableUntil}
+                onChange={(e) => set("availableUntil", e.target.value)}
+              />
+            </Field>
+
+            <Field label="Mode d'assemblage">
+              <Input value={form.assemblyMode} onChange={(e) => set("assemblyMode", e.target.value)} />
+            </Field>
+            <Field label="Modalités de transport">
+              <Input value={form.transportTerms} onChange={(e) => set("transportTerms", e.target.value)} />
+            </Field>
+            <Field label="Modalités de conditionnement">
+              <Input value={form.packagingTerms} onChange={(e) => set("packagingTerms", e.target.value)} />
+            </Field>
+            <Field label="Modalités de stockage">
+              <Input value={form.storageTerms} onChange={(e) => set("storageTerms", e.target.value)} />
+            </Field>
+            <Field label="Modalités d'accès">
+              <Input value={form.accessTerms} onChange={(e) => set("accessTerms", e.target.value)} />
+            </Field>
+            <Field label="Substances dangereuses" hint="amiante, plomb, HAP…">
+              <Input
+                value={form.hazardousSubstances}
+                onChange={(e) => set("hazardousSubstances", e.target.value)}
+              />
+            </Field>
+            <Field label="Code déchet">
+              <Input
+                value={form.wasteCode}
+                onChange={(e) => set("wasteCode", e.target.value)}
+                placeholder="17 02 01"
+              />
+            </Field>
+            <Field label="Bilan carbone (kg CO₂e)">
+              <Input
+                inputMode="decimal"
+                value={form.carbonFootprintKg}
+                onChange={(e) => set("carbonFootprintKg", e.target.value)}
+              />
+            </Field>
+            <Field label="Coût de mise en décharge (€)">
+              <Input
+                inputMode="decimal"
+                value={form.landfillCost}
+                onChange={(e) => set("landfillCost", e.target.value)}
+              />
+            </Field>
+
+            <div className="sm:col-span-2">
+              <Field label="Fiche technique">
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-[var(--border)] px-3 py-2 text-sm text-[var(--muted-foreground)] hover:border-brand-400">
+                    <FileText className="h-4 w-4" />
+                    {datasheet ? "Remplacer le fichier" : "Joindre un fichier"}
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,image/*"
+                      className="hidden"
+                      onChange={(event) => void addDatasheet(event.target.files)}
+                    />
+                  </label>
+                  {datasheet ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[var(--muted)] py-1 pl-3 pr-1 text-sm">
+                      {datasheetName ?? "Fiche technique"}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDatasheet(null);
+                          setDatasheetName(null);
+                        }}
+                        className="rounded-full p-0.5 hover:bg-[var(--border)]"
+                        aria-label="Retirer la fiche technique"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ) : null}
+                </div>
+              </Field>
+            </div>
+
+            <div className="sm:col-span-2">
+              <Field label="Note interne" hint="jamais publiée">
+                <Textarea
+                  rows={2}
+                  value={form.internalNote}
+                  onChange={(e) => set("internalNote", e.target.value)}
+                />
+              </Field>
+            </div>
+          </section>
+
           {/* ── Stockage et publication ──────────────────────────────────── */}
           <section className="grid gap-4 rounded-2xl border border-[var(--border)] p-4 sm:grid-cols-3">
             <p className="text-sm font-semibold sm:col-span-3">Dépôt et mise en ligne</p>
-            <Field label="Dépôt">
+            <Field label="Localisation">
               <Input value={form.depot} onChange={(e) => set("depot", e.target.value)} />
             </Field>
             <Field label="Emplacement">
