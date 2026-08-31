@@ -44,12 +44,19 @@ export function formatDimensions(material: {
   lengthCm?: number;
   widthCm?: number;
   heightCm?: number;
+  diameterCm?: number;
+  /** Unité des cotes ci-dessus. Absente = centimètres, comme les fiches d'avant. */
+  dimensionUnit?: string;
   thicknessMm?: number;
 }) {
+  // L'unité vient de la fiche : afficher « cm » en dur donnerait une porte de
+  // 2 cm de haut pour une hauteur saisie en mètres.
+  const unit = material.dimensionUnit || "cm";
   const parts: string[] = [];
-  if (material.lengthCm) parts.push(`L ${material.lengthCm} cm`);
-  if (material.widthCm) parts.push(`l ${material.widthCm} cm`);
-  if (material.heightCm) parts.push(`H ${material.heightCm} cm`);
+  if (material.lengthCm) parts.push(`L ${material.lengthCm} ${unit}`);
+  if (material.widthCm) parts.push(`l ${material.widthCm} ${unit}`);
+  if (material.heightCm) parts.push(`H ${material.heightCm} ${unit}`);
+  if (material.diameterCm) parts.push(`Ø ${material.diameterCm} ${unit}`);
   if (material.thicknessMm) parts.push(`ép. ${material.thicknessMm} mm`);
   return parts.join(" × ");
 }
