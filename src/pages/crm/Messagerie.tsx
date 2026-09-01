@@ -31,14 +31,19 @@ export function MessagerieCrm() {
   if (threads === undefined) return <FullSpinner label="Chargement des discussions…" />;
 
   return (
-    <div className="space-y-5">
+    // Hauteur bornée à la fenêtre (moins la gouttière de `CrmLayout`) : sans
+    // elle, la colonne récapitulative allongeait la page et la conversation
+    // n'était plus atteignable sans faire défiler tout l'écran. La contrainte
+    // ne s'applique qu'à partir de `xl`, là où les trois colonnes tiennent
+    // côte à côte ; en dessous elles s'empilent et la page défile normalement.
+    <div className="flex flex-col gap-5 xl:h-[calc(100dvh-3rem)]">
       <h1 className="text-2xl font-bold tracking-tight">Messagerie</h1>
 
       {threads.length === 0 ? (
         <EmptyState icon={<MessageSquare className="h-10 w-10" />} title="Aucune discussion" />
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[300px_1fr] xl:grid-cols-[300px_1fr_320px]">
-          <nav className="space-y-1 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-2">
+        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[300px_1fr] xl:grid-cols-[300px_1fr_320px] xl:overflow-hidden">
+          <nav className="space-y-1 overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--card)] p-2 xl:min-h-0">
             {threads.map((thread) => (
               <button
                 key={thread.key}
@@ -65,7 +70,7 @@ export function MessagerieCrm() {
             ))}
           </nav>
 
-          <section className="flex min-h-[460px] flex-col rounded-2xl border border-[var(--border)] bg-[var(--card)]">
+          <section className="flex min-h-[460px] flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] xl:min-h-0">
             {current ? (
               <>
                 <header className="border-b border-[var(--border)] px-5 py-3">
@@ -75,7 +80,7 @@ export function MessagerieCrm() {
                   </p>
                 </header>
 
-                <div className="flex-1 space-y-3 overflow-y-auto p-5">
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-5">
                   {current.messages.map((message) => (
                     <div
                       key={message._id}
@@ -157,7 +162,7 @@ function ThreadRecap({ thread }: { thread: Thread }) {
   const material = thread.material;
 
   return (
-    <aside className="flex flex-col gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+    <aside className="flex flex-col gap-4 overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 xl:min-h-0">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
           Récapitulatif
@@ -172,9 +177,9 @@ function ThreadRecap({ thread }: { thread: Thread }) {
 
       <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--muted)]">
         {material?.photoUrl ? (
-          <img src={material.photoUrl} alt="" className="aspect-square w-full object-cover" />
+          <img src={material.photoUrl} alt="" className="h-40 w-full object-cover" />
         ) : (
-          <div className="flex aspect-square w-full items-center justify-center text-[var(--muted-foreground)]">
+          <div className="flex h-40 w-full items-center justify-center text-[var(--muted-foreground)]">
             <PackageOpen className="h-8 w-8" />
           </div>
         )}
