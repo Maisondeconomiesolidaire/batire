@@ -571,12 +571,12 @@ export function MaterialForm() {
           <section className="grid gap-4 rounded-2xl border border-[var(--border)] p-4 sm:grid-cols-2">
             <p className="text-sm font-semibold sm:col-span-2">Origine</p>
             <div className="sm:col-span-2">
-              <Field label="Type de demandeur" hint="plusieurs choix possibles">
+              <Field label="Type de donateur" hint="plusieurs choix possibles">
                 <MultiPicker
                   values={form.profiles}
                   options={[...PROFILES]}
                   onChange={(values) => set("profiles", values)}
-                  emptyLabel="Aucun type de demandeur"
+                  emptyLabel="Aucun type de donateur"
                 />
               </Field>
             </div>

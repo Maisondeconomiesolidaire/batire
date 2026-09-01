@@ -28,7 +28,7 @@ export const ORIGINS = [
   "Surplus de chantier",
 ] as const;
 
-/** Type de demandeur : la structure d'où vient le flux de matériaux. */
+/** Type de donateur : la structure qui nous donne les matériaux. */
 export const PROFILES = [
   "Artisans, professionnels du BTP, organisations PRO",
   "Déchèteries publiques",
