@@ -168,7 +168,7 @@ export function NouveauDon() {
           L'équipe l'étudie et vous répond par email.
         </p>
         <div className="mt-6 flex justify-center gap-2">
-          <Button variant="outline" onClick={() => navigate("/mon-compte")}>
+          <Button variant="outline" onClick={() => navigate("/mon-compte?onglet=dons")}>
             Suivre mes dons
           </Button>
           <Button

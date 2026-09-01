@@ -1,16 +1,17 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { SignInButton, useUser } from "@clerk/clerk-react";
 import { useMutation, useQuery } from "convex/react";
-import { HeartHandshake, Lock, PackageOpen, Plus } from "lucide-react";
+import { ArrowLeft, ChevronRight, HeartHandshake, Lock, PackageOpen, Plus } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { Button } from "../../components/ui/Button";
 import { FullSpinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { DonationBadge } from "../../components/ui/Badge";
+import { UnderlineTabs } from "../../components/ui/UnderlineTabs";
 import { DonorFieldset, EMPTY_DONOR, type DonorForm } from "../../components/public/DonorFieldset";
 import { formatFrPhone } from "../../components/ui/PhoneInput";
-import { formatDate } from "../../lib/format";
+import { formatDate, formatDateTime } from "../../lib/format";
 import { PAGE_X, type DonationStatus } from "../../lib/constants";
 import { errorMessage } from "../../lib/errors";
 import { cn } from "../../lib/cn";
@@ -19,14 +20,22 @@ type MyDonation = {
   _id: string;
   reference: string;
   title: string;
+  description?: string;
   category: string;
   family?: string;
   subcategory?: string;
+  condition?: string;
+  quantity?: number;
+  unit?: string;
+  availableFrom?: number;
   status: DonationStatus;
   decisionMessage?: string;
+  decidedAt?: number;
   photoUrls: string[];
   createdAt: number;
 };
+
+type Tab = "infos" | "dons";
 
 export function MonCompte() {
   const { isLoaded, isSignedIn, user } = useUser();
@@ -34,6 +43,15 @@ export function MonCompte() {
   const donations = useQuery(api.batireDons.myDonations, {}) as MyDonation[] | undefined;
   const save = useMutation(api.batireDons.saveMyDonorProfile);
 
+  const [params, setParams] = useSearchParams();
+  const tab: Tab = params.get("onglet") === "dons" ? "dons" : "infos";
+  const setTab = (next: Tab) => {
+    const updated = new URLSearchParams(params);
+    if (next === "dons") updated.set("onglet", "dons");
+    else updated.delete("onglet");
+    setParams(updated, { replace: true });
+  };
+  const [openId, setOpenId] = useState<string | null>(null);
   const [donor, setDonor] = useState<DonorForm>(EMPTY_DONOR);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -59,6 +77,7 @@ export function MonCompte() {
     setSaved(false);
     setDonor((current) => ({ ...current, [key]: value }));
   };
+  const selected = donations?.find((donation) => donation._id === openId) ?? null;
   const patch = (values: Partial<DonorForm>) => {
     setSaved(false);
     setDonor((current) => ({ ...current, ...values }));
@@ -108,7 +127,7 @@ export function MonCompte() {
 
   return (
     <div className={cn("mx-auto w-full max-w-6xl py-6", PAGE_X)}>
-      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-[var(--border)] pb-6">
+      <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
             Espace client
@@ -129,18 +148,28 @@ export function MonCompte() {
         </Link>
       </header>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
-        {/* ── Fiche donateur ───────────────────────────────────────────── */}
-        <section className="space-y-5">
-          <div>
-            <h2 className="text-lg font-bold">Ma fiche donateur</h2>
-            <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">
-              Reprise automatiquement à l'achat et à chaque don.
-            </p>
-          </div>
+      <UnderlineTabs
+        className="mt-5"
+        value={tab}
+        onChange={(next) => {
+          setTab(next);
+          setOpenId(null);
+        }}
+        items={[
+          { key: "infos", label: "Mes informations" },
+          { key: "dons", label: "Mes dons" },
+        ]}
+        counts={{ dons: donations?.length }}
+      />
+
+      {tab === "infos" ? (
+        <section className="mt-6 max-w-3xl space-y-5">
+          <p className="text-sm text-[var(--muted-foreground)]">
+            Ces informations remplissent le formulaire d'achat et chaque proposition de don.
+          </p>
           <DonorFieldset donor={donor} set={set} patch={patch} />
           {error ? (
-            <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300">
+            <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
               {error}
             </p>
           ) : null}
@@ -153,69 +182,147 @@ export function MonCompte() {
             ) : null}
           </div>
         </section>
-
-        {/* ── Mes dons ─────────────────────────────────────────────────── */}
-        <section>
-          <div className="flex items-baseline justify-between gap-3">
-            <h2 className="text-lg font-bold">Mes dons</h2>
-            <span className="text-sm text-[var(--muted-foreground)]">
-              {donations?.length ?? 0}
-            </span>
-          </div>
-
-          <div className="mt-4">
-            {donations === undefined ? (
-              <FullSpinner />
-            ) : donations.length === 0 ? (
-              <EmptyState
-                icon={<HeartHandshake className="h-9 w-9" />}
-                title="Aucun don proposé"
-                action={
-                  <Link to="/don/nouveau">
-                    <Button variant="outline">Proposer un don</Button>
-                  </Link>
-                }
-              />
-            ) : (
-              <ul className="space-y-3">
-                {donations.map((donation) => (
-                  <li
-                    key={donation._id}
-                    className="rounded-xl border border-[var(--border)] p-3 transition hover:border-brand-300"
+      ) : (
+        <section className="mt-6">
+          {donations === undefined ? (
+            <FullSpinner />
+          ) : selected ? (
+            <DonationDetail donation={selected} onBack={() => setOpenId(null)} />
+          ) : donations.length === 0 ? (
+            <EmptyState
+              icon={<HeartHandshake className="h-9 w-9" />}
+              title="Aucun don proposé"
+              description="Vos propositions et leurs réponses s'afficheront ici."
+              action={
+                <Link to="/don/nouveau">
+                  <Button variant="outline">Proposer un don</Button>
+                </Link>
+              }
+            />
+          ) : (
+            <ul className="divide-y divide-[var(--border)] border-y border-[var(--border)]">
+              {donations.map((donation) => (
+                <li key={donation._id}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenId(donation._id)}
+                    className="group flex w-full items-center gap-4 py-4 text-left transition"
                   >
-                    <div className="flex gap-3">
-                      <span className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-[var(--muted)]">
-                        {donation.photoUrls[0] ? (
-                          <img
-                            src={donation.photoUrls[0]}
-                            alt=""
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <PackageOpen className="m-4 h-6 w-6 text-[var(--muted-foreground)]" />
-                        )}
+                    <span className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-[var(--muted)]">
+                      {donation.photoUrls[0] ? (
+                        <img
+                          src={donation.photoUrls[0]}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <PackageOpen className="m-5 h-6 w-6 text-[var(--muted-foreground)]" />
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-semibold transition group-hover:text-brand-700">
+                        {donation.title}
                       </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="min-w-0 truncate font-semibold">{donation.title}</p>
-                          <DonationBadge status={donation.status} />
-                        </div>
-                        <p className="mt-0.5 truncate text-xs text-[var(--muted-foreground)]">
-                          {donation.reference} · {formatDate(donation.createdAt)}
-                        </p>
-                      </div>
-                    </div>
-                    {donation.decisionMessage ? (
-                      <p className="mt-2 rounded-lg bg-[var(--muted)] px-3 py-2 text-xs leading-relaxed text-[var(--muted-foreground)]">
-                        {donation.decisionMessage}
-                      </p>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+                      <span className="mt-0.5 block truncate text-sm text-[var(--muted-foreground)]">
+                        {donation.reference} · {formatDate(donation.createdAt)}
+                      </span>
+                    </span>
+                    <DonationBadge status={donation.status} />
+                    <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted-foreground)]" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
+      )}
+    </div>
+  );
+}
+
+/** Fiche d'un don : ce que le donateur a envoyé, et la réponse de l'équipe. */
+function DonationDetail({ donation, onBack }: { donation: MyDonation; onBack: () => void }) {
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const specs: Array<[string, string | undefined]> = [
+    ["Catégorie", [donation.category, donation.family, donation.subcategory].filter(Boolean).join(" › ")],
+    ["Quantité", donation.quantity ? `${donation.quantity} ${donation.unit ?? ""}`.trim() : undefined],
+    ["État", donation.condition],
+    ["Disponible dès", donation.availableFrom ? formatDate(donation.availableFrom) : undefined],
+    ["Proposé le", formatDateTime(donation.createdAt)],
+    ["Réponse le", donation.decidedAt ? formatDateTime(donation.decidedAt) : undefined],
+  ];
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onBack}
+        className="inline-flex items-center gap-2 text-sm text-[var(--muted-foreground)] transition hover:text-brand-700"
+      >
+        <ArrowLeft className="h-4 w-4" /> Tous mes dons
+      </button>
+
+      <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+            {donation.reference}
+          </p>
+          <h2 className="mt-1 text-2xl font-black tracking-tight">{donation.title}</h2>
+        </div>
+        <DonationBadge status={donation.status} />
+      </div>
+
+      {donation.decisionMessage ? (
+        <p className="mt-4 whitespace-pre-line border-l-2 border-brand-400 bg-[var(--muted)] px-4 py-3 text-sm leading-relaxed">
+          {donation.decisionMessage}
+        </p>
+      ) : null}
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:items-start">
+        {donation.photoUrls.length ? (
+          <div>
+            <div className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl border border-[var(--border)] bg-white">
+              <img
+                src={donation.photoUrls[photoIndex]}
+                alt=""
+                className="h-full w-full object-contain"
+              />
+            </div>
+            {donation.photoUrls.length > 1 ? (
+              <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                {donation.photoUrls.map((url, index) => (
+                  <button
+                    key={url}
+                    type="button"
+                    onClick={() => setPhotoIndex(index)}
+                    className={cn(
+                      "h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 bg-white transition",
+                      index === photoIndex ? "border-brand-500" : "border-[var(--border)]",
+                    )}
+                  >
+                    <img src={url} alt="" className="h-full w-full object-contain" />
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div>
+          {donation.description ? (
+            <p className="whitespace-pre-line text-sm leading-relaxed">{donation.description}</p>
+          ) : null}
+          <dl className="mt-4 divide-y divide-[var(--border)] border-y border-[var(--border)] text-sm">
+            {specs
+              .filter(([, value]) => Boolean(value))
+              .map(([label, value]) => (
+                <div key={label} className="flex items-baseline justify-between gap-4 py-2.5">
+                  <dt className="text-[var(--muted-foreground)]">{label}</dt>
+                  <dd className="min-w-0 text-right font-medium">{value}</dd>
+                </div>
+              ))}
+          </dl>
+        </div>
       </div>
     </div>
   );
