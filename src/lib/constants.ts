@@ -17,14 +17,7 @@ export const UNIT_LABELS: Record<Unit, string> = {
   lot: "au lot",
 };
 
-export const CONDITIONS = [
-  "Neuf",
-  "Déstockage",
-  "Reconditionné",
-  "Très bon état",
-  "Bon état",
-  "À reconditionner",
-] as const;
+export const CONDITIONS = ["Neuf", "Très bon", "Bon", "Usagé"] as const;
 
 /** Provenance du matériau, telle qu'elle se déclare dans un diagnostic PEMD. */
 export const ORIGINS = [
@@ -35,7 +28,7 @@ export const ORIGINS = [
   "Surplus de chantier",
 ] as const;
 
-/** Types de structures d'où vient le matériau, ou qu'il vise. */
+/** Type de demandeur : la structure d'où vient le flux de matériaux. */
 export const PROFILES = [
   "Artisans, professionnels du BTP, organisations PRO",
   "Déchèteries publiques",
@@ -120,8 +113,15 @@ export const OUTCOME_LABELS: Record<RequestOutcome, string> = {
 };
 
 export type Unit = (typeof UNITS)[number];
-/** Valeur retirée du référentiel mais encore portée par d'anciennes fiches. */
-export const LEGACY_CONDITIONS = ["À rénover"] as const;
+/** Valeurs retirées du référentiel mais encore portées par d'anciennes fiches. */
+export const LEGACY_CONDITIONS = [
+  "Déstockage",
+  "Reconditionné",
+  "Très bon état",
+  "Bon état",
+  "À reconditionner",
+  "À rénover",
+] as const;
 
 export type Condition = (typeof CONDITIONS)[number] | (typeof LEGACY_CONDITIONS)[number];
 export type MaterialStatus = (typeof MATERIAL_STATUSES)[number];

@@ -65,7 +65,6 @@ type FormState = {
   diameterCm: string;
   dimensionUnit: string;
   availableFrom: string;
-  availableUntil: string;
   reusePotential: number;
   repurposePotential: number;
   recyclingPotential: number;
@@ -90,7 +89,7 @@ const EMPTY: FormState = {
   category: CATEGORIES[0]!,
   family: "",
   subcategory: "",
-  condition: "Bon état",
+  condition: "Bon",
   unit: "unité",
   quantity: "",
   price: "",
@@ -120,7 +119,6 @@ const EMPTY: FormState = {
   // Les fiches déjà saisies ont toujours voulu dire des centimètres.
   dimensionUnit: "cm",
   availableFrom: "",
-  availableUntil: "",
   reusePotential: 0,
   repurposePotential: 0,
   recyclingPotential: 0,
@@ -228,7 +226,6 @@ export function MaterialForm() {
       diameterCm: existing.diameterCm ? String(existing.diameterCm) : "",
       dimensionUnit: existing.dimensionUnit ?? "cm",
       availableFrom: toDay(existing.availableFrom),
-      availableUntil: toDay(existing.availableUntil),
       reusePotential: existing.reusePotential ?? 0,
       repurposePotential: existing.repurposePotential ?? 0,
       recyclingPotential: existing.recyclingPotential ?? 0,
@@ -363,7 +360,6 @@ export function MaterialForm() {
         diameterCm: number(form.diameterCm),
         dimensionUnit: text(form.dimensionUnit),
         availableFrom: fromDay(form.availableFrom),
-        availableUntil: fromDay(form.availableUntil),
         reusePotential: form.reusePotential || undefined,
         repurposePotential: form.repurposePotential || undefined,
         recyclingPotential: form.recyclingPotential || undefined,
@@ -526,14 +522,6 @@ export function MaterialForm() {
                 placeholder="Référence interne du dépôt"
               />
             </Field>
-            <Field label="Origine">
-              <Dropdown
-                value={form.origin}
-                onChange={(value) => set("origin", value)}
-                placeholder="Choisir une origine"
-                options={ORIGINS.map((value) => ({ value, label: value }))}
-              />
-            </Field>
             <Field label="Catégorie" required>
               <Dropdown
                 searchable
@@ -577,6 +565,29 @@ export function MaterialForm() {
                 />
               </Field>
             </div>
+          </section>
+
+          {/* ── Origine ──────────────────────────────────────────────────── */}
+          <section className="grid gap-4 rounded-2xl border border-[var(--border)] p-4 sm:grid-cols-2">
+            <p className="text-sm font-semibold sm:col-span-2">Origine</p>
+            <div className="sm:col-span-2">
+              <Field label="Type de demandeur" hint="plusieurs choix possibles">
+                <MultiPicker
+                  values={form.profiles}
+                  options={[...PROFILES]}
+                  onChange={(values) => set("profiles", values)}
+                  emptyLabel="Aucun type de demandeur"
+                />
+              </Field>
+            </div>
+            <Field label="Origine du flux">
+              <Dropdown
+                value={form.origin}
+                onChange={(value) => set("origin", value)}
+                placeholder="Choisir une origine"
+                options={ORIGINS.map((value) => ({ value, label: value }))}
+              />
+            </Field>
           </section>
 
           {/* ── Vente ────────────────────────────────────────────────────── */}
@@ -706,17 +717,6 @@ export function MaterialForm() {
           <section className="grid gap-4 rounded-2xl border border-[var(--border)] p-4 sm:grid-cols-2">
             <p className="text-sm font-semibold sm:col-span-2">Diagnostic réemploi</p>
 
-            <div className="sm:col-span-2">
-              <Field label="Profils concernés" hint="plusieurs choix possibles">
-                <MultiPicker
-                  values={form.profiles}
-                  options={[...PROFILES]}
-                  onChange={(values) => set("profiles", values)}
-                  emptyLabel="Aucun profil"
-                />
-              </Field>
-            </div>
-
             {/* Les cinq potentiels se lisent ensemble : c'est leur écart qui
                 dit vers quel mode de traitement le lot doit partir. */}
             <div className="space-y-2 rounded-xl border border-[var(--border)] p-3 sm:col-span-2">
@@ -739,13 +739,6 @@ export function MaterialForm() {
                 type="date"
                 value={form.availableFrom}
                 onChange={(e) => set("availableFrom", e.target.value)}
-              />
-            </Field>
-            <Field label="Fin de disponibilité">
-              <Input
-                type="date"
-                value={form.availableUntil}
-                onChange={(e) => set("availableUntil", e.target.value)}
               />
             </Field>
 
