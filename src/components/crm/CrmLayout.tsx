@@ -1,7 +1,9 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useUser } from "@clerk/clerk-react";
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-react";
-import { Boxes, MessageSquare, Moon, QrCode, Receipt, ShieldAlert, Store, Sun } from "lucide-react";
+import { Boxes, HeartHandshake, MessageSquare, Moon, QrCode, Receipt, ShieldAlert, Store, Sun } from "lucide-react";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { useAccess, canAccess } from "../../lib/access";
 import { FullSpinner } from "../ui/Spinner";
 import { cn } from "../../lib/cn";
@@ -9,6 +11,7 @@ import { useTheme } from "../../lib/theme";
 
 const NAV = [
   { to: "/crm", label: "Matériaux", icon: Boxes, page: "batire:materiaux", end: true },
+  { to: "/crm/dons", label: "Dons", icon: HeartHandshake, page: "batire:dons", badge: true },
   { to: "/crm/ventes", label: "Ventes", icon: Receipt, page: "batire:demandes" },
   { to: "/crm/messagerie", label: "Messagerie", icon: MessageSquare, page: "batire:demandes" },
   { to: "/crm/qr", label: "QR codes", icon: QrCode, page: "batire:materiaux" },
@@ -16,6 +19,13 @@ const NAV = [
 
 export function CrmLayout() {
   const access = useAccess();
+  // Les dons en attente se comptent dans la barre : un don oublié, c'est un
+  // donateur sans réponse. La requête exige une session, d'où la garde : sans
+  // elle, l'écran de connexion du CRM partirait en erreur serveur.
+  const pendingDons = useQuery(
+    api.batireDons.pendingDonationCount,
+    access?.isStaff ? {} : "skip",
+  ) as number | undefined;
   const { theme, toggle } = useTheme();
   const { user } = useUser();
 
@@ -73,7 +83,12 @@ export function CrmLayout() {
                     }
                   >
                     <item.icon className="h-4 w-4" />
-                    {item.label}
+                    <span className="flex-1">{item.label}</span>
+                    {item.badge && pendingDons ? (
+                      <span className="rounded-full bg-brand-500 px-1.5 py-0.5 text-[11px] font-bold text-white">
+                        {pendingDons}
+                      </span>
+                    ) : null}
                   </NavLink>
                 ))}
               </nav>
@@ -125,6 +140,11 @@ export function CrmLayout() {
                     >
                       <item.icon className="h-4 w-4" />
                       {item.label}
+                      {item.badge && pendingDons ? (
+                        <span className="rounded-full bg-brand-500 px-1.5 text-[11px] font-bold text-white">
+                          {pendingDons}
+                        </span>
+                      ) : null}
                     </NavLink>
                   ))}
                 </nav>

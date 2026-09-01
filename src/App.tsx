@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Link, Navigate, Outlet, Route, Routes, useOutletContext } from "react-router-dom";
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-react";
-import { Menu, MessageSquare, Search } from "lucide-react";
+import { HeartHandshake, Menu, MessageSquare, Search, UserRound } from "lucide-react";
 import { Boutique } from "./pages/public/Boutique";
 import { MaterialDetail } from "./pages/public/MaterialDetail";
 import { QrLanding } from "./pages/public/QrLanding";
+import { MonCompte } from "./pages/public/MonCompte";
+import { NouveauDon } from "./pages/public/NouveauDon";
 import { MegaMenu } from "./components/public/MegaMenu";
 import { PAGE_X } from "./lib/constants";
 import { cn } from "./lib/cn";
@@ -16,6 +18,7 @@ import { Ventes } from "./pages/crm/Ventes";
 import { MessagerieCrm } from "./pages/crm/Messagerie";
 import { Messagerie } from "./pages/public/Messagerie";
 import { QrCodes } from "./pages/crm/QrCodes";
+import { Dons } from "./pages/crm/Dons";
 import { ProfileSync } from "./components/ProfileSync";
 
 export default function App() {
@@ -31,6 +34,8 @@ export default function App() {
         <Route path="/materiau/:id" element={<MaterialDetail />} />
         <Route path="/qr/:reference" element={<QrLanding />} />
         <Route path="/messagerie" element={<Messagerie />} />
+        <Route path="/mon-compte" element={<MonCompte />} />
+        <Route path="/don/nouveau" element={<NouveauDon />} />
       </Route>
 
       <Route element={<KioskShell />}>
@@ -42,6 +47,7 @@ export default function App() {
         <Route index element={<Materiaux />} />
         <Route path="materiaux/nouveau" element={<MaterialForm />} />
         <Route path="materiaux/:id" element={<MaterialForm />} />
+        <Route path="dons" element={<Dons />} />
         <Route path="ventes" element={<Ventes />} />
         <Route path="messagerie" element={<MessagerieCrm />} />
         <Route path="qr" element={<QrCodes />} />
@@ -84,7 +90,21 @@ function PublicShell() {
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
+            <Link
+              to="/don/nouveau"
+              className="inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-700 transition hover:border-brand-300 hover:bg-brand-100"
+            >
+              <HeartHandshake className="h-4 w-4" />
+              <span className="hidden sm:inline">Nouveau don</span>
+            </Link>
             <SignedIn>
+              <Link
+                to="/mon-compte"
+                className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-[var(--muted-foreground)] transition hover:bg-[var(--muted)]"
+              >
+                <UserRound className="h-4 w-4" />
+                <span className="hidden sm:inline">Mon espace</span>
+              </Link>
               <Link
                 to="/messagerie"
                 className="hidden items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-[var(--muted-foreground)] hover:bg-[var(--muted)] sm:inline-flex"

@@ -112,6 +112,16 @@ export const OUTCOME_LABELS: Record<RequestOutcome, string> = {
   perdue: "Perdue",
 };
 
+export const DONATION_STATUSES = ["nouveau", "accepte", "refuse"] as const;
+
+export const DONATION_STATUS_LABELS: Record<DonationStatus, string> = {
+  nouveau: "À étudier",
+  accepte: "Accepté",
+  refuse: "Refusé",
+};
+
+export type DonationStatus = (typeof DONATION_STATUSES)[number];
+
 export type Unit = (typeof UNITS)[number];
 /** Valeurs retirées du référentiel mais encore portées par d'anciennes fiches. */
 export const LEGACY_CONDITIONS = [

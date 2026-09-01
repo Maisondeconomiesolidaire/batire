@@ -227,6 +227,10 @@ function BuyBlock({
   stock: number;
 }) {
   const startCheckout = useAction(api.batire.startCheckout);
+  const { isSignedIn } = useUser();
+  // La fiche donateur de l'espace client remplit le formulaire d'achat : le
+  // client connecté ne ressaisit pas des coordonnées déjà connues.
+  const donorProfile = useQuery(api.batireDons.getMyDonorProfile, isSignedIn ? {} : "skip");
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -238,6 +242,20 @@ function BuyBlock({
     company: "",
     quantity: "1",
   });
+
+  // Sans écraser une saisie en cours : le préremplissage aide, il ne corrige
+  // pas ce que le client vient de taper.
+  useEffect(() => {
+    if (!donorProfile) return;
+    setForm((current) => ({
+      ...current,
+      firstName: current.firstName || donorProfile.firstName,
+      lastName: current.lastName || donorProfile.lastName,
+      email: current.email || donorProfile.email,
+      phone: current.phone || donorProfile.phone,
+      company: current.company || donorProfile.company,
+    }));
+  }, [donorProfile]);
 
   const set = (key: keyof typeof form) => (value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
