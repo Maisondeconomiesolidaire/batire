@@ -13,6 +13,7 @@ import { formatDimensions, formatPrice, formatStock, formatUnitPrice, unitLabel 
 import { PAGE_X, UNIT_LABELS, type Unit } from "../../lib/constants";
 import { QrCode } from "../../components/ui/QrCode";
 import { cn } from "../../lib/cn";
+import { errorMessage } from "../../lib/errors";
 
 export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
   const { id } = useParams<{ id: string }>();
@@ -462,6 +463,7 @@ function AskBlock({ materialId }: { materialId: Id<"btMaterials"> }) {
   const [body, setBody] = useState("");
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
+  const [askError, setAskError] = useState<string | null>(null);
 
   if (!isSignedIn) {
     return (
@@ -501,6 +503,11 @@ function AskBlock({ materialId }: { materialId: Id<"btMaterials"> }) {
         placeholder="Disponibilité, découpe, enlèvement…"
         className="w-full resize-none rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm outline-none focus:border-brand-500"
       />
+      {askError ? (
+        <p className="rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300">
+          {askError}
+        </p>
+      ) : null}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={() => setOpen(false)}>
           Annuler
@@ -509,9 +516,12 @@ function AskBlock({ materialId }: { materialId: Id<"btMaterials"> }) {
           disabled={sending || !body.trim()}
           onClick={async () => {
             setSending(true);
+            setAskError(null);
             try {
               await send({ materialId, body });
               setSent(true);
+            } catch (caught) {
+              setAskError(errorMessage(caught, "Envoi impossible."));
             } finally {
               setSending(false);
             }

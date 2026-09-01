@@ -8,6 +8,7 @@ import { Button } from "../../components/ui/Button";
 import { Pill } from "../../components/ui/Badge";
 import { formatDateTime } from "../../lib/format";
 import { cn } from "../../lib/cn";
+import { errorMessage } from "../../lib/errors";
 
 /** Fils clients, côté équipe. */
 export function MessagerieCrm() {
@@ -17,6 +18,7 @@ export function MessagerieCrm() {
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   const current = threads?.find((thread) => thread.key === activeKey) ?? threads?.[0];
 
@@ -96,6 +98,11 @@ export function MessagerieCrm() {
                   ))}
                 </div>
 
+                {sendError ? (
+                  <p className="border-t border-[var(--border)] px-3 pt-3 text-xs font-medium text-red-600 dark:text-red-400">
+                    {sendError}
+                  </p>
+                ) : null}
                 <div className="flex items-end gap-2 border-t border-[var(--border)] p-3">
                   <textarea
                     rows={2}
@@ -108,6 +115,7 @@ export function MessagerieCrm() {
                     disabled={sending || !draft.trim()}
                     onClick={async () => {
                       setSending(true);
+                      setSendError(null);
                       try {
                         await send({
                           body: draft,
@@ -115,6 +123,8 @@ export function MessagerieCrm() {
                           materialId: current.materialId,
                         });
                         setDraft("");
+                      } catch (caught) {
+                        setSendError(errorMessage(caught, "Envoi impossible."));
                       } finally {
                         setSending(false);
                       }

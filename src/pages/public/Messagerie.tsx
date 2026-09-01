@@ -9,6 +9,7 @@ import { Button } from "../../components/ui/Button";
 import { formatDateTime } from "../../lib/format";
 import { cn } from "../../lib/cn";
 import { PAGE_X } from "../../lib/constants";
+import { errorMessage } from "../../lib/errors";
 
 /** Fils du client connecté, un par matériau discuté. */
 export function Messagerie() {
@@ -18,6 +19,7 @@ export function Messagerie() {
   const [active, setActive] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   const threads = useMemo(() => {
     const map = new Map<string, { key: string; title: string; materialId?: string; items: NonNullable<typeof messages> }>();
@@ -107,6 +109,11 @@ export function Messagerie() {
               ))}
             </div>
 
+            {sendError ? (
+              <p className="border-t border-[var(--border)] px-3 pt-3 text-xs font-medium text-red-600 dark:text-red-400">
+                {sendError}
+              </p>
+            ) : null}
             <div className="flex items-end gap-2 border-t border-[var(--border)] p-3">
               <textarea
                 rows={2}
@@ -120,12 +127,15 @@ export function Messagerie() {
                 onClick={async () => {
                   if (!current) return;
                   setSending(true);
+                  setSendError(null);
                   try {
                     await send({
                       materialId: current.materialId as never,
                       body: draft,
                     });
                     setDraft("");
+                  } catch (caught) {
+                    setSendError(errorMessage(caught, "Envoi impossible."));
                   } finally {
                     setSending(false);
                   }
