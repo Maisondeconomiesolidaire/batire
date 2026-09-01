@@ -190,7 +190,11 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
               {kiosk ? (
                 <div className="flex flex-col items-center gap-3 text-center">
                   <div className="rounded-xl bg-white p-2">
-                    <QrCode value={`${window.location.origin}/materiau/${material._id}`} size={150} />
+                    <QrCode
+                      value={`${window.location.origin}/materiau/${material._id}`}
+                      size={150}
+                      className="text-black"
+                    />
                   </div>
                   <p className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
                     <QrIcon className="h-4 w-4" /> Scannez pour payer au comptoir
