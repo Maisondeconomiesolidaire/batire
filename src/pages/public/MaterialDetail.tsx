@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { useUser } from "@clerk/clerk-react";
@@ -13,6 +13,7 @@ import { PhoneInput, formatFrPhone } from "../../components/ui/PhoneInput";
 import { formatDimensions, formatPrice, formatStock, formatUnitPrice, unitLabel } from "../../lib/format";
 import { PAGE_X, UNIT_LABELS, type Unit } from "../../lib/constants";
 import { QrCode } from "../../components/ui/QrCode";
+import { MaterialCard, type PublicMaterial } from "../../components/public/MaterialCard";
 import { cn } from "../../lib/cn";
 import { errorMessage } from "../../lib/errors";
 
@@ -216,7 +217,88 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
           </div>
         </aside>
       </div>
+
+      <Suggestions materialId={material._id} base={base} />
     </div>
+  );
+}
+
+/**
+ * Ce qui va avec le lot affiché, puis le reste du stock. Deux rangées courtes :
+ * une page produit qui déroule tout le catalogue ne se lit plus.
+ */
+function Suggestions({ materialId, base }: { materialId: Id<"btMaterials">; base: string }) {
+  const data = useQuery(api.batire.relatedMaterials, { id: materialId }) as
+    | { related: PublicMaterial[]; others: PublicMaterial[]; remaining: number }
+    | undefined;
+
+  if (!data || (data.related.length === 0 && data.others.length === 0)) return null;
+
+  return (
+    <div className="mt-14 space-y-12">
+      <SuggestionShelf
+        title="Vous aimeriez peut-être…"
+        materials={data.related}
+        base={base}
+      />
+      <SuggestionShelf
+        title="Découvrez nos autres matériaux"
+        materials={data.others}
+        base={base}
+        footer={
+          data.remaining > 0 ? (
+            <Link
+              to={base || "/"}
+              className="text-sm font-semibold text-brand-700 hover:text-brand-800"
+            >
+              Voir tout le catalogue
+            </Link>
+          ) : null
+        }
+      />
+    </div>
+  );
+}
+
+/** Six produits, puis le reste au clic. */
+function SuggestionShelf({
+  title,
+  materials,
+  base,
+  footer,
+}: {
+  title: string;
+  materials: PublicMaterial[];
+  base: string;
+  footer?: ReactNode;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const STEP = 6;
+  if (materials.length === 0) return null;
+  const shown = expanded ? materials : materials.slice(0, STEP);
+
+  return (
+    <section>
+      <h2 className="text-xl font-black tracking-tight">{title}</h2>
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
+        {shown.map((material) => (
+          <MaterialCard
+            key={material._id}
+            material={material}
+            to={`${base}/materiau/${material._id}`}
+          />
+        ))}
+      </div>
+      {materials.length > STEP && !expanded ? (
+        <div className="mt-4 flex justify-center">
+          <Button variant="outline" onClick={() => setExpanded(true)}>
+            Voir plus
+          </Button>
+        </div>
+      ) : footer ? (
+        <div className="mt-4 flex justify-center">{footer}</div>
+      ) : null}
+    </section>
   );
 }
 
