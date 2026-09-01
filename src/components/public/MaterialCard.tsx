@@ -19,10 +19,23 @@ export type PublicMaterial = {
   widthCm?: number;
   heightCm?: number;
   thicknessMm?: number;
+  /** Ouverture à la vente : renseignée, elle peut être encore à venir. */
+  availableFrom?: number;
+  /** Mise en ligne : c'est elle qui classe les nouveautés. */
+  publishedAt?: number;
   photoUrls: string[];
 };
 
-export function MaterialCard({ material, to }: { material: PublicMaterial; to: string }) {
+export function MaterialCard({
+  material,
+  to,
+  note,
+}: {
+  material: PublicMaterial;
+  to: string;
+  /** Mention en tête de carte : « Disponible le 12/09 » pour un lot à venir. */
+  note?: string;
+}) {
   const dimensions = formatDimensions(material);
   return (
     <Link
@@ -51,6 +64,7 @@ export function MaterialCard({ material, to }: { material: PublicMaterial; to: s
           <Pill className="bg-brand-50 text-brand-700">{material.condition}</Pill>
         </div>
         <h3 className="line-clamp-2 font-semibold text-[var(--foreground)]">{material.title}</h3>
+        {note ? <p className="text-xs font-semibold text-brand-700">{note}</p> : null}
         {dimensions ? (
           <p className="text-xs text-[var(--muted-foreground)]">{dimensions}</p>
         ) : null}

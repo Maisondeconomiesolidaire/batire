@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ChevronRight, X } from "lucide-react";
 import { CATEGORIES, familiesOf, subFamiliesOf } from "../../lib/taxonomy";
@@ -30,6 +30,20 @@ export function MegaMenu({
   // l'utilisateur est descendu dans une catégorie. Sur grand écran, il ne sert
   // à rien — les deux colonnes sont toujours affichées.
   const [drilled, setDrilled] = useState(false);
+  // Le panneau doit rester monté le temps de refermer le tiroir : sans ce
+  // sursis, il disparaîtrait d'un coup et l'animation de sortie ne se verrait
+  // jamais.
+  const [closing, setClosing] = useState(false);
+
+  const requestClose = useCallback(() => {
+    setClosing(true);
+    // Fermeture et démontage tombent dans le même lot de rendu : le panneau ne
+    // réapparaît pas une image de trop avant de disparaître.
+    window.setTimeout(() => {
+      setClosing(false);
+      onClose();
+    }, 240);
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) {
@@ -38,7 +52,7 @@ export function MegaMenu({
       return;
     }
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") requestClose();
     };
     document.addEventListener("keydown", onKey);
     document.body.style.overflow = "hidden";
@@ -46,23 +60,31 @@ export function MegaMenu({
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = "";
     };
-  }, [open, onClose]);
+  }, [open, requestClose]);
 
-  if (!open) return null;
+  if (!open && !closing) return null;
 
   function go(category: string, family?: string, subFamily?: string) {
     const params = new URLSearchParams({ categorie: category });
     if (family) params.set("famille", family);
     if (subFamily) params.set("sousfamille", subFamily);
     navigate(`${basePath}?${params.toString()}`);
-    onClose();
+    requestClose();
   }
 
   return (
     <div className="fixed inset-0 z-50 flex">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden />
+      <div
+        className="drawer-veil absolute inset-0 bg-black/40"
+        data-closing={closing}
+        onClick={requestClose}
+        aria-hidden
+      />
 
-      <div className="relative flex h-full w-full max-w-6xl bg-[var(--background)] shadow-2xl">
+      <div
+        className="drawer-panel relative flex h-full w-full max-w-6xl bg-[var(--background)] shadow-2xl"
+        data-closing={closing}
+      >
         {/* ── Catégories ─────────────────────────────────────────────────
             Sur mobile, cette colonne s'efface quand une catégorie est
             choisie : le second volet prend sa place, il ne s'y superpose pas. */}
@@ -75,7 +97,7 @@ export function MegaMenu({
           <div className="flex items-center gap-4 px-5 py-4">
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               className="rounded-lg p-1.5 transition hover:bg-[var(--muted)]"
               aria-label="Fermer le menu"
             >
@@ -129,7 +151,7 @@ export function MegaMenu({
               </button>
               <button
                 type="button"
-                onClick={onClose}
+                onClick={requestClose}
                 className="ml-auto rounded-lg p-1.5 hover:bg-[var(--muted)]"
                 aria-label="Fermer le menu"
               >
