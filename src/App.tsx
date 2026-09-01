@@ -16,10 +16,14 @@ import { Ventes } from "./pages/crm/Ventes";
 import { MessagerieCrm } from "./pages/crm/Messagerie";
 import { Messagerie } from "./pages/public/Messagerie";
 import { QrCodes } from "./pages/crm/QrCodes";
+import { ProfileSync } from "./components/ProfileSync";
 
 export default function App() {
   return (
     <>
+      {/* Hors de toute garde d'authentification : l'origine de l'inscription
+          se constitue pendant la visite déconnectée. */}
+      <ProfileSync app="batire" />
       <UpdateAvailableBanner appName="Bâtire" />
       <Routes>
       <Route element={<PublicShell />}>
