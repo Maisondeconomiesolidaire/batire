@@ -4,6 +4,7 @@ import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-reac
 import { Boxes, HeartHandshake, MessageSquare, Moon, QrCode, Receipt, ShieldAlert, Store, Sun } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { AppSwitcher } from "../AppSwitcher";
 import { useAccess, canAccess } from "../../lib/access";
 import { FullSpinner } from "../ui/Spinner";
 import { cn } from "../../lib/cn";
@@ -61,11 +62,14 @@ export function CrmLayout() {
             {/* Barre latérale : la navigation d'un back-office se lit d'un
                 coup d'œil et ne bouge pas d'une page à l'autre. */}
             <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col border-r border-[var(--border)] bg-[var(--card)] lg:flex">
-              <div className="px-5 py-5">
-                <NavLink to="/crm" className="text-lg font-black tracking-tight">
-                  Bâtire<span className="text-brand-500">.</span>
-                </NavLink>
-                <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">Espace équipe</p>
+              <div className="flex items-start justify-between gap-2 px-5 py-5">
+                <div className="min-w-0">
+                  <NavLink to="/crm" className="text-lg font-black tracking-tight">
+                    Bâtire<span className="text-brand-500">.</span>
+                  </NavLink>
+                  <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">Espace équipe</p>
+                </div>
+                <AppSwitcher current="batire" />
               </div>
               <nav className="flex-1 space-y-1 px-3">
                 {NAV.filter((item) => canAccess(access, item.page)).map((item) => (
@@ -149,6 +153,7 @@ export function CrmLayout() {
                   ))}
                 </nav>
                 <div className="ml-auto flex items-center gap-2">
+                  <AppSwitcher current="batire" />
                   <button
                     type="button"
                     onClick={toggle}
