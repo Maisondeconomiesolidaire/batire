@@ -311,14 +311,14 @@ function DonationPanel({
             <div className="mt-3 space-y-1.5 text-sm">
               <a
                 href={`mailto:${donation.donor.email}`}
-                className="flex items-center gap-2 text-[var(--muted-foreground)] hover:text-brand-400"
+                className="flex items-center gap-2 text-[var(--muted-foreground)] hover:text-brand-600 dark:hover:text-brand-400"
               >
                 <Mail className="h-4 w-4" /> {donation.donor.email}
               </a>
               {donation.donor.phone ? (
                 <a
                   href={`tel:${donation.donor.phone.replace(/\s/g, "")}`}
-                  className="flex items-center gap-2 text-[var(--muted-foreground)] hover:text-brand-400"
+                  className="flex items-center gap-2 text-[var(--muted-foreground)] hover:text-brand-600 dark:hover:text-brand-400"
                 >
                   <Phone className="h-4 w-4" /> {donation.donor.phone}
                 </a>

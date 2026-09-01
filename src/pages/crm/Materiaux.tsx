@@ -196,7 +196,7 @@ export function Materiaux() {
                         onClick={() =>
                           void setPublished({ id: material._id, published: !material.published })
                         }
-                        className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--muted-foreground)] hover:text-brand-400"
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--muted-foreground)] hover:text-brand-600 dark:hover:text-brand-400"
                       >
                         {material.published ? (
                           <>
@@ -234,7 +234,7 @@ export function Materiaux() {
                               void remove({ id: material._id });
                             }
                           }}
-                          className="rounded-lg p-2 text-[var(--muted-foreground)] hover:bg-red-500/10 hover:text-red-400"
+                          className="rounded-lg p-2 text-[var(--muted-foreground)] hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
                           aria-label="Supprimer"
                         >
                           <Trash2 className="h-4 w-4" />

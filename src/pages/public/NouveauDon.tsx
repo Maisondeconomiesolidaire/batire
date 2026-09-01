@@ -2,14 +2,20 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { SignInButton, useUser } from "@clerk/clerk-react";
 import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft, CheckCircle2, HeartHandshake, ImagePlus, Lock, X } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ImagePlus, Lock, X } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "../../components/ui/Button";
 import { Field, Input, Textarea } from "../../components/ui/Field";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { Spinner } from "../../components/ui/Spinner";
-import { DonorFieldset, EMPTY_DONOR, donorReady, type DonorForm } from "../../components/public/DonorFieldset";
+import {
+  DonorFieldset,
+  EMPTY_DONOR,
+  donorReady,
+  type DonorForm,
+} from "../../components/public/DonorFieldset";
+import { formatFrPhone } from "../../components/ui/PhoneInput";
 import { useUpload } from "../../lib/upload";
 import { CATEGORIES, familiesOf, subFamiliesOf } from "../../lib/taxonomy";
 import { CONDITIONS, PAGE_X, UNITS, type Condition, type Unit } from "../../lib/constants";
@@ -66,7 +72,7 @@ export function NouveauDon() {
       firstName: current.firstName || profile.firstName,
       lastName: current.lastName || profile.lastName,
       email: profile.email,
-      phone: current.phone || profile.phone,
+      phone: current.phone || formatFrPhone(profile.phone),
       address: current.address || profile.address,
       postalCode: current.postalCode || profile.postalCode,
       city: current.city || profile.city,
@@ -77,6 +83,8 @@ export function NouveauDon() {
     setLot((current) => ({ ...current, [key]: value }));
   const setDonorField = <K extends keyof DonorForm>(key: K, value: DonorForm[K]) =>
     setDonor((current) => ({ ...current, [key]: value }));
+  const patchDonor = (values: Partial<DonorForm>) =>
+    setDonor((current) => ({ ...current, ...values }));
 
   const families = useMemo(() => familiesOf(lot.category), [lot.category]);
   const subFamilies = useMemo(
@@ -137,9 +145,7 @@ export function NouveauDon() {
   if (isLoaded && !isSignedIn) {
     return (
       <div className={cn("mx-auto max-w-lg py-24 text-center", PAGE_X)}>
-        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
-          <Lock className="h-5 w-5" />
-        </span>
+        <Lock className="mx-auto h-6 w-6 text-[var(--muted-foreground)]" />
         <h1 className="mt-4 text-2xl font-black tracking-tight">Proposer un don</h1>
         <p className="mt-2 text-sm text-[var(--muted-foreground)]">
           Connectez-vous pour proposer vos matériaux et suivre vos dons.
@@ -189,11 +195,11 @@ export function NouveauDon() {
         <ArrowLeft className="h-4 w-4" /> Retour au catalogue
       </Link>
 
-      <header className="mt-4 overflow-hidden rounded-3xl border border-[var(--border)] bg-gradient-to-br from-brand-50 via-[var(--card)] to-[var(--card)] p-7">
-        <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-600 text-white">
-          <HeartHandshake className="h-5 w-5" />
-        </span>
-        <h1 className="mt-4 text-3xl font-black tracking-tight">Proposer un don</h1>
+      <header className="mt-4 border-b border-[var(--border)] pb-6">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+          Don de matériaux
+        </p>
+        <h1 className="mt-1.5 text-3xl font-black tracking-tight sm:text-4xl">Proposer un don</h1>
         <p className="mt-1.5 max-w-xl text-sm text-[var(--muted-foreground)]">
           Photographiez le lot, rangez-le dans le catalogue, envoyez. L'équipe répond par email.
         </p>
@@ -202,7 +208,7 @@ export function NouveauDon() {
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px] lg:items-start">
         <div className="space-y-6">
           {/* ── Photos ───────────────────────────────────────────────────── */}
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+          <section>
             <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
               Photos
             </p>
@@ -254,7 +260,7 @@ export function NouveauDon() {
           </section>
 
           {/* ── Le lot ───────────────────────────────────────────────────── */}
-          <section className="space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+          <section className="space-y-4 border-t border-[var(--border)] pt-6">
             <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
               Le lot
             </p>
@@ -342,7 +348,7 @@ export function NouveauDon() {
           </section>
 
           {/* ── Donateur ─────────────────────────────────────────────────── */}
-          <section className="space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+          <section className="space-y-4 border-t border-[var(--border)] pt-6">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
                 Vos coordonnées
@@ -351,13 +357,13 @@ export function NouveauDon() {
                 Modifier ma fiche
               </Link>
             </div>
-            <DonorFieldset donor={donor} set={setDonorField} showSiret={false} />
+            <DonorFieldset donor={donor} set={setDonorField} patch={patchDonor} showSiret={false} />
           </section>
         </div>
 
         {/* ── Récapitulatif ──────────────────────────────────────────────── */}
         <aside className="lg:sticky lg:top-24">
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+          <div className="rounded-2xl border border-[var(--border)] p-5">
             <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
               Récapitulatif
             </p>

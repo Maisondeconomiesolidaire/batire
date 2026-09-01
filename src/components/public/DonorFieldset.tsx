@@ -1,5 +1,7 @@
 import { Field, Input } from "../ui/Field";
 import { MultiPicker } from "../ui/MultiPicker";
+import { AddressAutocomplete } from "../ui/AddressAutocomplete";
+import { PhoneInput, isFrPhone } from "../ui/PhoneInput";
 import { PROFILES } from "../../lib/constants";
 
 export type DonorForm = {
@@ -30,7 +32,7 @@ export const EMPTY_DONOR: DonorForm = {
 
 /** Ce que la fiche donateur doit porter pour qu'un don parte. */
 export function donorReady(donor: DonorForm) {
-  return Boolean(donor.firstName.trim() && donor.lastName.trim() && donor.phone.trim());
+  return Boolean(donor.firstName.trim() && donor.lastName.trim() && isFrPhone(donor.phone));
 }
 
 /**
@@ -40,12 +42,17 @@ export function donorReady(donor: DonorForm) {
 export function DonorFieldset({
   donor,
   set,
+  patch,
   showSiret = true,
 }: {
   donor: DonorForm;
   set: <K extends keyof DonorForm>(key: K, value: DonorForm[K]) => void;
+  /** Une adresse choisie remplit rue, code postal et ville d'un seul coup. */
+  patch: (values: Partial<DonorForm>) => void;
   showSiret?: boolean;
 }) {
+  const phoneInvalid = donor.phone.trim().length > 0 && !isFrPhone(donor.phone);
+
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="sm:col-span-2">
@@ -83,26 +90,39 @@ export function DonorFieldset({
       <Field label="Email">
         <Input value={donor.email} disabled />
       </Field>
-      <Field label="Téléphone" required>
-        <Input
-          value={donor.phone}
-          onChange={(event) => set("phone", event.target.value)}
-          placeholder="06 12 34 56 78"
-        />
-      </Field>
+      <div>
+        <Field label="Téléphone" required>
+          <PhoneInput value={donor.phone} onValueChange={(value) => set("phone", value)} />
+        </Field>
+        {phoneInvalid ? (
+          <p className="mt-1 text-xs font-medium text-red-600">
+            Numéro français à 10 chiffres attendu.
+          </p>
+        ) : null}
+      </div>
       <div className="sm:col-span-2">
         <Field label="Adresse">
-          <Input
+          <AddressAutocomplete
             value={donor.address}
-            onChange={(event) => set("address", event.target.value)}
-            placeholder="12 rue des Ateliers"
+            onValueChange={(value) => set("address", value)}
+            onSelect={(address) =>
+              patch({
+                address: address.address,
+                postalCode: address.postalCode,
+                city: address.city,
+              })
+            }
+            placeholder="12 rue des Ateliers, Beauvais"
           />
         </Field>
       </div>
       <Field label="Code postal">
         <Input
           value={donor.postalCode}
-          onChange={(event) => set("postalCode", event.target.value)}
+          inputMode="numeric"
+          onChange={(event) =>
+            set("postalCode", event.target.value.replace(/\D/g, "").slice(0, 5))
+          }
           placeholder="60650"
         />
       </Field>

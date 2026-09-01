@@ -9,7 +9,10 @@ const VARIANTS: Record<Variant, string> = {
   outline:
     "border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--accent)]",
   ghost: "text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]",
-  danger: "border border-red-200 text-red-600 hover:bg-red-50",
+  // Le CRM bascule en sombre : sans déclinaison, le rouge clair d'un thème
+  // devient illisible sur le fond de l'autre.
+  danger:
+    "border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20",
 };
 
 export function Button({

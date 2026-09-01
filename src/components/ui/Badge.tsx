@@ -3,17 +3,17 @@ import type { DonationStatus, MaterialStatus, RequestOutcome } from "../../lib/c
 import { DONATION_STATUS_LABELS, OUTCOME_LABELS, STATUS_LABELS } from "../../lib/constants";
 
 const STATUS_TONES: Record<MaterialStatus, string> = {
-  brouillon: "bg-zinc-100 text-zinc-700",
-  disponible: "bg-emerald-100 text-emerald-800",
-  reserve: "bg-amber-100 text-amber-800",
-  vendu: "bg-zinc-200 text-zinc-600",
+  brouillon: "bg-zinc-100 text-zinc-700 dark:bg-zinc-500/15 dark:text-zinc-300",
+  disponible: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300",
+  reserve: "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300",
+  vendu: "bg-zinc-200 text-zinc-600 dark:bg-zinc-500/15 dark:text-zinc-400",
 };
 
 const OUTCOME_TONES: Record<RequestOutcome, string> = {
-  nouveau: "bg-brand-100 text-brand-800",
-  en_cours: "bg-sky-100 text-sky-800",
-  gagnee: "bg-emerald-100 text-emerald-800",
-  perdue: "bg-zinc-200 text-zinc-600",
+  nouveau: "bg-brand-100 text-brand-800 dark:bg-brand-500/15 dark:text-brand-300",
+  en_cours: "bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300",
+  gagnee: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300",
+  perdue: "bg-zinc-200 text-zinc-600 dark:bg-zinc-500/15 dark:text-zinc-400",
 };
 
 const DONATION_TONES: Record<DonationStatus, string> = {

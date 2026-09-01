@@ -77,7 +77,7 @@ export function CrmLayout() {
                       cn(
                         "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
                         isActive
-                          ? "bg-brand-500/15 text-brand-300"
+                          ? "bg-brand-500/15 text-brand-700 dark:text-brand-300"
                           : "text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]",
                       )
                     }
@@ -133,7 +133,7 @@ export function CrmLayout() {
                         cn(
                           "inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium",
                           isActive
-                            ? "bg-brand-500/15 text-brand-300"
+                            ? "bg-brand-500/15 text-brand-700 dark:text-brand-300"
                             : "text-[var(--muted-foreground)]",
                         )
                       }

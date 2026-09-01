@@ -414,7 +414,7 @@ export function MaterialForm() {
       <button
         type="button"
         onClick={onClose}
-        className="mb-4 inline-flex items-center gap-2 text-sm text-[var(--muted-foreground)] hover:text-brand-400"
+        className="mb-4 inline-flex items-center gap-2 text-sm text-[var(--muted-foreground)] hover:text-brand-600 dark:hover:text-brand-400"
       >
         <ArrowLeft className="h-4 w-4" /> Retour au catalogue
       </button>

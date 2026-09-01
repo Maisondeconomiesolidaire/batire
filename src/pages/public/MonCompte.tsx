@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { SignInButton, useUser } from "@clerk/clerk-react";
 import { useMutation, useQuery } from "convex/react";
-import { Building2, HeartHandshake, Lock, PackageOpen, Plus } from "lucide-react";
+import { HeartHandshake, Lock, PackageOpen, Plus } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { Button } from "../../components/ui/Button";
 import { FullSpinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { DonationBadge } from "../../components/ui/Badge";
 import { DonorFieldset, EMPTY_DONOR, type DonorForm } from "../../components/public/DonorFieldset";
+import { formatFrPhone } from "../../components/ui/PhoneInput";
 import { formatDate } from "../../lib/format";
 import { PAGE_X, type DonationStatus } from "../../lib/constants";
 import { errorMessage } from "../../lib/errors";
@@ -47,7 +48,7 @@ export function MonCompte() {
       firstName: profile.firstName,
       lastName: profile.lastName,
       email: profile.email,
-      phone: profile.phone,
+      phone: formatFrPhone(profile.phone),
       address: profile.address,
       postalCode: profile.postalCode,
       city: profile.city,
@@ -57,6 +58,10 @@ export function MonCompte() {
   const set = <K extends keyof DonorForm>(key: K, value: DonorForm[K]) => {
     setSaved(false);
     setDonor((current) => ({ ...current, [key]: value }));
+  };
+  const patch = (values: Partial<DonorForm>) => {
+    setSaved(false);
+    setDonor((current) => ({ ...current, ...values }));
   };
 
   async function submit() {
@@ -85,9 +90,7 @@ export function MonCompte() {
   if (isLoaded && !isSignedIn) {
     return (
       <div className={cn("mx-auto max-w-lg py-24 text-center", PAGE_X)}>
-        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
-          <Lock className="h-5 w-5" />
-        </span>
+        <Lock className="mx-auto h-6 w-6 text-[var(--muted-foreground)]" />
         <h1 className="mt-4 text-2xl font-black tracking-tight">Espace client</h1>
         <p className="mt-2 text-sm text-[var(--muted-foreground)]">
           Connectez-vous pour renseigner votre fiche donateur et suivre vos dons.
@@ -105,49 +108,37 @@ export function MonCompte() {
 
   return (
     <div className={cn("mx-auto w-full max-w-6xl py-6", PAGE_X)}>
-      <header className="overflow-hidden rounded-3xl border border-[var(--border)] bg-gradient-to-br from-brand-50 via-[var(--card)] to-[var(--card)] p-7">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-600 text-white">
-              <Building2 className="h-5 w-5" />
-            </span>
-            <h1 className="mt-4 truncate text-3xl font-black tracking-tight">
-              {donor.company.trim() || user?.fullName || "Mon espace"}
-            </h1>
-            <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-              {donor.email || user?.primaryEmailAddress?.emailAddress}
-            </p>
-          </div>
-          <Link to="/don/nouveau">
-            <Button>
-              <Plus className="h-4 w-4" /> Nouveau don
-            </Button>
-          </Link>
+      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-[var(--border)] pb-6">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+            Espace client
+          </p>
+          <h1 className="mt-1.5 truncate text-3xl font-black tracking-tight sm:text-4xl">
+            {donor.company.trim() || user?.fullName || "Mon espace"}
+          </h1>
+          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+            {[donor.email || user?.primaryEmailAddress?.emailAddress, ...donor.profiles]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
         </div>
-        {donor.profiles.length ? (
-          <div className="mt-5 flex flex-wrap gap-2">
-            {donor.profiles.map((value) => (
-              <span
-                key={value}
-                className="rounded-full bg-[var(--card)] px-3 py-1 text-xs font-semibold text-[var(--muted-foreground)] ring-1 ring-[var(--border)]"
-              >
-                {value}
-              </span>
-            ))}
-          </div>
-        ) : null}
+        <Link to="/don/nouveau">
+          <Button>
+            <Plus className="h-4 w-4" /> Nouveau don
+          </Button>
+        </Link>
       </header>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
         {/* ── Fiche donateur ───────────────────────────────────────────── */}
-        <section className="space-y-5 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
+        <section className="space-y-5">
           <div>
             <h2 className="text-lg font-bold">Ma fiche donateur</h2>
             <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">
               Reprise automatiquement à l'achat et à chaque don.
             </p>
           </div>
-          <DonorFieldset donor={donor} set={set} />
+          <DonorFieldset donor={donor} set={set} patch={patch} />
           {error ? (
             <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300">
               {error}
@@ -164,7 +155,7 @@ export function MonCompte() {
         </section>
 
         {/* ── Mes dons ─────────────────────────────────────────────────── */}
-        <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
+        <section>
           <div className="flex items-baseline justify-between gap-3">
             <h2 className="text-lg font-bold">Mes dons</h2>
             <span className="text-sm text-[var(--muted-foreground)]">

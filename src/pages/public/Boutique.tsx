@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useState } from "react";
 import { useQuery } from "convex/react";
-import { ArrowRight, HeartHandshake, PackageOpen, X } from "lucide-react";
+import { PackageOpen, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "../../../convex/_generated/api";
 import { MaterialCard, type PublicMaterial } from "../../components/public/MaterialCard";
@@ -131,25 +131,15 @@ export function Boutique({
       {/* Le dépôt vit des matériaux qu'on lui apporte : l'appel au don a sa
           place dans le catalogue, pas seulement dans l'en-tête. */}
       {!kiosk ? (
-        <Link
-          to="/don/nouveau"
-          className="group mt-4 flex flex-wrap items-center gap-4 rounded-2xl border border-brand-200 bg-gradient-to-r from-brand-50 to-[var(--card)] px-5 py-4 transition hover:border-brand-300"
-        >
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white">
-            <HeartHandshake className="h-5 w-5" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block font-bold text-[var(--foreground)]">
-              Vous avez des matériaux à donner ?
-            </span>
-            <span className="block text-sm text-[var(--muted-foreground)]">
-              Photographiez votre lot, l'équipe vous répond.
-            </span>
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition group-hover:bg-brand-700">
-            Nouveau don <ArrowRight className="h-4 w-4" />
-          </span>
-        </Link>
+        <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+          Vous avez des matériaux à donner ?{" "}
+          <Link
+            to="/don/nouveau"
+            className="font-semibold text-brand-700 underline decoration-brand-300 underline-offset-4 transition hover:decoration-brand-600"
+          >
+            Proposer un don
+          </Link>
+        </p>
       ) : null}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">

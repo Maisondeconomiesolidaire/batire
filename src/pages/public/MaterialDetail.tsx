@@ -9,6 +9,7 @@ import { FullSpinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Button } from "../../components/ui/Button";
 import { Field, Input } from "../../components/ui/Field";
+import { PhoneInput, formatFrPhone } from "../../components/ui/PhoneInput";
 import { formatDimensions, formatPrice, formatStock, formatUnitPrice, unitLabel } from "../../lib/format";
 import { PAGE_X, UNIT_LABELS, type Unit } from "../../lib/constants";
 import { QrCode } from "../../components/ui/QrCode";
@@ -256,7 +257,7 @@ function BuyBlock({
       firstName: current.firstName || donorProfile.firstName,
       lastName: current.lastName || donorProfile.lastName,
       email: current.email || donorProfile.email,
-      phone: current.phone || donorProfile.phone,
+      phone: current.phone || formatFrPhone(donorProfile.phone),
       company: current.company || donorProfile.company,
     }));
   }, [donorProfile]);
@@ -390,7 +391,7 @@ function BuyBlock({
           <Input type="email" value={form.email} onChange={(e) => set("email")(e.target.value)} />
         </Field>
         <Field label="Téléphone">
-          <Input value={form.phone} onChange={(e) => set("phone")(e.target.value)} />
+          <PhoneInput value={form.phone} onValueChange={set("phone")} />
         </Field>
         <Field label="Entreprise">
           <Input value={form.company} onChange={(e) => set("company")(e.target.value)} />
