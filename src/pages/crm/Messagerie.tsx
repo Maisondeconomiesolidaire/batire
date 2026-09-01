@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "convex/react";
-import { MessageSquare, Send } from "lucide-react";
+import { Mail, MessageSquare, PackageOpen, Send } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
+import type { FunctionReturnType } from "convex/server";
 import { FullSpinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Button } from "../../components/ui/Button";
-import { Pill } from "../../components/ui/Badge";
-import { formatDateTime } from "../../lib/format";
+import { Pill, StatusBadge } from "../../components/ui/Badge";
+import { formatDate, formatDateTime, formatPrice, formatStock, unitLabel } from "../../lib/format";
 import { cn } from "../../lib/cn";
 import { errorMessage } from "../../lib/errors";
 
@@ -35,7 +37,7 @@ export function MessagerieCrm() {
       {threads.length === 0 ? (
         <EmptyState icon={<MessageSquare className="h-10 w-10" />} title="Aucune discussion" />
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
+        <div className="grid gap-4 lg:grid-cols-[300px_1fr] xl:grid-cols-[300px_1fr_320px]">
           <nav className="space-y-1 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-2">
             {threads.map((thread) => (
               <button
@@ -136,8 +138,136 @@ export function MessagerieCrm() {
               </>
             ) : null}
           </section>
+
+          {current ? <ThreadRecap thread={current} /> : null}
         </div>
       )}
+    </div>
+  );
+}
+
+type Thread = FunctionReturnType<typeof api.batire.listThreads>[number];
+
+/**
+ * Récapitulatif du fil : de quel objet on parle, et à qui on répond. Sans lui,
+ * l'équipe répondait sur la foi d'un titre de matériau et devait rouvrir la
+ * fiche dans un autre onglet pour connaître prix, stock et emplacement.
+ */
+function ThreadRecap({ thread }: { thread: Thread }) {
+  const material = thread.material;
+
+  return (
+    <aside className="flex flex-col gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+          Récapitulatif
+        </p>
+        <h2 className="mt-1 text-lg font-bold leading-tight">
+          {material?.title ?? thread.materialTitle}
+        </h2>
+        {material?.reference ? (
+          <p className="text-xs text-[var(--muted-foreground)]">Réf. {material.reference}</p>
+        ) : null}
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--muted)]">
+        {material?.photoUrl ? (
+          <img src={material.photoUrl} alt="" className="aspect-square w-full object-cover" />
+        ) : (
+          <div className="flex aspect-square w-full items-center justify-center text-[var(--muted-foreground)]">
+            <PackageOpen className="h-8 w-8" />
+          </div>
+        )}
+      </div>
+
+      {material ? (
+        <>
+          <div className="flex flex-wrap gap-2">
+            <StatusBadge status={material.status} />
+            <Pill className="bg-[var(--muted)] text-[var(--foreground)]">{material.condition}</Pill>
+            {material.published ? (
+              <Pill className="bg-sky-100 text-sky-800">En boutique</Pill>
+            ) : null}
+          </div>
+
+          <dl className="space-y-3 border-t border-[var(--border)] pt-4">
+            <RecapRow label="Prix" value={`${formatPrice(material.price)} / ${unitLabel(1, material.unit)}`} />
+            <RecapRow label="Stock" value={formatStock(material.quantity, material.unit)} />
+            <RecapRow
+              label="Catégorie"
+              value={[material.category, material.family, material.subcategory].filter(Boolean).join(" · ")}
+            />
+            {material.depot || material.location ? (
+              <RecapRow
+                label="Emplacement"
+                value={[material.depot, material.location].filter(Boolean).join(" · ")}
+              />
+            ) : null}
+            {material.qrReference ? <RecapRow label="QR" value={material.qrReference} /> : null}
+          </dl>
+
+          <div className="grid gap-2">
+            <Link
+              to={`/crm/materiaux/${material._id}`}
+              className="rounded-xl bg-brand-600 px-4 py-2.5 text-center text-sm font-semibold text-white transition hover:bg-brand-700"
+            >
+              Ouvrir la fiche
+            </Link>
+            <a
+              href={`/materiau/${material._id}`}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-xl border border-[var(--border)] px-4 py-2.5 text-center text-sm font-medium transition hover:border-brand-400"
+            >
+              Voir dans la boutique
+            </a>
+          </div>
+        </>
+      ) : (
+        <p className="rounded-xl bg-[var(--muted)] px-3 py-2.5 text-xs text-[var(--muted-foreground)]">
+          {thread.materialId
+            ? "Ce matériau a été supprimé depuis l'ouverture du fil."
+            : "Discussion générale, sans matériau rattaché."}
+        </p>
+      )}
+
+      <div className="space-y-3 border-t border-[var(--border)] pt-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+          Client
+        </p>
+        <RecapRow label="Nom" value={thread.clientName || "—"} />
+        {thread.clientEmail ? (
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+              E-mail
+            </p>
+            <a
+              href={`mailto:${thread.clientEmail}`}
+              className="mt-0.5 flex items-center gap-1.5 break-all text-sm font-medium text-brand-700 hover:underline"
+            >
+              <Mail className="h-3.5 w-3.5 shrink-0" /> {thread.clientEmail}
+            </a>
+          </div>
+        ) : null}
+        <RecapRow label="Premier message" value={formatDate(thread.firstAt)} />
+        <RecapRow label="Dernier message" value={formatDateTime(thread.lastAt)} />
+        <RecapRow
+          label="Messages"
+          value={`${thread.messageCount} message${thread.messageCount > 1 ? "s" : ""}`}
+        />
+      </div>
+    </aside>
+  );
+}
+
+function RecapRow({ label, value }: { label: string; value: string }) {
+  if (!value) return null;
+  return (
+    <div>
+      <dt className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+        {label}
+      </dt>
+      <dd className="mt-0.5 text-sm">{value}</dd>
     </div>
   );
 }
