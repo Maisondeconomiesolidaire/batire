@@ -104,7 +104,7 @@ export function MegaMenu({
               <X className="h-6 w-6" />
             </button>
             <span className="text-lg font-black tracking-tight">
-              Bâtire<span className="text-brand-600">.</span>
+              BâtiRe<span className="text-brand-600">.</span>
             </span>
           </div>
 

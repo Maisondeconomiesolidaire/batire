@@ -28,7 +28,7 @@ export default function App() {
       {/* Hors de toute garde d'authentification : l'origine de l'inscription
           se constitue pendant la visite déconnectée. */}
       <ProfileSync app="batire" />
-      <UpdateAvailableBanner appName="Bâtire" />
+      <UpdateAvailableBanner appName="BâtiRe" />
       <Routes>
       <Route element={<PublicShell />}>
         <Route path="/" element={<BoutiqueRoute />} />
@@ -78,7 +78,7 @@ function PublicShell() {
           </button>
 
           <Link to="/" className="shrink-0 text-xl font-black tracking-tight">
-            Bâtire<span className="text-brand-600">.</span>
+            BâtiRe<span className="text-brand-600">.</span>
           </Link>
 
           <div className="relative min-w-0 flex-1">
@@ -139,7 +139,7 @@ function PublicShell() {
 
       <footer className="mt-16 border-t border-[var(--border)] py-8">
         <div className={cn("flex w-full flex-wrap items-center justify-between gap-3 text-sm text-[var(--muted-foreground)]", PAGE_X)}>
-          <p>Bâtire</p>
+          <p>BâtiRe</p>
           <Link to="/crm" className="hover:text-brand-700">
             Espace équipe
           </Link>
@@ -177,7 +177,7 @@ function KioskShell() {
           </button>
 
           <Link to="/kiosk" className="shrink-0 text-xl font-black tracking-tight">
-            Bâtire<span className="text-brand-600">.</span>
+            BâtiRe<span className="text-brand-600">.</span>
           </Link>
 
           <div className="relative min-w-0 flex-1">

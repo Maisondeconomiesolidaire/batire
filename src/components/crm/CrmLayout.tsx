@@ -65,7 +65,7 @@ export function CrmLayout() {
               <div className="flex items-start justify-between gap-2 px-5 py-5">
                 <div className="min-w-0">
                   <NavLink to="/crm" className="text-lg font-black tracking-tight">
-                    Bâtire<span className="text-brand-500">.</span>
+                    BâtiRe<span className="text-brand-500">.</span>
                   </NavLink>
                   <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">Espace équipe</p>
                 </div>
