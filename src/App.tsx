@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link, Navigate, Outlet, Route, Routes, useOutletContext } from "react-router-dom";
-import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-react";
-import { HeartHandshake, Menu, MessageSquare, Radar, Search, UserRound } from "lucide-react";
+import { HeartHandshake, Menu, Radar, Search } from "lucide-react";
 import { Boutique } from "./pages/public/Boutique";
 import { MaterialDetail } from "./pages/public/MaterialDetail";
 import { QrLanding } from "./pages/public/QrLanding";
@@ -22,6 +21,7 @@ import { QrCodes } from "./pages/crm/QrCodes";
 import { Dons } from "./pages/crm/Dons";
 import { ProfileSync } from "./components/ProfileSync";
 import { PortalButton } from "./components/PortalButton";
+import { AccountMenu } from "./components/public/AccountMenu";
 
 export default function App() {
   return (
@@ -62,13 +62,36 @@ export default function App() {
   );
 }
 
+/** Le même champ, rendu deux fois : une par disposition de l'en-tête. */
+function SearchField({
+  value,
+  onChange,
+  placeholder = "Rechercher un matériau, une marque, une référence…",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <div className="relative w-full">
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-xl border border-[var(--border)] bg-[var(--card)] py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+      />
+    </div>
+  );
+}
+
 function PublicShell() {
   const [search, setSearch] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <div className="min-h-screen bg-[var(--background)]">
       <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--background)]/95 backdrop-blur">
-        <div className={cn("flex w-full items-center gap-4 py-3", PAGE_X)}>
+        <div className={cn("flex w-full items-center gap-3 py-3", PAGE_X)}>
           <button
             type="button"
             onClick={() => setMenuOpen(true)}
@@ -82,56 +105,37 @@ function PublicShell() {
             BâtiRe<span className="text-brand-600">.</span>
           </Link>
 
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Rechercher un matériau, une marque, une référence…"
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--card)] py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
-            />
+          {/* La recherche ne tient pas sur la même ligne qu'un téléphone : elle
+              descend d'un cran plutôt que de pousser les boutons hors de
+              l'écran. */}
+          <div className="relative hidden min-w-0 flex-1 sm:block">
+            <SearchField value={search} onChange={setSearch} />
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
-            <PortalButton className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm text-[var(--foreground)] hover:border-brand-300 hover:text-brand-700 sm:hidden" />
+          <div className="ml-auto flex shrink-0 items-center gap-2 sm:ml-0">
+            <PortalButton className="rounded-xl border border-[var(--border)] px-2.5 py-2 text-sm text-[var(--foreground)] hover:border-brand-300 hover:text-brand-700 xl:px-3" />
             <Link
               to="/don/nouveau"
-              className="inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-700 transition hover:border-brand-300 hover:bg-brand-100"
+              className="inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-2.5 py-2 text-sm font-semibold text-brand-700 transition hover:border-brand-300 hover:bg-brand-100 xl:px-3"
+              title="Proposer un don"
             >
               <HeartHandshake className="h-4 w-4" />
-              <span className="hidden sm:inline">Nouveau don</span>
+              <span className="hidden xl:inline">Nouveau don</span>
             </Link>
             <Link
               to="/je-recherche"
-              className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:border-brand-300 hover:text-brand-700"
+              className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] px-2.5 py-2 text-sm font-semibold transition hover:border-brand-300 hover:text-brand-700 xl:px-3"
+              title="Je recherche"
             >
               <Radar className="h-4 w-4" />
-              <span className="hidden sm:inline">Je recherche</span>
+              <span className="hidden xl:inline">Je recherche</span>
             </Link>
-            <SignedIn>
-              <Link
-                to="/mon-compte"
-                className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-[var(--muted-foreground)] transition hover:bg-[var(--muted)]"
-              >
-                <UserRound className="h-4 w-4" />
-                <span className="hidden sm:inline">Mon espace</span>
-              </Link>
-              <Link
-                to="/messagerie"
-                className="hidden items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-[var(--muted-foreground)] hover:bg-[var(--muted)] sm:inline-flex"
-              >
-                <MessageSquare className="h-4 w-4" /> Messagerie
-              </Link>
-              <UserButton afterSignOutUrl="/" />
-            </SignedIn>
-            <SignedOut>
-              <SignInButton mode="modal">
-                <button className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700">
-                  Mon compte
-                </button>
-              </SignInButton>
-            </SignedOut>
+            <AccountMenu />
           </div>
+        </div>
+
+        <div className={cn("pb-3 sm:hidden", PAGE_X)}>
+          <SearchField value={search} onChange={setSearch} />
         </div>
       </header>
 

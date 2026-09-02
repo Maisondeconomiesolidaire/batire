@@ -1,23 +1,28 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "convex/react";
 import {
-  Building2, Check, HeartHandshake, Mail, MapPin, Phone, Search, X,
+  Building2,
+  Check,
+  HeartHandshake,
+  Mail,
+  MapPin,
+  PackageCheck,
+  PackagePlus,
+  Phone,
+  Search,
+  X,
 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "../../components/ui/Button";
 import { Input, Textarea } from "../../components/ui/Field";
-import { Dropdown } from "../../components/ui/Dropdown";
+import { UnderlineTabs } from "../../components/ui/UnderlineTabs";
 import { FullSpinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { DonationBadge } from "../../components/ui/Badge";
 import { formatDate, formatDateTime } from "../../lib/format";
-import {
-  DONATION_STATUSES,
-  DONATION_STATUS_LABELS,
-  type DonationStatus,
-  type Unit,
-} from "../../lib/constants";
+import { type DonationStatus, type Unit } from "../../lib/constants";
 import { useAccess, canAccess } from "../../lib/access";
 import { errorMessage } from "../../lib/errors";
 import { taxonomyPath } from "../../lib/taxonomy";
@@ -44,6 +49,8 @@ type Donation = {
   decidedAt?: number;
   decidedBy?: string;
   internalNote?: string;
+  materialId?: Id<"btMaterials">;
+  convertedAt?: number;
   photoUrls: string[];
   createdAt: number;
   donor: {
@@ -59,20 +66,31 @@ type Donation = {
   };
 };
 
+const TABS: Array<{ key: DonationStatus; label: string }> = [
+  { key: "nouveau", label: "En attente" },
+  { key: "accepte", label: "Acceptés" },
+  { key: "refuse", label: "Refusés" },
+];
+
 export function Dons() {
   const access = useAccess();
-  const [status, setStatus] = useState<"" | DonationStatus>("");
+  const [status, setStatus] = useState<DonationStatus>("nouveau");
   const [search, setSearch] = useState("");
   const [openId, setOpenId] = useState<Id<"btDonations"> | null>(null);
 
   const donations = useQuery(api.batireDons.listDonations, {
-    status: status || undefined,
+    status,
     search: search.trim() || undefined,
   }) as Donation[] | undefined;
+  // Les compteurs des onglets ne dépendent pas de l'onglet ouvert : sans une
+  // seconde lecture, « En attente » perdrait son badge dès qu'on le quitte.
+  const pendingList = useQuery(api.batireDons.listDonations, { status: "nouveau" }) as
+    | Donation[]
+    | undefined;
 
   const canUpdate = canAccess(access, "batire:dons", "update");
   const selected = donations?.find((donation) => donation._id === openId) ?? null;
-  const pending = donations?.filter((donation) => donation.status === "nouveau").length ?? 0;
+  const pending = pendingList?.length ?? 0;
 
   return (
     <div className="space-y-5">
@@ -80,34 +98,28 @@ export function Dons() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Dons</h1>
           <p className="text-sm text-[var(--muted-foreground)]">
-            {donations ? `${donations.length} don${donations.length > 1 ? "s" : ""}` : "…"}
-            {pending > 0 ? ` · ${pending} à étudier` : ""}
+            {pending > 0 ? `${pending} don${pending > 1 ? "s" : ""} à étudier` : "Rien en attente"}
           </p>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[240px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Rechercher (lot, référence, entreprise, email)…"
-            className="pl-9"
-          />
-        </div>
-        <Dropdown
-          className="w-52"
-          value={status}
-          onChange={(value) => setStatus(value as DonationStatus | "")}
-          placeholder="Tous les statuts"
-          options={[
-            { value: "", label: "Tous les statuts" },
-            ...DONATION_STATUSES.map((value) => ({
-              value,
-              label: DONATION_STATUS_LABELS[value],
-            })),
-          ]}
+      <UnderlineTabs
+        value={status}
+        onChange={(next) => {
+          setStatus(next);
+          setOpenId(null);
+        }}
+        items={TABS}
+        counts={{ nouveau: pending }}
+      />
+
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
+        <Input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Rechercher (lot, référence, entreprise, email)…"
+          className="pl-9"
         />
       </div>
 
@@ -116,8 +128,18 @@ export function Dons() {
       ) : donations.length === 0 ? (
         <EmptyState
           icon={<HeartHandshake className="h-10 w-10" />}
-          title="Aucun don"
-          description="Les propositions envoyées depuis la boutique arrivent ici."
+          title={
+            status === "nouveau"
+              ? "Aucun don en attente"
+              : status === "accepte"
+                ? "Aucun don accepté"
+                : "Aucun don refusé"
+          }
+          description={
+            status === "nouveau"
+              ? "Les propositions envoyées depuis la boutique arrivent ici."
+              : undefined
+          }
         />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -136,8 +158,13 @@ export function Dons() {
                     className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
                   />
                 ) : null}
-                <span className="absolute left-3 top-3">
+                <span className="absolute left-3 top-3 flex flex-wrap gap-1.5">
                   <DonationBadge status={donation.status} />
+                  {donation.materialId ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[var(--card)]/90 px-2 py-1 text-[11px] font-semibold text-[var(--muted-foreground)]">
+                      <PackageCheck className="h-3 w-3" /> En stock
+                    </span>
+                  ) : null}
                 </span>
                 {donation.photoUrls.length > 1 ? (
                   <span className="absolute bottom-3 right-3 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white">
@@ -183,6 +210,7 @@ function DonationPanel({
   canUpdate: boolean;
   onClose: () => void;
 }) {
+  const navigate = useNavigate();
   const decide = useMutation(api.batireDons.decideDonation);
   const saveNote = useMutation(api.batireDons.setDonationNote);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -368,6 +396,37 @@ function DonationPanel({
               </div>
             ) : null}
           </section>
+
+          {donation.status === "accepte" && canUpdate ? (
+            <section className="rounded-2xl border border-brand-300/40 bg-brand-500/10 p-4">
+              <p className="text-sm font-semibold">
+                {donation.materialId ? "Déjà en stock" : "Faire entrer le lot en stock"}
+              </p>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                {donation.materialId
+                  ? "Une fiche matériau a été créée depuis ce don."
+                  : "La fiche s'ouvre préremplie avec ce que le donateur a décrit et photographié."}
+              </p>
+              {donation.materialId ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => navigate(`/crm/materiaux/${donation.materialId}`)}
+                >
+                  <PackageCheck className="h-4 w-4" /> Ouvrir la fiche
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => navigate(`/crm/materiaux/nouveau?don=${donation._id}`)}
+                >
+                  <PackagePlus className="h-4 w-4" /> Convertir en matériau
+                </Button>
+              )}
+            </section>
+          ) : null}
 
           {donation.status !== "nouveau" ? (
             <section className="rounded-2xl border border-[var(--border)] p-4">

@@ -1,7 +1,17 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { useUser } from "@clerk/clerk-react";
-import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-react";
-import { Boxes, HeartHandshake, MessageSquare, Moon, QrCode, Receipt, ShieldAlert, Store, Sun } from "lucide-react";
+import { SignedIn, SignedOut, SignInButton, useClerk, useUser } from "@clerk/clerk-react";
+import {
+  Boxes,
+  HeartHandshake,
+  LogOut,
+  MessageSquare,
+  Moon,
+  QrCode,
+  Receipt,
+  ShieldAlert,
+  Store,
+  Sun,
+} from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { AppSwitcher } from "../AppSwitcher";
@@ -29,6 +39,7 @@ export function CrmLayout() {
   ) as number | undefined;
   const { theme, toggle } = useTheme();
   const { user } = useUser();
+  const { signOut } = useClerk();
 
   return (
     <div className={cn(theme === "dark" && "dark", "min-h-screen bg-[var(--background)] text-[var(--foreground)]")}>
@@ -111,8 +122,14 @@ export function CrmLayout() {
                   {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                   {theme === "dark" ? "Thème clair" : "Thème sombre"}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => void signOut(() => window.location.assign("/"))}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-[var(--muted-foreground)] transition hover:bg-[var(--accent)] hover:text-red-500"
+                >
+                  <LogOut className="h-4 w-4" /> Déconnexion
+                </button>
                 <div className="flex items-center gap-3 rounded-xl px-3 py-2">
-                  <UserButton afterSignOutUrl="/" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">
                       {user?.fullName ?? user?.primaryEmailAddress?.emailAddress ?? "Mon compte"}
@@ -162,7 +179,14 @@ export function CrmLayout() {
                   >
                     {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                   </button>
-                  <UserButton afterSignOutUrl="/" />
+                  <button
+                    type="button"
+                    onClick={() => void signOut(() => window.location.assign("/"))}
+                    className="rounded-lg p-2 text-[var(--muted-foreground)] transition hover:bg-[var(--accent)] hover:text-red-500"
+                    aria-label="Déconnexion"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </button>
                 </div>
               </header>
 

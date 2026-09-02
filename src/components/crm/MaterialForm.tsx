@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery } from "convex/react";
 import { ArrowLeft, FileText, ImagePlus, ScanLine, Sparkles, X } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
@@ -156,14 +156,23 @@ const fromDay = (value: string) => {
 
 export function MaterialForm() {
   const { id } = useParams<{ id: string }>();
+  const [params] = useSearchParams();
   const navigate = useNavigate();
   const materialId = id ? (id as Id<"btMaterials">) : undefined;
-  const onClose = () => navigate("/crm");
+  // Fiche née d'un don accepté : le formulaire s'ouvre avec ce que le donateur
+  // a décrit et photographié, l'équipe n'a plus qu'à chiffrer et ranger.
+  const donationId = params.get("don") as Id<"btDonations"> | null;
+  const onClose = () => navigate(donationId ? "/crm/dons" : "/crm");
 
   const existing = useQuery(
     api.batire.getMaterial,
     materialId ? { id: materialId } : "skip",
   );
+  const donation = useQuery(
+    api.batireDons.getDonation,
+    donationId ? { id: donationId } : "skip",
+  );
+  const markConverted = useMutation(api.batireDons.markDonationConverted);
   const createMaterial = useMutation(api.batire.createMaterial);
   const updateMaterial = useMutation(api.batire.updateMaterial);
   const analyze = useAnalyzePhotos();
@@ -185,6 +194,40 @@ export function MaterialForm() {
   const materialOptions = useQuery(api.batire.materialOptions);
   const addMaterialOption = useMutation(api.batire.addMaterialOption);
   const materialChoices = materialOptions ?? [...MATERIALS];
+
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (!donation || seeded.current) return;
+    seeded.current = true;
+    setForm((current) => ({
+      ...current,
+      title: donation.title,
+      description: donation.description ?? "",
+      category: donation.category,
+      family: donation.family ?? "",
+      subcategory: donation.subcategory ?? "",
+      condition: (donation.condition as Condition) ?? current.condition,
+      unit: (donation.unit as Unit) ?? current.unit,
+      quantity: donation.quantity ? String(donation.quantity) : "",
+      availableFrom: toDay(donation.availableFrom),
+      // Le lot vient d'un don : sa provenance et le type du donateur sont connus.
+      origin: donation.handover === "recuperer" ? "Dépose préservante" : current.origin,
+      profiles: donation.donor.profiles?.length ? donation.donor.profiles : current.profiles,
+      internalNote: [
+        `Don ${donation.reference} — ${donation.donor.company ?? ""} ${donation.donor.firstName} ${donation.donor.lastName}`.replace(/\s+/g, " ").trim(),
+        donation.donor.phone,
+        donation.donor.email,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      // Un lot donné n'est pas encore prêt à la vente : l'équipe le publie
+      // quand il est chiffré, pesé et rangé.
+      status: "brouillon",
+      published: false,
+    }));
+    setPhotos(donation.photos as Id<"_storage">[]);
+    setPhotoUrls(donation.photoUrls);
+  }, [donation]);
 
   useEffect(() => {
     if (!existing) return;
@@ -394,7 +437,14 @@ export function MaterialForm() {
           published: form.published,
         });
       } else {
-        await createMaterial({ ...payload, status: form.status, published: form.published });
+        const created = await createMaterial({
+          ...payload,
+          status: form.status,
+          published: form.published,
+        });
+        // Le don garde la trace de la fiche qu'il a produite : on ne le
+        // convertit pas deux fois.
+        if (donationId) await markConverted({ id: donationId, materialId: created });
       }
       onClose();
     } catch (caught) {
@@ -430,6 +480,13 @@ export function MaterialForm() {
           <h1 className="text-xl font-bold">
             {materialId ? "Modifier le matériau" : "Nouveau matériau"}
           </h1>
+          {donation ? (
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+              D'après le don {donation.reference} de{" "}
+              {donation.donor.company || `${donation.donor.firstName} ${donation.donor.lastName}`}{" "}
+              — vérifiez le prix, les dimensions et l'emplacement avant de publier.
+            </p>
+          ) : null}
         </div>
 
         <div className="space-y-6 p-6">
