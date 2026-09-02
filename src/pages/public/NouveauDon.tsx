@@ -9,6 +9,7 @@ import { Button } from "../../components/ui/Button";
 import { Field, Input, Textarea } from "../../components/ui/Field";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { AddressAutocomplete } from "../../components/ui/AddressAutocomplete";
+import { DatePicker } from "../../components/ui/DatePicker";
 import { Spinner } from "../../components/ui/Spinner";
 import {
   DonorFieldset,
@@ -34,7 +35,7 @@ type LotForm = {
   condition: Condition;
   quantity: string;
   unit: Unit;
-  availableFrom: string;
+  availableFrom?: number;
   handover: Handover;
   pickupAddress: string;
   pickupPostalCode: string;
@@ -50,7 +51,7 @@ const EMPTY_LOT: LotForm = {
   condition: "Bon",
   quantity: "",
   unit: "unité",
-  availableFrom: "",
+  availableFrom: undefined,
   handover: "depot",
   pickupAddress: "",
   pickupPostalCode: "",
@@ -138,7 +139,7 @@ export function NouveauDon() {
         condition: lot.condition,
         quantity: lot.quantity ? Number(lot.quantity.replace(",", ".")) : undefined,
         unit: lot.unit,
-        availableFrom: lot.availableFrom ? new Date(lot.availableFrom).getTime() : undefined,
+        availableFrom: lot.availableFrom,
         photos,
         handover: lot.handover,
         pickupAddress: lot.pickupAddress || undefined,
@@ -359,10 +360,11 @@ export function NouveauDon() {
                 />
               </Field>
               <Field label="Disponible à partir du">
-                <Input
-                  type="date"
+                <DatePicker
                   value={lot.availableFrom}
-                  onChange={(event) => setLotField("availableFrom", event.target.value)}
+                  onChange={(ms) => setLotField("availableFrom", ms)}
+                  minDate={Date.now()}
+                  placeholder="Tout de suite"
                 />
               </Field>
             </div>

@@ -2,7 +2,14 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { useUser } from "@clerk/clerk-react";
-import { CheckCircle2, MapPin, MessageSquare, PackageOpen, QrCode as QrIcon } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock,
+  MapPin,
+  MessageSquare,
+  PackageOpen,
+  QrCode as QrIcon,
+} from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { FullSpinner } from "../../components/ui/Spinner";
@@ -194,19 +201,20 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
                 Vendu {UNIT_LABELS[material.unit]} · {material.condition.toLowerCase()}
               </p>
 
+              {/* Un lot à venir n'est pas « épuisé » : il n'est pas encore
+                  ouvert à la vente, et c'est sa date qui le dit. */}
               <p
                 className={`mt-4 flex items-center gap-2 text-sm font-semibold ${
-                  inStock ? "text-emerald-600" : "text-amber-600"
+                  upcoming ? "text-brand-700" : inStock ? "text-emerald-600" : "text-amber-600"
                 }`}
               >
-                <CheckCircle2 className="h-4 w-4" />
-                {inStock ? `En stock · ${formatStock(material.quantity, material.unit)}` : "Épuisé"}
+                {upcoming ? <Clock className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                {upcoming
+                  ? `Bientôt disponible · à partir du ${formatDate(material.availableFrom!)}`
+                  : inStock
+                    ? `En stock · ${formatStock(material.quantity, material.unit)}`
+                    : "Épuisé"}
               </p>
-              {upcoming ? (
-                <p className="mt-2 text-sm font-semibold text-brand-700">
-                  Disponible à partir du {formatDate(material.availableFrom!)}
-                </p>
-              ) : null}
             </div>
 
             <div className="border-t border-[var(--border)] p-5">
@@ -230,6 +238,7 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
                     unit={material.unit}
                     price={material.price}
                     stock={material.quantity}
+                    upcoming={upcoming}
                   />
                   <AskBlock materialId={material._id} />
                 </>
@@ -328,11 +337,14 @@ function BuyBlock({
   unit,
   price,
   stock,
+  upcoming = false,
 }: {
   materialId: Id<"btMaterials">;
   unit: Unit;
   price: number;
   stock: number;
+  /** Lot annoncé mais pas encore ouvert à la vente. */
+  upcoming?: boolean;
 }) {
   const startCheckout = useAction(api.batire.startCheckout);
   const { isSignedIn } = useUser();
@@ -474,7 +486,7 @@ function BuyBlock({
           onClick={() => setOpen(true)}
           disabled={stock <= 0 || quantity <= 0 || quantity > stock}
         >
-          {stock > 0 ? "Acheter" : "Épuisé"}
+          {stock > 0 ? "Acheter" : upcoming ? "Bientôt disponible" : "Épuisé"}
         </Button>
       </div>
     );

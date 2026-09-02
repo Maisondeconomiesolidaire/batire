@@ -6,7 +6,8 @@ import { ArrowLeft, BellRing, Lock, Trash2 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "../../components/ui/Button";
-import { Field, Input } from "../../components/ui/Field";
+import { Field } from "../../components/ui/Field";
+import { DatePicker } from "../../components/ui/DatePicker";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { CATEGORIES, familiesOf, subFamiliesOf } from "../../lib/taxonomy";
 import { PAGE_X } from "../../lib/constants";
@@ -39,7 +40,7 @@ export function JeRecherche() {
   const [category, setCategory] = useState("");
   const [family, setFamily] = useState("");
   const [subcategory, setSubcategory] = useState("");
-  const [until, setUntil] = useState("");
+  const [until, setUntil] = useState<number | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,13 +57,13 @@ export function JeRecherche() {
         family: family || undefined,
         subcategory: subcategory || undefined,
         // Fin de journée : une recherche valable « jusqu'au 12 » l'est encore le 12.
-        until: until ? new Date(`${until}T23:59:59`).getTime() : undefined,
+        until: until ? until + 86_399_999 : undefined,
       });
       setSaved(true);
       setCategory("");
       setFamily("");
       setSubcategory("");
-      setUntil("");
+      setUntil(undefined);
     } catch (caught) {
       setError(errorMessage(caught, "Enregistrement impossible."));
     } finally {
@@ -149,11 +150,12 @@ export function JeRecherche() {
         </div>
 
         <Field label="Jusqu'à quand ?" hint="facultatif — au-delà, la recherche s'arrête">
-          <Input
-            type="date"
-            className="sm:w-56"
+          <DatePicker
+            className="sm:w-72"
             value={until}
-            onChange={(event) => setUntil(event.target.value)}
+            onChange={setUntil}
+            minDate={Date.now()}
+            placeholder="Sans date de fin"
           />
         </Field>
 

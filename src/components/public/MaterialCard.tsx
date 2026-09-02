@@ -47,6 +47,8 @@ export function MaterialCard({
   dimmed?: boolean;
 }) {
   const dimensions = formatDimensions(material);
+  const upcoming =
+    typeof material.availableFrom === "number" && material.availableFrom > Date.now();
   return (
     <Link
       to={to}
@@ -93,7 +95,11 @@ export function MaterialCard({
             ) : null}
           </div>
           <p className="text-xs text-[var(--muted-foreground)]">
-            {formatStock(material.quantity, material.unit)} en stock
+            {/* Un lot pas encore ouvert à la vente n'est ni « en stock » ni
+                « épuisé » : il est simplement à venir. */}
+            {upcoming
+              ? "Bientôt disponible"
+              : `${formatStock(material.quantity, material.unit)} en stock`}
             {material.depot ? ` · ${material.depot}` : ""}
           </p>
         </div>

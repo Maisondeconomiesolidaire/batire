@@ -7,6 +7,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "../ui/Button";
 import { Field, Input, Textarea } from "../ui/Field";
 import { Dropdown } from "../ui/Dropdown";
+import { DatePicker } from "../ui/DatePicker";
 import { MultiPicker } from "../ui/MultiPicker";
 import { StarRating } from "../ui/StarRating";
 import { CameraScanner } from "../ui/CameraScanner";
@@ -751,10 +752,10 @@ export function MaterialForm() {
             </div>
 
             <Field label="Début de disponibilité">
-              <Input
-                type="date"
-                value={form.availableFrom}
-                onChange={(e) => set("availableFrom", e.target.value)}
+              <DatePicker
+                value={fromDay(form.availableFrom)}
+                onChange={(ms) => set("availableFrom", toDay(ms))}
+                placeholder="Disponible immédiatement"
               />
             </Field>
 
