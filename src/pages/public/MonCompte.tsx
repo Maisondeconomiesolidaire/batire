@@ -62,6 +62,7 @@ export function MonCompte() {
     setDonor({
       company: profile.company,
       siret: profile.siret,
+      apeCode: profile.apeCode,
       profiles: profile.profiles,
       firstName: profile.firstName,
       lastName: profile.lastName,
@@ -90,6 +91,7 @@ export function MonCompte() {
       await save({
         company: donor.company,
         siret: donor.siret,
+        apeCode: donor.apeCode,
         profiles: donor.profiles,
         firstName: donor.firstName,
         lastName: donor.lastName,

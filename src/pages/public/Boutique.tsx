@@ -93,7 +93,9 @@ export function Boutique({
   const cardLink = (material: PublicMaterial) =>
     `${kiosk ? "/kiosk" : ""}/materiau/${material._id}`;
   const upcomingNote = (material: PublicMaterial) =>
-    material.availableFrom ? `Disponible le ${formatDate(material.availableFrom)}` : undefined;
+    material.availableFrom
+      ? `Disponible à partir du ${formatDate(material.availableFrom)}`
+      : undefined;
 
   // Tout en une écriture d'URL : enchaîner les setters travaillerait sur des
   // paramètres périmés et laisserait traîner une partie des filtres.
@@ -326,6 +328,7 @@ function Shelf({
               material={material}
               to={link(material)}
               note={note?.(material)}
+              dimmed={Boolean(note?.(material))}
             />
           </div>
         ))}
@@ -351,6 +354,7 @@ function Grid({
           material={material}
           to={link(material)}
           note={note?.(material)}
+          dimmed={Boolean(note?.(material))}
         />
       ))}
     </div>

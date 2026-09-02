@@ -10,7 +10,14 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { Button } from "../../components/ui/Button";
 import { Field, Input } from "../../components/ui/Field";
 import { PhoneInput, formatFrPhone } from "../../components/ui/PhoneInput";
-import { formatDimensions, formatPrice, formatStock, formatUnitPrice, unitLabel } from "../../lib/format";
+import {
+  formatDate,
+  formatDimensions,
+  formatPrice,
+  formatStock,
+  formatUnitPrice,
+  unitLabel,
+} from "../../lib/format";
 import { PAGE_X, UNIT_LABELS, type Unit } from "../../lib/constants";
 import { QrCode } from "../../components/ui/QrCode";
 import { MaterialCard, type PublicMaterial } from "../../components/public/MaterialCard";
@@ -53,6 +60,8 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
   const base = kiosk ? "/kiosk" : "";
   const dimensions = formatDimensions(material);
   const inStock = material.quantity > 0;
+  const upcoming =
+    typeof material.availableFrom === "number" && material.availableFrom > Date.now();
 
   /** Caractéristiques : on n'affiche jamais une ligne vide. */
   const specs: Array<[string, string | undefined]> = [
@@ -171,9 +180,16 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
         <aside className="lg:sticky lg:top-24">
           <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
             <div className="p-5">
-              <p className="text-3xl font-black text-brand-700">
-                {formatUnitPrice(material.price, material.unit)}
-              </p>
+              <div className="flex flex-wrap items-baseline gap-3">
+                <p className="text-3xl font-black text-brand-700">
+                  {formatUnitPrice(material.price, material.unit)}
+                </p>
+                {material.originalPrice && material.originalPrice > material.price ? (
+                  <p className="text-lg font-semibold text-[var(--muted-foreground)] line-through">
+                    {formatPrice(material.originalPrice)}
+                  </p>
+                ) : null}
+              </div>
               <p className="mt-1 text-sm text-[var(--muted-foreground)]">
                 Vendu {UNIT_LABELS[material.unit]} · {material.condition.toLowerCase()}
               </p>
@@ -186,6 +202,11 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
                 <CheckCircle2 className="h-4 w-4" />
                 {inStock ? `En stock · ${formatStock(material.quantity, material.unit)}` : "Épuisé"}
               </p>
+              {upcoming ? (
+                <p className="mt-2 text-sm font-semibold text-brand-700">
+                  Disponible à partir du {formatDate(material.availableFrom!)}
+                </p>
+              ) : null}
             </div>
 
             <div className="border-t border-[var(--border)] p-5">

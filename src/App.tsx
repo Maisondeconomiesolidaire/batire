@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Link, Navigate, Outlet, Route, Routes, useOutletContext } from "react-router-dom";
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-react";
-import { HeartHandshake, Menu, MessageSquare, Search, UserRound } from "lucide-react";
+import { HeartHandshake, Menu, MessageSquare, Radar, Search, UserRound } from "lucide-react";
 import { Boutique } from "./pages/public/Boutique";
 import { MaterialDetail } from "./pages/public/MaterialDetail";
 import { QrLanding } from "./pages/public/QrLanding";
 import { MonCompte } from "./pages/public/MonCompte";
 import { NouveauDon } from "./pages/public/NouveauDon";
+import { JeRecherche } from "./pages/public/JeRecherche";
 import { MegaMenu } from "./components/public/MegaMenu";
 import { PAGE_X } from "./lib/constants";
 import { cn } from "./lib/cn";
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="/messagerie" element={<Messagerie />} />
         <Route path="/mon-compte" element={<MonCompte />} />
         <Route path="/don/nouveau" element={<NouveauDon />} />
+        <Route path="/je-recherche" element={<JeRecherche />} />
       </Route>
 
       <Route element={<KioskShell />}>
@@ -96,6 +98,13 @@ function PublicShell() {
             >
               <HeartHandshake className="h-4 w-4" />
               <span className="hidden sm:inline">Nouveau don</span>
+            </Link>
+            <Link
+              to="/je-recherche"
+              className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:border-brand-300 hover:text-brand-700"
+            >
+              <Radar className="h-4 w-4" />
+              <span className="hidden sm:inline">Je recherche</span>
             </Link>
             <SignedIn>
               <Link

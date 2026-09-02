@@ -7,6 +7,7 @@ import { PROFILES } from "../../lib/constants";
 export type DonorForm = {
   company: string;
   siret: string;
+  apeCode: string;
   profiles: string[];
   firstName: string;
   lastName: string;
@@ -20,6 +21,7 @@ export type DonorForm = {
 export const EMPTY_DONOR: DonorForm = {
   company: "",
   siret: "",
+  apeCode: "",
   profiles: [],
   firstName: "",
   lastName: "",
@@ -73,13 +75,22 @@ export function DonorFieldset({
         />
       </Field>
       {showSiret ? (
-        <Field label="SIRET">
-          <Input
-            value={donor.siret}
-            onChange={(event) => set("siret", event.target.value)}
-            placeholder="123 456 789 00012"
-          />
-        </Field>
+        <>
+          <Field label="SIRET">
+            <Input
+              value={donor.siret}
+              onChange={(event) => set("siret", event.target.value)}
+              placeholder="123 456 789 00012"
+            />
+          </Field>
+          <Field label="Code APE" hint="code NAF de l'activité">
+            <Input
+              value={donor.apeCode}
+              onChange={(event) => set("apeCode", event.target.value.toUpperCase())}
+              placeholder="4399C"
+            />
+          </Field>
+        </>
       ) : null}
       <Field label="Prénom" required>
         <Input value={donor.firstName} onChange={(event) => set("firstName", event.target.value)} />

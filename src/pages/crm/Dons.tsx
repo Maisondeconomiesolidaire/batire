@@ -35,6 +35,10 @@ type Donation = {
   quantity?: number;
   unit?: Unit;
   availableFrom?: number;
+  handover?: "depot" | "recuperer";
+  pickupAddress?: string;
+  pickupPostalCode?: string;
+  pickupCity?: string;
   status: DonationStatus;
   decisionMessage?: string;
   decidedAt?: number;
@@ -294,6 +298,25 @@ function DonationPanel({
               value={donation.availableFrom ? formatDate(donation.availableFrom) : "—"}
             />
             <Detail label="Proposé le" value={formatDate(donation.createdAt)} />
+            <div className="col-span-2 rounded-xl border border-[var(--border)] px-3 py-2.5">
+              <dt className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+                Remise
+              </dt>
+              <dd className="mt-0.5 text-sm font-medium">
+                {donation.handover === "recuperer" ? (
+                  <>
+                    À récupérer
+                    <span className="block text-[var(--muted-foreground)]">
+                      {[donation.pickupAddress, donation.pickupPostalCode, donation.pickupCity]
+                        .filter(Boolean)
+                        .join(" ") || "Adresse non renseignée"}
+                    </span>
+                  </>
+                ) : (
+                  "Dépôt sur place"
+                )}
+              </dd>
+            </div>
           </dl>
 
           {/* ── Donateur ────────────────────────────────────────────────── */}

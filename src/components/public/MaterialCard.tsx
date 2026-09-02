@@ -1,7 +1,8 @@
 import { Link } from "react-router-dom";
 import { PackageOpen } from "lucide-react";
 import { Pill } from "../ui/Badge";
-import { formatDimensions, formatStock, formatUnitPrice } from "../../lib/format";
+import { formatDimensions, formatPrice, formatStock, formatUnitPrice } from "../../lib/format";
+import { cn } from "../../lib/cn";
 import type { Unit } from "../../lib/constants";
 
 export type PublicMaterial = {
@@ -13,6 +14,8 @@ export type PublicMaterial = {
   unit: Unit;
   quantity: number;
   price: number;
+  /** Prix du neuf équivalent, barré à côté du prix de vente. */
+  originalPrice?: number;
   material?: string;
   depot?: string;
   lengthCm?: number;
@@ -30,11 +33,18 @@ export function MaterialCard({
   material,
   to,
   note,
+  dimmed = false,
 }: {
   material: PublicMaterial;
   to: string;
-  /** Mention en tête de carte : « Disponible le 12/09 » pour un lot à venir. */
+  /** Mention sous le titre : « Disponible à partir du 12/09 » pour un lot à venir. */
   note?: string;
+  /**
+   * Visuel atténué : un lot pas encore ouvert à la vente se distingue du stock
+   * du jour dès la vignette. La fiche produit, elle, le montre en pleine
+   * lumière — on y vient pour le regarder.
+   */
+  dimmed?: boolean;
 }) {
   const dimensions = formatDimensions(material);
   return (
@@ -48,7 +58,10 @@ export function MaterialCard({
             src={material.photoUrls[0]}
             alt={material.title}
             loading="lazy"
-            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+            className={cn(
+              "h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]",
+              dimmed && "opacity-60 group-hover:opacity-80",
+            )}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-[var(--muted-foreground)]">
@@ -69,9 +82,16 @@ export function MaterialCard({
           <p className="text-xs text-[var(--muted-foreground)]">{dimensions}</p>
         ) : null}
         <div className="mt-auto pt-2">
-          <p className="text-lg font-bold text-brand-700">
-            {formatUnitPrice(material.price, material.unit)}
-          </p>
+          <div className="flex flex-wrap items-baseline gap-2">
+            <p className="text-lg font-bold text-brand-700">
+              {formatUnitPrice(material.price, material.unit)}
+            </p>
+            {material.originalPrice && material.originalPrice > material.price ? (
+              <p className="text-sm font-semibold text-[var(--muted-foreground)] line-through">
+                {formatPrice(material.originalPrice)}
+              </p>
+            ) : null}
+          </div>
           <p className="text-xs text-[var(--muted-foreground)]">
             {formatStock(material.quantity, material.unit)} en stock
             {material.depot ? ` · ${material.depot}` : ""}

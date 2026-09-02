@@ -8,6 +8,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "../../components/ui/Button";
 import { Field, Input, Textarea } from "../../components/ui/Field";
 import { Dropdown } from "../../components/ui/Dropdown";
+import { AddressAutocomplete } from "../../components/ui/AddressAutocomplete";
 import { Spinner } from "../../components/ui/Spinner";
 import {
   DonorFieldset,
@@ -22,6 +23,8 @@ import { CONDITIONS, PAGE_X, UNITS, type Condition, type Unit } from "../../lib/
 import { errorMessage } from "../../lib/errors";
 import { cn } from "../../lib/cn";
 
+type Handover = "depot" | "recuperer";
+
 type LotForm = {
   title: string;
   description: string;
@@ -32,6 +35,10 @@ type LotForm = {
   quantity: string;
   unit: Unit;
   availableFrom: string;
+  handover: Handover;
+  pickupAddress: string;
+  pickupPostalCode: string;
+  pickupCity: string;
 };
 
 const EMPTY_LOT: LotForm = {
@@ -44,6 +51,10 @@ const EMPTY_LOT: LotForm = {
   quantity: "",
   unit: "unité",
   availableFrom: "",
+  handover: "depot",
+  pickupAddress: "",
+  pickupPostalCode: "",
+  pickupCity: "",
 };
 
 export function NouveauDon() {
@@ -68,6 +79,7 @@ export function NouveauDon() {
     setDonor((current) => ({
       company: current.company || profile.company,
       siret: current.siret || profile.siret,
+      apeCode: current.apeCode || profile.apeCode,
       profiles: current.profiles.length ? current.profiles : profile.profiles,
       firstName: current.firstName || profile.firstName,
       lastName: current.lastName || profile.lastName,
@@ -92,8 +104,13 @@ export function NouveauDon() {
     [lot.category, lot.family],
   );
 
+  const pickupReady = lot.handover === "depot" || Boolean(lot.pickupAddress.trim());
   const ready =
-    Boolean(lot.title.trim()) && Boolean(lot.category) && photos.length > 0 && donorReady(donor);
+    Boolean(lot.title.trim()) &&
+    Boolean(lot.category) &&
+    photos.length > 0 &&
+    pickupReady &&
+    donorReady(donor);
 
   async function addPhotos(files: FileList | null) {
     if (!files?.length) return;
@@ -123,6 +140,10 @@ export function NouveauDon() {
         unit: lot.unit,
         availableFrom: lot.availableFrom ? new Date(lot.availableFrom).getTime() : undefined,
         photos,
+        handover: lot.handover,
+        pickupAddress: lot.pickupAddress || undefined,
+        pickupPostalCode: lot.pickupPostalCode || undefined,
+        pickupCity: lot.pickupCity || undefined,
         donor: {
           company: donor.company || undefined,
           firstName: donor.firstName,
@@ -347,6 +368,75 @@ export function NouveauDon() {
             </div>
           </section>
 
+          {/* ── Remise du lot ────────────────────────────────────────────── */}
+          <section className="space-y-4 border-t border-[var(--border)] pt-6">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+              Remise du lot
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(
+                [
+                  ["depot", "Dépôt sur place", "Vous apportez le lot au dépôt."],
+                  ["recuperer", "À récupérer", "Nous venons le chercher chez vous."],
+                ] as const
+              ).map(([value, label, hint]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setLotField("handover", value)}
+                  className={cn(
+                    "rounded-2xl border px-4 py-3 text-left transition",
+                    lot.handover === value
+                      ? "border-brand-500 bg-brand-50 ring-1 ring-brand-500"
+                      : "border-[var(--border)] hover:border-brand-300",
+                  )}
+                >
+                  <span className="block font-semibold">{label}</span>
+                  <span className="block text-sm text-[var(--muted-foreground)]">{hint}</span>
+                </button>
+              ))}
+            </div>
+
+            {lot.handover === "recuperer" ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <Field label="Adresse d'enlèvement" required>
+                    <AddressAutocomplete
+                      value={lot.pickupAddress}
+                      onValueChange={(value) => setLotField("pickupAddress", value)}
+                      onSelect={(address) =>
+                        setLot((current) => ({
+                          ...current,
+                          pickupAddress: address.address,
+                          pickupPostalCode: address.postalCode,
+                          pickupCity: address.city,
+                        }))
+                      }
+                      placeholder="Chantier, dépôt, entrepôt…"
+                    />
+                  </Field>
+                </div>
+                <Field label="Code postal">
+                  <Input
+                    value={lot.pickupPostalCode}
+                    inputMode="numeric"
+                    onChange={(event) =>
+                      setLotField("pickupPostalCode", event.target.value.replace(/\D/g, "").slice(0, 5))
+                    }
+                    placeholder="60650"
+                  />
+                </Field>
+                <Field label="Ville">
+                  <Input
+                    value={lot.pickupCity}
+                    onChange={(event) => setLotField("pickupCity", event.target.value)}
+                    placeholder="Beauvais"
+                  />
+                </Field>
+              </div>
+            ) : null}
+          </section>
+
           {/* ── Donateur ─────────────────────────────────────────────────── */}
           <section className="space-y-4 border-t border-[var(--border)] pt-6">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -380,6 +470,10 @@ export function NouveauDon() {
               />
               <Row label="État" value={lot.condition} />
               <Row
+                label="Remise"
+                value={lot.handover === "depot" ? "Dépôt sur place" : "À récupérer"}
+              />
+              <Row
                 label="Donateur"
                 value={
                   [donor.company, `${donor.firstName} ${donor.lastName}`.trim()]
@@ -404,7 +498,9 @@ export function NouveauDon() {
             </Button>
             {!ready ? (
               <p className="mt-2 text-center text-xs text-[var(--muted-foreground)]">
-                Titre, catégorie, une photo, prénom, nom et téléphone.
+                {pickupReady
+                  ? "Titre, catégorie, une photo, prénom, nom et téléphone."
+                  : "Indiquez l'adresse où récupérer le lot."}
               </p>
             ) : null}
           </div>

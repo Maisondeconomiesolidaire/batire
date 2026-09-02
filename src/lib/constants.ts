@@ -26,6 +26,7 @@ export const ORIGINS = [
   "Déstockage neuf",
   "Recyclé upcyclé",
   "Surplus de chantier",
+  "Dépose préservante",
 ] as const;
 
 /** Type de donateur : la structure qui nous donne les matériaux. */
@@ -36,6 +37,7 @@ export const PROFILES = [
   "Maîtres d'ouvrage, architectes, maîtres d'œuvre",
   "Entreprises de recyclage",
   "Recycleries et ressourceries généralistes",
+  "Particulier",
 ] as const;
 
 /**
@@ -66,6 +68,8 @@ export const MATERIALS = [
   "Tissu",
   "Miroir",
   "Pierre",
+  "Terre cuite",
+  "Résine plastique",
 ] as const;
 
 /** Unité dans laquelle sont saisies longueur, largeur, hauteur et diamètre. */

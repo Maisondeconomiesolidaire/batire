@@ -39,6 +39,7 @@ type FormState = {
   unit: Unit;
   quantity: string;
   price: string;
+  originalPrice: string;
   packaging: string;
   lengthCm: string;
   widthCm: string;
@@ -93,6 +94,7 @@ const EMPTY: FormState = {
   unit: "unité",
   quantity: "",
   price: "",
+  originalPrice: "",
   packaging: "",
   lengthCm: "",
   widthCm: "",
@@ -195,6 +197,7 @@ export function MaterialForm() {
       unit: existing.unit,
       quantity: String(existing.quantity ?? ""),
       price: String(existing.price ?? ""),
+      originalPrice: existing.originalPrice ? String(existing.originalPrice) : "",
       packaging: existing.packaging ?? "",
       lengthCm: existing.lengthCm ? String(existing.lengthCm) : "",
       widthCm: existing.widthCm ? String(existing.widthCm) : "",
@@ -335,6 +338,9 @@ export function MaterialForm() {
         unit: form.unit,
         quantity: Number(form.quantity.replace(",", ".")) || 0,
         price: Number(form.price.replace(",", ".")) || 0,
+        originalPrice: form.originalPrice.trim()
+          ? Number(form.originalPrice.replace(",", ".")) || undefined
+          : undefined,
         packaging: text(form.packaging),
         lengthCm: number(form.lengthCm),
         widthCm: number(form.widthCm),
@@ -606,6 +612,16 @@ export function MaterialForm() {
             </Field>
             <Field label={`Prix par ${form.unit}`} required>
               <Input inputMode="decimal" value={form.price} onChange={(e) => set("price", e.target.value)} />
+            </Field>
+            {/* Le prix barré situe l'économie du réemploi : il n'est affiché
+                en boutique que s'il dépasse le prix de vente. */}
+            <Field label="Prix barré" hint="prix du neuf équivalent">
+              <Input
+                inputMode="decimal"
+                value={form.originalPrice}
+                onChange={(e) => set("originalPrice", e.target.value)}
+                placeholder="39"
+              />
             </Field>
             <Field label={`Stock (${form.unit})`} required>
               <Input
