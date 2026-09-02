@@ -195,6 +195,15 @@ export function MaterialForm() {
   const addMaterialOption = useMutation(api.batire.addMaterialOption);
   const materialChoices = materialOptions ?? [...MATERIALS];
 
+  // Lot annoncé pour plus tard : la date commande, le statut suit.
+  const availableFromMs = fromDay(form.availableFrom);
+  const upcomingLot = typeof availableFromMs === "number" && availableFromMs > Date.now();
+  useEffect(() => {
+    if (upcomingLot && form.status !== "disponible") {
+      setForm((current) => ({ ...current, status: "disponible" }));
+    }
+  }, [upcomingLot, form.status]);
+
   const seeded = useRef(false);
   useEffect(() => {
     if (!donation || seeded.current) return;
@@ -930,16 +939,29 @@ export function MaterialForm() {
                 </Button>
               </div>
             </Field>
-            <Field label="Statut">
-              <Dropdown
-                value={form.status}
-                onChange={(value) => set("status", value as MaterialStatus)}
-                options={MATERIAL_STATUSES.map((value) => ({
-                  value,
-                  label: STATUS_LABELS[value],
-                }))}
-              />
-            </Field>
+            {/* Une date d'ouverture décide seule de l'état du lot : il est
+                annoncé jusque-là, en vente ensuite. Laisser le statut à la main
+                permettait de publier « brouillon » un lot déjà annoncé, ou
+                l'inverse. */}
+            {upcomingLot ? (
+              <Field label="Statut" hint="fixé par la date de disponibilité">
+                <p className="rounded-xl border border-[var(--border)] bg-[var(--muted)] px-3.5 py-2.5 text-sm">
+                  Bientôt disponible — en vente le{" "}
+                  {new Date(fromDay(form.availableFrom)!).toLocaleDateString("fr-FR")}
+                </p>
+              </Field>
+            ) : (
+              <Field label="Statut">
+                <Dropdown
+                  value={form.status}
+                  onChange={(value) => set("status", value as MaterialStatus)}
+                  options={MATERIAL_STATUSES.map((value) => ({
+                    value,
+                    label: STATUS_LABELS[value],
+                  }))}
+                />
+              </Field>
+            )}
             <label className="flex items-center gap-2 self-end pb-2 text-sm">
               <input
                 type="checkbox"

@@ -8,7 +8,7 @@ import { Input } from "../../components/ui/Field";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { FullSpinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
-import { StatusBadge } from "../../components/ui/Badge";
+import { Pill, StatusBadge } from "../../components/ui/Badge";
 import { formatStock, formatUnitPrice } from "../../lib/format";
 import { MATERIAL_STATUSES, STATUS_LABELS, type MaterialStatus } from "../../lib/constants";
 import { useAccess, canAccess } from "../../lib/access";
@@ -181,13 +181,24 @@ export function Materiaux() {
                     {taxonomyPath(material.category, material.family, material.subcategory)}
                   </td>
                   <td className="px-4 py-3 font-semibold">
-                    {formatUnitPrice(material.price, material.unit)}
+                    {material.price > 0 ? (
+                      formatUnitPrice(material.price, material.unit)
+                    ) : (
+                      <span className="text-amber-600 dark:text-amber-400">Prix manquant</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-[var(--muted-foreground)]">
                     {formatStock(material.quantity, material.unit)}
                   </td>
                   <td className="px-4 py-3">
-                    <StatusBadge status={material.status} />
+                    {typeof material.availableFrom === "number" &&
+                    material.availableFrom > Date.now() ? (
+                      <Pill className="bg-brand-100 text-brand-800 dark:bg-brand-500/15 dark:text-brand-300">
+                        Dès le {new Date(material.availableFrom).toLocaleDateString("fr-FR")}
+                      </Pill>
+                    ) : (
+                      <StatusBadge status={material.status} />
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     {canUpdate ? (
