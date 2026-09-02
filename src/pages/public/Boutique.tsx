@@ -328,7 +328,6 @@ function Shelf({
               material={material}
               to={link(material)}
               note={note?.(material)}
-              dimmed={Boolean(note?.(material))}
             />
           </div>
         ))}
@@ -354,7 +353,6 @@ function Grid({
           material={material}
           to={link(material)}
           note={note?.(material)}
-          dimmed={Boolean(note?.(material))}
         />
       ))}
     </div>

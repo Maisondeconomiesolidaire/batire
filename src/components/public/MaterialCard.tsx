@@ -2,7 +2,6 @@ import { Link } from "react-router-dom";
 import { PackageOpen } from "lucide-react";
 import { Pill } from "../ui/Badge";
 import { formatDimensions, formatPrice, formatStock, formatUnitPrice } from "../../lib/format";
-import { cn } from "../../lib/cn";
 import type { Unit } from "../../lib/constants";
 
 export type PublicMaterial = {
@@ -33,18 +32,11 @@ export function MaterialCard({
   material,
   to,
   note,
-  dimmed = false,
 }: {
   material: PublicMaterial;
   to: string;
   /** Mention sous le titre : « Disponible à partir du 12/09 » pour un lot à venir. */
   note?: string;
-  /**
-   * Visuel atténué : un lot pas encore ouvert à la vente se distingue du stock
-   * du jour dès la vignette. La fiche produit, elle, le montre en pleine
-   * lumière — on y vient pour le regarder.
-   */
-  dimmed?: boolean;
 }) {
   const dimensions = formatDimensions(material);
   const upcoming =
@@ -54,22 +46,24 @@ export function MaterialCard({
       to={to}
       className="group flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] transition hover:border-brand-400 hover:shadow-lg"
     >
-      <div className="aspect-[4/3] w-full overflow-hidden bg-[var(--muted)]">
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-[var(--muted)]">
         {material.photoUrls[0] ? (
           <img
             src={material.photoUrls[0]}
             alt={material.title}
             loading="lazy"
-            className={cn(
-              "h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]",
-              dimmed && "opacity-60 group-hover:opacity-80",
-            )}
+            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
           />
         ) : (
           <div className="flex h-full items-center justify-center text-[var(--muted-foreground)]">
             <PackageOpen className="h-10 w-10" />
           </div>
         )}
+        {upcoming ? (
+          <span className="absolute right-3 top-3 rounded-full bg-brand-700 px-2.5 py-1 text-xs font-bold text-white shadow-sm">
+            Bientôt disponible
+          </span>
+        ) : null}
       </div>
       <div className="flex flex-1 flex-col gap-2 p-4">
         <div className="flex flex-wrap items-center gap-1.5">
