@@ -2,8 +2,18 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { SignInButton, useUser } from "@clerk/clerk-react";
 import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft, ChevronRight, HeartHandshake, Lock, PackageOpen, Plus } from "lucide-react";
+import {
+  ArrowLeft,
+  BellRing,
+  ChevronRight,
+  HeartHandshake,
+  Lock,
+  PackageOpen,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "../../components/ui/Button";
 import { FullSpinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
@@ -35,20 +45,33 @@ type MyDonation = {
   createdAt: number;
 };
 
-type Tab = "infos" | "dons";
+type Tab = "infos" | "dons" | "recherches";
+
+type SearchAlert = {
+  _id: Id<"btSearchAlerts">;
+  category: string;
+  family?: string;
+  subcategory?: string;
+  until?: number;
+  matchCount?: number;
+  createdAt: number;
+};
 
 export function MonCompte() {
   const { isLoaded, isSignedIn, user } = useUser();
   const profile = useQuery(api.batireDons.getMyDonorProfile, {});
   const donations = useQuery(api.batireDons.myDonations, {}) as MyDonation[] | undefined;
+  const alerts = useQuery(api.batire.mySearchAlerts, {}) as SearchAlert[] | undefined;
+  const removeAlert = useMutation(api.batire.removeSearchAlert);
   const save = useMutation(api.batireDons.saveMyDonorProfile);
 
   const [params, setParams] = useSearchParams();
-  const tab: Tab = params.get("onglet") === "dons" ? "dons" : "infos";
+  const onglet = params.get("onglet");
+  const tab: Tab = onglet === "dons" ? "dons" : onglet === "recherches" ? "recherches" : "infos";
   const setTab = (next: Tab) => {
     const updated = new URLSearchParams(params);
-    if (next === "dons") updated.set("onglet", "dons");
-    else updated.delete("onglet");
+    if (next === "infos") updated.delete("onglet");
+    else updated.set("onglet", next);
     setParams(updated, { replace: true });
   };
   const [openId, setOpenId] = useState<string | null>(null);
@@ -160,11 +183,84 @@ export function MonCompte() {
         items={[
           { key: "infos", label: "Mes informations" },
           { key: "dons", label: "Mes dons" },
+          { key: "recherches", label: "Mes recherches" },
         ]}
-        counts={{ dons: donations?.length }}
+        counts={{ dons: donations?.length, recherches: alerts?.length }}
       />
 
-      {tab === "infos" ? (
+      {tab === "recherches" ? (
+        <section className="mt-6">
+          {alerts === undefined ? (
+            <FullSpinner />
+          ) : alerts.length === 0 ? (
+            <EmptyState
+              icon={<BellRing className="h-9 w-9" />}
+              title="Aucune recherche en cours"
+              description="Dites-nous ce qu'il vous manque : nous vous écrivons dès qu'un lot arrive."
+              action={
+                <Link to="/je-recherche">
+                  <Button variant="outline">Créer une alerte</Button>
+                </Link>
+              }
+            />
+          ) : (
+            <>
+              <ul className="divide-y divide-[var(--border)] border-y border-[var(--border)]">
+                {alerts.map((alert) => {
+                  const expired = Boolean(alert.until && alert.until < Date.now());
+                  return (
+                    <li key={alert._id} className="flex items-center gap-3 py-4">
+                      <BellRing
+                        className={cn(
+                          "h-4 w-4 shrink-0",
+                          expired ? "text-[var(--muted-foreground)]" : "text-brand-600",
+                        )}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className={cn(
+                            "truncate font-semibold",
+                            expired && "text-[var(--muted-foreground)] line-through",
+                          )}
+                        >
+                          {[alert.category, alert.family, alert.subcategory]
+                            .filter(Boolean)
+                            .join(" › ")}
+                        </p>
+                        <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
+                          {[
+                            alert.until
+                              ? `${expired ? "Terminée le" : "Jusqu'au"} ${formatDate(alert.until)}`
+                              : "Sans date de fin",
+                            alert.matchCount
+                              ? `${alert.matchCount} lot${alert.matchCount > 1 ? "s" : ""} signalé${alert.matchCount > 1 ? "s" : ""}`
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void removeAlert({ id: alert._id })}
+                        className="rounded-lg p-2 text-[var(--muted-foreground)] transition hover:bg-[var(--muted)] hover:text-red-600"
+                        aria-label="Supprimer la recherche"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="mt-5">
+                <Link to="/je-recherche">
+                  <Button variant="outline">Nouvelle recherche</Button>
+                </Link>
+              </div>
+            </>
+          )}
+        </section>
+      ) : tab === "infos" ? (
         <section className="mt-6 max-w-3xl space-y-5">
           <p className="text-sm text-[var(--muted-foreground)]">
             Ces informations remplissent le formulaire d'achat et chaque proposition de don.
