@@ -19,14 +19,18 @@ export const UNIT_LABELS: Record<Unit, string> = {
 
 export const CONDITIONS = ["Neuf", "Très bon", "Bon", "Usagé"] as const;
 
-/** Provenance du matériau, telle qu'elle se déclare dans un diagnostic PEMD. */
+/**
+ * Provenance du matériau, telle qu'elle se déclare dans un diagnostic PEMD.
+ * Les trois provenances les plus courantes du dépôt viennent en tête : la
+ * liste s'ouvre sur ce qu'on saisit tous les jours.
+ */
 export const ORIGINS = [
-  "Reconditionné",
-  "Occasion réemploi",
-  "Déstockage neuf",
-  "Recyclé upcyclé",
   "Surplus de chantier",
   "Dépose préservante",
+  "Déstockage neuf",
+  "Reconditionné",
+  "Occasion réemploi",
+  "Recyclé upcyclé",
 ] as const;
 
 /** Type de donateur : la structure qui nous donne les matériaux. */

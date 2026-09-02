@@ -21,6 +21,7 @@ import { Messagerie } from "./pages/public/Messagerie";
 import { QrCodes } from "./pages/crm/QrCodes";
 import { Dons } from "./pages/crm/Dons";
 import { ProfileSync } from "./components/ProfileSync";
+import { PortalButton } from "./components/PortalButton";
 
 export default function App() {
   return (
@@ -92,6 +93,7 @@ function PublicShell() {
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
+            <PortalButton className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm text-[var(--foreground)] hover:border-brand-300 hover:text-brand-700 sm:hidden" />
             <Link
               to="/don/nouveau"
               className="inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-700 transition hover:border-brand-300 hover:bg-brand-100"
@@ -189,6 +191,8 @@ function KioskShell() {
               className="w-full rounded-xl border border-[var(--border)] bg-[var(--card)] py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
             />
           </div>
+
+          <PortalButton className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm text-[var(--foreground)] hover:border-brand-300 hover:text-brand-700" />
         </div>
       </header>
 
