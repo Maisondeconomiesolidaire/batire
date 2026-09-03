@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent, type HTMLAttributes, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type HTMLAttributes, type ReactNode } from "react";
 import { useSignIn, useSignUp } from "@clerk/clerk-react";
 import { ArrowLeft, KeyRound, Loader2, LockKeyhole, Mail, UserRound } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -20,6 +20,7 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
   const { isLoaded: signInLoaded, signIn, setActive: setSignInActive } = useSignIn();
   const { isLoaded: signUpLoaded, signUp, setActive: setSignUpActive } = useSignUp();
   const [mode, setMode] = useState<Mode>(initialMode);
+  const [signUpSide, setSignUpSide] = useState(initialMode === "signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -30,8 +31,13 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
   const actionInProgress = useRef(false);
+  const switchTimer = useRef<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const returnTo = params.get("redirect_url") || "/";
+
+  useEffect(() => () => {
+    if (switchTimer.current !== null) window.clearTimeout(switchTimer.current);
+  }, []);
 
   const go = async (sessionId: string | null, setActive: (args: { session: string | null }) => Promise<void>) => {
     if (!sessionId) throw new Error("Session de connexion introuvable.");
@@ -45,6 +51,15 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
     setBusy(true); setError(null);
     try { await action(); } catch (caught) { setError(message(caught)); } finally { setBusy(false); }
     actionInProgress.current = false;
+  };
+  const switchForm = (nextMode: "signin" | "signup") => {
+    if (switchTimer.current !== null) window.clearTimeout(switchTimer.current);
+    setSignUpSide(nextMode === "signup");
+    setError(null);
+    switchTimer.current = window.setTimeout(() => {
+      setMode(nextMode);
+      switchTimer.current = null;
+    }, 1700);
   };
   const sendLoginCode = async () => {
     if (!signInLoaded || !signIn) return;
@@ -106,8 +121,7 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
   const title = mode === "signup" ? "Créer votre compte" : mode === "reset" ? "Nouveau mot de passe" : mode === "reset-request" ? "Réinitialiser le mot de passe" : "Bienvenue sur BâtiRe";
   const subtitle = mode === "signup" ? "Créez votre espace en quelques instants." : mode === "reset" ? "Saisissez le code reçu et choisissez un nouveau mot de passe." : mode === "reset-request" ? "Nous vous enverrons un code de réinitialisation." : mode === "code" || mode === "mfa" ? "Saisissez le code de sécurité reçu par email." : "Connectez-vous pour suivre vos demandes et vos commandes.";
   const needsCode = mode === "code" || mode === "mfa";
-  const signUpMode = mode === "signup";
-  return <main className="auth-switch-page"><section className={`auth-switch-container ${signUpMode ? "sign-up-mode" : ""}`}>
+  return <main className="auth-switch-page"><section className={`auth-switch-container ${signUpSide ? "sign-up-mode" : ""}`}>
     <div className="auth-switch-form">
     <img src="/batire-logo.jpg" alt="BâtiRe" className="mb-6 h-16 w-auto object-contain" />
     <h1 className="text-3xl font-black tracking-tight text-zinc-950">{title}</h1><p className="mt-2 text-sm text-zinc-600">{subtitle}</p>
@@ -128,7 +142,7 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
         <div className="auth-switch-panel-content">
           <h2>Nouveau ici ?</h2>
           <p>Créez votre espace pour suivre vos commandes, dons et recherches.</p>
-          <button type="button" onClick={() => { setMode("signup"); setError(null); }}>Créer un compte</button>
+          <button type="button" onClick={() => switchForm("signup")}>Créer un compte</button>
           <Link to="/" className="auth-switch-back-link"><ArrowLeft className="h-4 w-4" /> Retour à la boutique</Link>
         </div>
       </aside>
@@ -136,7 +150,7 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
         <div className="auth-switch-panel-content">
           <h2>Déjà membre ?</h2>
           <p>Retrouvez votre espace BâtiRe et vos démarches en cours.</p>
-          <button type="button" onClick={() => { setMode("signin"); setError(null); }}>Se connecter</button>
+          <button type="button" onClick={() => switchForm("signin")}>Se connecter</button>
           <Link to="/" className="auth-switch-back-link"><ArrowLeft className="h-4 w-4" /> Retour à la boutique</Link>
         </div>
       </aside>
