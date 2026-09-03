@@ -122,13 +122,22 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
     {mode === "signin" ? <div className="mt-5 flex flex-wrap justify-between gap-3 text-sm font-semibold text-brand-700"><button onClick={() => void sendLoginCode()} disabled={!email || busy}>Recevoir un code de connexion</button><button onClick={() => { setMode("reset-request"); setError(null); }}>Mot de passe oublié ?</button><button onClick={() => { setMode("signup"); setError(null); }}>Créer un compte</button></div> : null}
     {mode === "signup" ? <p className="mt-5 text-center text-sm text-zinc-600">Déjà un compte ? <button className="font-semibold text-brand-700" onClick={() => setMode("signin")}>Se connecter</button></p> : null}
     </div>
-    <aside className="auth-switch-panel">
-      <h2>{signUpMode ? "Déjà membre ?" : "Nouveau ici ?"}</h2>
-      <p>{signUpMode ? "Retrouvez votre espace BâtiRe et vos démarches en cours." : "Créez votre espace pour suivre vos commandes, dons et recherches."}</p>
-      <button type="button" onClick={() => { setMode(signUpMode ? "signin" : "signup"); setError(null); }}>
-        {signUpMode ? "Se connecter" : "Créer un compte"}
-      </button>
-    </aside>
+    <div className="auth-switch-panels">
+      <aside className="auth-switch-panel left-panel">
+        <div className="auth-switch-panel-content">
+          <h2>Nouveau ici ?</h2>
+          <p>Créez votre espace pour suivre vos commandes, dons et recherches.</p>
+          <button type="button" onClick={() => { setMode("signup"); setError(null); }}>Créer un compte</button>
+        </div>
+      </aside>
+      <aside className="auth-switch-panel right-panel">
+        <div className="auth-switch-panel-content">
+          <h2>Déjà membre ?</h2>
+          <p>Retrouvez votre espace BâtiRe et vos démarches en cours.</p>
+          <button type="button" onClick={() => { setMode("signin"); setError(null); }}>Se connecter</button>
+        </div>
+      </aside>
+    </div>
   </section></main>;
 }
 
