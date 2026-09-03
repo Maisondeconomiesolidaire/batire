@@ -104,7 +104,9 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
   const title = mode === "signup" || mode === "signup-code" ? "Créer votre compte" : mode === "reset" ? "Nouveau mot de passe" : mode === "reset-request" ? "Réinitialiser le mot de passe" : "Bienvenue sur BâtiRe";
   const subtitle = mode === "signup" ? "Créez votre espace en quelques instants." : mode === "reset" ? "Saisissez le code reçu et choisissez un nouveau mot de passe." : mode === "reset-request" ? "Nous vous enverrons un code de réinitialisation." : mode === "code" || mode === "signup-code" || mode === "mfa" ? "Saisissez le code de sécurité envoyé par Clerk." : "Connectez-vous pour suivre vos demandes et vos commandes.";
   const needsCode = mode === "code" || mode === "signup-code" || mode === "mfa";
-  return <main className="flex min-h-screen items-center justify-center bg-brand-50 px-4 py-10"><section className="w-full max-w-xl rounded-[2rem] border border-brand-200 bg-white p-7 shadow-2xl shadow-brand-900/10 sm:p-10">
+  const signUpMode = mode === "signup";
+  return <main className="auth-switch-page"><section className={`auth-switch-container ${signUpMode ? "sign-up-mode" : ""}`}>
+    <div className="auth-switch-form">
     <Link to="/" className="mb-7 inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:text-brand-900"><ArrowLeft className="h-4 w-4" /> Retour à la boutique</Link>
     <img src="/batire-logo.jpg" alt="BâtiRe" className="mb-6 h-16 w-auto object-contain" />
     <h1 className="text-3xl font-black tracking-tight text-zinc-950">{title}</h1><p className="mt-2 text-sm text-zinc-600">{subtitle}</p>
@@ -119,6 +121,15 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
     </form>
     {mode === "signin" ? <div className="mt-5 flex flex-wrap justify-between gap-3 text-sm font-semibold text-brand-700"><button onClick={() => void sendLoginCode()} disabled={!email || busy}>Recevoir un code de connexion</button><button onClick={() => { setMode("reset-request"); setError(null); }}>Mot de passe oublié ?</button><button onClick={() => { setMode("signup"); setError(null); }}>Créer un compte</button></div> : null}
     {mode === "signup" ? <p className="mt-5 text-center text-sm text-zinc-600">Déjà un compte ? <button className="font-semibold text-brand-700" onClick={() => setMode("signin")}>Se connecter</button></p> : null}
+    </div>
+    <aside className="auth-switch-panel">
+      <img src="/batire-logo.jpg" alt="" className="h-20 w-auto brightness-0 invert" />
+      <h2>{signUpMode ? "Déjà membre ?" : "Nouveau ici ?"}</h2>
+      <p>{signUpMode ? "Retrouvez votre espace BâtiRe et vos démarches en cours." : "Créez votre espace pour suivre vos commandes, dons et recherches."}</p>
+      <button type="button" onClick={() => { setMode(signUpMode ? "signin" : "signup"); setError(null); }}>
+        {signUpMode ? "Se connecter" : "Créer un compte"}
+      </button>
+    </aside>
   </section></main>;
 }
 

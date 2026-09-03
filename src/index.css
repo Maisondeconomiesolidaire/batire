@@ -49,6 +49,17 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Adaptation BâtiRe de l'animation « Auth Switch » : les deux panneaux se
+   croisent à l'inscription, sans les connexions sociales du composant source. */
+.auth-switch-page { min-height: 100vh; display: grid; place-items: center; padding: 2rem 1rem; background: linear-gradient(135deg, #fdf6ec, #f1cb98); overflow: hidden; }
+.auth-switch-container { position: relative; width: min(100%, 980px); min-height: 590px; overflow: hidden; border-radius: 1.5rem; background: #fff; box-shadow: 0 25px 50px rgb(79 45 22 / 25%); }
+.auth-switch-form { position: relative; z-index: 2; width: 50%; min-height: 590px; padding: 3rem 4rem; margin-left: 50%; transition: transform .9s cubic-bezier(.25,.8,.25,1); }
+.auth-switch-panel { position: absolute; inset: 0 auto 0 0; z-index: 3; display: flex; width: 50%; flex-direction: column; align-items: center; justify-content: center; gap: 1.25rem; padding: 3rem 3.5rem; text-align: center; color: white; transition: transform .9s cubic-bezier(.25,.8,.25,1); }
+.auth-switch-panel::before { content: ""; position: absolute; z-index: -1; width: 150%; aspect-ratio: 1; border-radius: 50%; background: linear-gradient(135deg, #c9741f, #834717); }
+.auth-switch-panel h2 { font-size: 2rem; font-weight: 800; }.auth-switch-panel p { max-width: 22rem; line-height: 1.55; }.auth-switch-panel button { border: 1px solid rgb(255 255 255 / .8); border-radius: 999px; padding: .75rem 1.4rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; transition: background .2s, color .2s; }.auth-switch-panel button:hover { background: white; color: #834717; }
+.sign-up-mode .auth-switch-form { transform: translateX(-100%); }.sign-up-mode .auth-switch-panel { transform: translateX(100%); }.sign-up-mode .auth-switch-panel::before { transform: translateX(-33%); }
+@media (max-width: 700px) { .auth-switch-container { min-height: 0; }.auth-switch-form { width: 100%; min-height: 0; margin: 0; padding: 2rem 1.5rem; }.auth-switch-panel { position: relative; width: 100%; min-height: 230px; padding: 2rem; }.auth-switch-panel::before { width: 180%; }.sign-up-mode .auth-switch-form, .sign-up-mode .auth-switch-panel { transform: none; } }
+
 /* ── Tiroir du méga-menu ───────────────────────────────────────────────────
  *
  * Le panneau glisse depuis le bord gauche et le voile se fond, à l'ouverture
