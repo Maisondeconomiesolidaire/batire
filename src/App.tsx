@@ -33,8 +33,8 @@ export default function App() {
       <ProfileSync app="batire" />
       <UpdateAvailableBanner appName="BâtiRe" />
       <Routes>
-      <Route path="/connexion" element={<AuthSwitch />} />
-      <Route path="/inscription" element={<AuthSwitch initialMode="signup" />} />
+      <Route path="/connexion" element={<AuthSwitch appName="BâtiRe" logoSrc="/batire-logo.jpg" homeHref="/" homeLabel="Retour à la boutique" termsHref="/conditions-generales" privacyHref="/politique-confidentialite" />} />
+      <Route path="/inscription" element={<AuthSwitch appName="BâtiRe" logoSrc="/batire-logo.jpg" homeHref="/" homeLabel="Retour à la boutique" termsHref="/conditions-generales" privacyHref="/politique-confidentialite" initialMode="signup" />} />
       <Route element={<PublicShell />}>
         <Route path="/" element={<BoutiqueRoute />} />
         <Route path="/conditions-generales" element={<ConditionsGenerales />} />
