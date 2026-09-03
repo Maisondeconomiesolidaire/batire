@@ -123,7 +123,6 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
     {mode === "signup" ? <p className="mt-5 text-center text-sm text-zinc-600">Déjà un compte ? <button className="font-semibold text-brand-700" onClick={() => setMode("signin")}>Se connecter</button></p> : null}
     </div>
     <aside className="auth-switch-panel">
-      <img src="/batire-logo.jpg" alt="" className="h-20 w-auto brightness-0 invert" />
       <h2>{signUpMode ? "Déjà membre ?" : "Nouveau ici ?"}</h2>
       <p>{signUpMode ? "Retrouvez votre espace BâtiRe et vos démarches en cours." : "Créez votre espace pour suivre vos commandes, dons et recherches."}</p>
       <button type="button" onClick={() => { setMode(signUpMode ? "signin" : "signup"); setError(null); }}>
