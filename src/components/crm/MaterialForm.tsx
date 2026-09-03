@@ -573,6 +573,33 @@ export function MaterialForm() {
             ) : null}
           </section>
 
+          {/* ── Stockage et publication ──────────────────────────────────── */}
+          <section className="grid gap-4 rounded-2xl border border-[var(--border)] p-4 sm:grid-cols-3">
+            <p className="text-sm font-semibold sm:col-span-3">Dépôt et mise en ligne</p>
+            <Field label="Localisation">
+              <Input value={form.depot} onChange={(e) => set("depot", e.target.value)} />
+            </Field>
+            <Field label="Emplacement">
+              <Input value={form.location} onChange={(e) => set("location", e.target.value)} />
+            </Field>
+            <Field label="QR code">
+              <div className="flex gap-2">
+                <Input value={form.qrReference} onChange={(e) => set("qrReference", e.target.value.toUpperCase())} placeholder="BT-00012" />
+                <Button type="button" variant="outline" className="shrink-0 px-3" onClick={() => setScanning(true)} aria-label="Scanner le QR code">
+                  <ScanLine className="h-4 w-4" />
+                </Button>
+              </div>
+            </Field>
+            {upcomingLot ? (
+              <Field label="Statut" hint="fixé par la date de disponibilité">
+                <p className="rounded-xl border border-[var(--border)] bg-[var(--muted)] px-3.5 py-2.5 text-sm">Bientôt disponible — en vente le {new Date(fromDay(form.availableFrom)!).toLocaleDateString("fr-FR")}</p>
+              </Field>
+            ) : (
+              <Field label="Statut"><Dropdown value={form.status} onChange={(value) => set("status", value as MaterialStatus)} options={MATERIAL_STATUSES.map((value) => ({ value, label: STATUS_LABELS[value] }))} /></Field>
+            )}
+            <label className="flex items-center gap-2 self-end pb-2 text-sm"><input type="checkbox" checked={form.published} onChange={(event) => set("published", event.target.checked)} className="h-4 w-4 accent-[var(--color-brand-600)]" />Publier dans la boutique</label>
+          </section>
+
           {/* ── Identité ─────────────────────────────────────────────────── */}
           <section className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
@@ -910,67 +937,6 @@ export function MaterialForm() {
                 />
               </Field>
             </div>
-          </section>
-
-          {/* ── Stockage et publication ──────────────────────────────────── */}
-          <section className="grid gap-4 rounded-2xl border border-[var(--border)] p-4 sm:grid-cols-3">
-            <p className="text-sm font-semibold sm:col-span-3">Dépôt et mise en ligne</p>
-            <Field label="Localisation">
-              <Input value={form.depot} onChange={(e) => set("depot", e.target.value)} />
-            </Field>
-            <Field label="Emplacement">
-              <Input value={form.location} onChange={(e) => set("location", e.target.value)} />
-            </Field>
-            <Field label="QR code">
-              <div className="flex gap-2">
-                <Input
-                  value={form.qrReference}
-                  onChange={(e) => set("qrReference", e.target.value.toUpperCase())}
-                  placeholder="BT-00012"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="shrink-0 px-3"
-                  onClick={() => setScanning(true)}
-                  aria-label="Scanner le QR code"
-                >
-                  <ScanLine className="h-4 w-4" />
-                </Button>
-              </div>
-            </Field>
-            {/* Une date d'ouverture décide seule de l'état du lot : il est
-                annoncé jusque-là, en vente ensuite. Laisser le statut à la main
-                permettait de publier « brouillon » un lot déjà annoncé, ou
-                l'inverse. */}
-            {upcomingLot ? (
-              <Field label="Statut" hint="fixé par la date de disponibilité">
-                <p className="rounded-xl border border-[var(--border)] bg-[var(--muted)] px-3.5 py-2.5 text-sm">
-                  Bientôt disponible — en vente le{" "}
-                  {new Date(fromDay(form.availableFrom)!).toLocaleDateString("fr-FR")}
-                </p>
-              </Field>
-            ) : (
-              <Field label="Statut">
-                <Dropdown
-                  value={form.status}
-                  onChange={(value) => set("status", value as MaterialStatus)}
-                  options={MATERIAL_STATUSES.map((value) => ({
-                    value,
-                    label: STATUS_LABELS[value],
-                  }))}
-                />
-              </Field>
-            )}
-            <label className="flex items-center gap-2 self-end pb-2 text-sm">
-              <input
-                type="checkbox"
-                checked={form.published}
-                onChange={(event) => set("published", event.target.checked)}
-                className="h-4 w-4 accent-[var(--color-brand-600)]"
-              />
-              Publier dans la boutique
-            </label>
           </section>
 
           {error ? <p className="text-sm text-red-500">{error}</p> : null}
