@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { SignInButton, useUser } from "@clerk/clerk-react";
+import { useUser } from "@clerk/clerk-react";
 import { useMutation } from "convex/react";
 import { ArrowLeft, BellRing, Check, ChevronRight, Lock } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
@@ -105,9 +105,7 @@ export function JeRecherche() {
           Connectez-vous pour être prévenu dès qu'un matériau que vous cherchez arrive.
         </p>
         <div className="mt-6">
-          <SignInButton mode="modal">
-            <Button>Se connecter</Button>
-          </SignInButton>
+          <Link to="/connexion"><Button>Se connecter</Button></Link>
         </div>
       </div>
     );

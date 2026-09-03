@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { SignInButton, useUser } from "@clerk/clerk-react";
+import { useUser } from "@clerk/clerk-react";
 import { useMutation, useQuery } from "convex/react";
 import {
   ArrowLeft,
@@ -140,9 +140,7 @@ export function MonCompte() {
           Connectez-vous pour renseigner votre fiche donateur et suivre vos dons.
         </p>
         <div className="mt-6">
-          <SignInButton mode="modal">
-            <Button>Se connecter</Button>
-          </SignInButton>
+          <Link to="/connexion"><Button>Se connecter</Button></Link>
         </div>
       </div>
     );

@@ -1,5 +1,5 @@
-import { NavLink, Outlet } from "react-router-dom";
-import { SignedIn, SignedOut, SignInButton, useClerk, useUser } from "@clerk/clerk-react";
+import { Link, NavLink, Outlet } from "react-router-dom";
+import { SignedIn, SignedOut, useClerk, useUser } from "@clerk/clerk-react";
 import {
   Boxes,
   HeartHandshake,
@@ -48,11 +48,7 @@ export function CrmLayout() {
           <ShieldAlert className="mx-auto h-8 w-8 text-brand-500" />
           <p className="mt-3 text-lg font-semibold">Espace équipe</p>
           <div className="mt-5">
-            <SignInButton mode="modal">
-              <button className="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white">
-                Se connecter
-              </button>
-            </SignInButton>
+            <Link to="/connexion?redirect_url=/crm" className="inline-flex rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white">Se connecter</Link>
           </div>
         </div>
       </SignedOut>

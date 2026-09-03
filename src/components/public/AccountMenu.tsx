@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { SignedIn, SignedOut, SignInButton, useClerk, useUser } from "@clerk/clerk-react";
+import { SignedIn, SignedOut, useClerk, useUser } from "@clerk/clerk-react";
 import { BellRing, ChevronDown, HeartHandshake, LogOut, MessageSquare, UserRound } from "lucide-react";
 import { cn } from "../../lib/cn";
 
@@ -45,15 +45,10 @@ export function AccountMenu() {
   return (
     <>
       <SignedOut>
-        <SignInButton mode="modal">
-          <button
-            type="button"
-            className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
-          >
+        <Link to="/connexion" className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-brand-700">
             <UserRound className="h-4 w-4" />
             <span className="hidden sm:inline">Mon compte</span>
-          </button>
-        </SignInButton>
+        </Link>
       </SignedOut>
 
       <SignedIn>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { SignInButton, useUser } from "@clerk/clerk-react";
+import { useUser } from "@clerk/clerk-react";
 import { useMutation, useQuery } from "convex/react";
 import { ArrowLeft, CheckCircle2, ImagePlus, Lock, X } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
@@ -173,9 +173,7 @@ export function NouveauDon() {
           Connectez-vous pour proposer vos matériaux et suivre vos dons.
         </p>
         <div className="mt-6">
-          <SignInButton mode="modal">
-            <Button>Se connecter</Button>
-          </SignInButton>
+          <Link to="/connexion"><Button>Se connecter</Button></Link>
         </div>
       </div>
     );

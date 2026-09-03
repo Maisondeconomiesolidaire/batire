@@ -22,6 +22,7 @@ import { Dons } from "./pages/crm/Dons";
 import { ProfileSync } from "./components/ProfileSync";
 import { PortalButton } from "./components/PortalButton";
 import { AccountMenu } from "./components/public/AccountMenu";
+import { AuthSwitch } from "./components/ui/auth-switch";
 
 export default function App() {
   return (
@@ -31,6 +32,8 @@ export default function App() {
       <ProfileSync app="batire" />
       <UpdateAvailableBanner appName="BâtiRe" />
       <Routes>
+      <Route path="/connexion" element={<AuthSwitch />} />
+      <Route path="/inscription" element={<AuthSwitch initialMode="signup" />} />
       <Route element={<PublicShell />}>
         <Route path="/" element={<BoutiqueRoute />} />
         <Route path="/materiau/:id" element={<MaterialDetail />} />

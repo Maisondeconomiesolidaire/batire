@@ -33,6 +33,10 @@ if (!convexUrl || !clerkKey) {
       <ClerkProvider
         publishableKey={clerkKey}
         localization={frFR}
+        signInUrl="/connexion"
+        signUpUrl="/inscription"
+        signInFallbackRedirectUrl="/"
+        signUpFallbackRedirectUrl="/"
         appearance={{ variables: { colorPrimary: "#c9741f" } }}
       >
         <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
