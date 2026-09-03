@@ -3,6 +3,8 @@ export type AddressSuggestion = {
   address: string;
   postalCode: string;
   city: string;
+  latitude: number;
+  longitude: number;
 };
 
 /** Biais de proximité : le dépôt, à Lachapelle-aux-Pots (60650). */
@@ -25,6 +27,7 @@ export async function searchAddresses(query: string): Promise<AddressSuggestion[
     if (!response.ok) return [];
     const data = (await response.json()) as {
       features: {
+        geometry: { coordinates: [number, number] };
         properties: { label: string; name?: string; postcode?: string; city?: string };
       }[];
     };
@@ -33,6 +36,8 @@ export async function searchAddresses(query: string): Promise<AddressSuggestion[
       address: feature.properties.name ?? feature.properties.label,
       postalCode: feature.properties.postcode ?? "",
       city: feature.properties.city ?? "",
+      longitude: feature.geometry.coordinates[0],
+      latitude: feature.geometry.coordinates[1],
     }));
   } catch {
     return [];

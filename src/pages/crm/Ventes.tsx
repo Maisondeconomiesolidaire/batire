@@ -5,6 +5,7 @@ import { FullSpinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Pill } from "../../components/ui/Badge";
 import { formatDateTime, formatPrice, formatStock } from "../../lib/format";
+import { PICKUP_LOCATIONS } from "../../lib/pickupLocations";
 
 const STATUS_TONES: Record<string, string> = {
   payee: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300",
@@ -44,6 +45,7 @@ export function Ventes() {
                 <th className="px-4 py-3 text-left font-medium">Quantité</th>
                 <th className="px-4 py-3 text-left font-medium">Montant</th>
                 <th className="px-4 py-3 text-left font-medium">Client</th>
+                <th className="px-4 py-3 text-left font-medium">Retrait</th>
                 <th className="px-4 py-3 text-left font-medium">Canal</th>
                 <th className="px-4 py-3 text-left font-medium">Statut</th>
                 <th className="px-4 py-3 text-left font-medium">Date</th>
@@ -65,6 +67,12 @@ export function Ventes() {
                       {order.customer.firstName} {order.customer.lastName}
                     </p>
                     <p className="text-xs">{order.customer.email}</p>
+                  </td>
+                  <td className="px-4 py-3 text-[var(--muted-foreground)]">
+                    {order.pickupLocation
+                      ? PICKUP_LOCATIONS.find((location) => location.id === order.pickupLocation)
+                          ?.name ?? order.pickupLocation
+                      : "—"}
                   </td>
                   <td className="px-4 py-3 text-[var(--muted-foreground)]">
                     {order.channel === "terminal" ? "Terminal" : "Boutique"}

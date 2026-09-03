@@ -28,8 +28,11 @@ import {
 import { PAGE_X, UNIT_LABELS, type Unit } from "../../lib/constants";
 import { QrCode } from "../../components/ui/QrCode";
 import { MaterialCard, type PublicMaterial } from "../../components/public/MaterialCard";
+import { AddressAutocomplete } from "../../components/ui/AddressAutocomplete";
 import { cn } from "../../lib/cn";
 import { errorMessage } from "../../lib/errors";
+import { searchAddresses } from "../../lib/address";
+import { distanceInKm, PICKUP_LOCATIONS, type PickupLocationId } from "../../lib/pickupLocations";
 
 export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
   const { id } = useParams<{ id: string }>();
@@ -354,12 +357,20 @@ function BuyBlock({
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pickupLocation, setPickupLocation] = useState<PickupLocationId | null>(null);
+  const [customerCoordinates, setCustomerCoordinates] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
     email: "",
     phone: "",
     company: "",
+    address: "",
+    postalCode: "",
+    city: "",
     quantity: "1",
   });
 
@@ -374,11 +385,35 @@ function BuyBlock({
       email: current.email || donorProfile.email,
       phone: current.phone || formatFrPhone(donorProfile.phone),
       company: current.company || donorProfile.company,
+      address: current.address || donorProfile.address,
+      postalCode: current.postalCode || donorProfile.postalCode,
+      city: current.city || donorProfile.city,
     }));
   }, [donorProfile]);
 
   const set = (key: keyof typeof form) => (value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
+
+  // Une adresse de profil est déjà connue sous forme de texte : on la géocode
+  // ici aussi, pour afficher les distances sans forcer le client à la ressaisir.
+  useEffect(() => {
+    const address = [form.address, form.postalCode, form.city].filter(Boolean).join(" ");
+    if (address.length < 3) {
+      setCustomerCoordinates(null);
+      return;
+    }
+    let cancelled = false;
+    void searchAddresses(address).then(([match]) => {
+      if (!cancelled) {
+        setCustomerCoordinates(
+          match ? { latitude: match.latitude, longitude: match.longitude } : null,
+        );
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [form.address, form.postalCode, form.city]);
 
   const [capped, setCapped] = useState(false);
 
@@ -418,6 +453,7 @@ function BuyBlock({
           phone: form.phone || undefined,
           company: form.company || undefined,
         },
+        pickupLocation: pickupLocation!,
         returnUrl: `${window.location.origin}/materiau/${materialId}`,
       });
       window.location.assign(checkoutUrl);
@@ -513,6 +549,64 @@ function BuyBlock({
         </Field>
       </div>
 
+      <div className="space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--muted)] p-4">
+        <div>
+          <h3 className="font-semibold text-[var(--foreground)]">
+            Où souhaitez-vous récupérer ce produit ?
+          </h3>
+          <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+            Indiquez votre adresse pour comparer les distances.
+          </p>
+        </div>
+        <Field label="Votre adresse" required>
+          <AddressAutocomplete
+            value={form.address}
+            onValueChange={(value) => {
+              set("address")(value);
+              setCustomerCoordinates(null);
+            }}
+            onSelect={(address) => {
+              setForm((current) => ({
+                ...current,
+                address: address.address,
+                postalCode: address.postalCode,
+                city: address.city,
+              }));
+              setCustomerCoordinates({ latitude: address.latitude, longitude: address.longitude });
+            }}
+            placeholder="12 rue des Ateliers, Beauvais"
+          />
+        </Field>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {PICKUP_LOCATIONS.map((location) => {
+            const distance = customerCoordinates
+              ? distanceInKm(customerCoordinates, location)
+              : null;
+            const selected = pickupLocation === location.id;
+            return (
+              <button
+                key={location.id}
+                type="button"
+                onClick={() => setPickupLocation(location.id)}
+                aria-pressed={selected}
+                className={cn(
+                  "rounded-xl border bg-[var(--card)] p-3 text-left transition hover:border-brand-400",
+                  selected ? "border-brand-600 ring-2 ring-brand-600/20" : "border-[var(--border)]",
+                )}
+              >
+                <p className="font-semibold text-[var(--foreground)]">{location.name}</p>
+                <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{location.address}</p>
+                <p className="mt-2 text-xs font-medium text-brand-700">
+                  {distance === null
+                    ? "Saisissez votre adresse pour voir la distance"
+                    : `${distance.toFixed(1).replace(".", ",")} km de votre adresse`}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       <div className="flex justify-end gap-2">
@@ -526,6 +620,9 @@ function BuyBlock({
             !form.firstName ||
             !form.lastName ||
             !form.email ||
+            !form.address ||
+            !customerCoordinates ||
+            !pickupLocation ||
             quantity <= 0 ||
             quantity > stock
           }
