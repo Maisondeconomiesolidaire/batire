@@ -1,7 +1,18 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "convex/react";
-import { Boxes, Download, Eye, EyeOff, Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
+import {
+  Boxes,
+  Download,
+  Eye,
+  EyeOff,
+  Pencil,
+  Plus,
+  ScanLine,
+  Search,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Field";
@@ -14,11 +25,13 @@ import { MATERIAL_STATUSES, STATUS_LABELS, type MaterialStatus } from "../../lib
 import { useAccess, canAccess } from "../../lib/access";
 import { exportMaterials, parseWorkbook } from "../../lib/excel";
 import { taxonomyPath } from "../../lib/taxonomy";
+import { CameraScanner } from "../../components/ui/CameraScanner";
 
 export function Materiaux() {
   const navigate = useNavigate();
   const access = useAccess();
   const [search, setSearch] = useState("");
+  const [scanning, setScanning] = useState(false);
   const [status, setStatus] = useState<"" | MaterialStatus>("");
   const materials = useQuery(api.batire.listMaterials, {
     search: search.trim() || undefined,
@@ -36,6 +49,18 @@ export function Materiaux() {
 
   return (
     <div className="space-y-5">
+      {scanning ? (
+        <CameraScanner
+          onClose={() => setScanning(false)}
+          onDetected={(code) => {
+            // Les étiquettes BâtiRe encodent l'URL `/qr/BT-00001` ; la
+            // recherche attend la référence seule, également acceptée au scan.
+            const match = code.trim().match(/([A-Z]{2}-\d{4,})/i);
+            setSearch((match?.[1] ?? code.trim()).toUpperCase());
+            setScanning(false);
+          }}
+        />
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Matériaux</h1>
@@ -114,8 +139,17 @@ export function Materiaux() {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Rechercher (titre, marque, référence, QR, emplacement)…"
-            className="pl-9"
+            className="pl-9 pr-11"
           />
+          <button
+            type="button"
+            onClick={() => setScanning(true)}
+            className="absolute right-1.5 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-[var(--muted-foreground)] transition hover:bg-[var(--accent)] hover:text-brand-600"
+            aria-label="Scanner un QR code pour rechercher un matériau"
+            title="Scanner un QR code"
+          >
+            <ScanLine className="h-4 w-4" />
+          </button>
         </div>
         <Dropdown
           className="w-52"
