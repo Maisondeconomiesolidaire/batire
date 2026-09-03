@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import type { ReactNode } from "react";
 
 function LegalPage({ title, children }: { title: string; children: ReactNode }) {
-  return <main className="min-h-screen bg-[var(--background)] px-4 py-12 sm:px-6"><article className="mx-auto max-w-3xl"><Link to="/" className="text-sm font-semibold text-brand-700 hover:text-brand-900">← Retour à la boutique</Link><h1 className="mt-8 text-3xl font-black tracking-tight text-zinc-950 sm:text-4xl">{title}</h1><div className="mt-8 space-y-6 text-sm leading-7 text-zinc-700">{children}</div></article></main>;
+  return <main className="w-full px-4 py-12 sm:px-6"><article className="mx-auto max-w-3xl"><Link to="/" className="text-sm font-semibold text-brand-700 hover:text-brand-900">← Retour à la boutique</Link><h1 className="mt-8 text-3xl font-black tracking-tight text-zinc-950 sm:text-4xl">{title}</h1><div className="mt-8 space-y-6 text-sm leading-7 text-zinc-700">{children}</div></article></main>;
 }
 
 export function ConditionsGenerales() {

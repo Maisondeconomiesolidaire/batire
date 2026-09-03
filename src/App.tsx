@@ -35,10 +35,10 @@ export default function App() {
       <Routes>
       <Route path="/connexion" element={<AuthSwitch />} />
       <Route path="/inscription" element={<AuthSwitch initialMode="signup" />} />
-      <Route path="/conditions-generales" element={<ConditionsGenerales />} />
-      <Route path="/politique-confidentialite" element={<PolitiqueConfidentialite />} />
       <Route element={<PublicShell />}>
         <Route path="/" element={<BoutiqueRoute />} />
+        <Route path="/conditions-generales" element={<ConditionsGenerales />} />
+        <Route path="/politique-confidentialite" element={<PolitiqueConfidentialite />} />
         <Route path="/materiau/:id" element={<MaterialDetail />} />
         <Route path="/qr/:reference" element={<QrLanding />} />
         <Route path="/messagerie" element={<Messagerie />} />
