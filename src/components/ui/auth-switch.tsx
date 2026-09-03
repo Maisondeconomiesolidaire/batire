@@ -48,6 +48,7 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
   };
   const sendLoginCode = async () => {
     if (!signInLoaded || !signIn) return;
+    if (!email.trim()) throw new Error("Renseignez votre adresse email avant de demander un code de connexion.");
     const result = await signIn.create({ identifier: email.trim() });
     const factor = result.supportedFirstFactors?.find((item) => item.strategy === "email_code");
     if (!factor || factor.strategy !== "email_code") throw new Error("La connexion par code n'est pas disponible pour cette adresse.");
@@ -108,7 +109,6 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
   const signUpMode = mode === "signup";
   return <main className="auth-switch-page"><section className={`auth-switch-container ${signUpMode ? "sign-up-mode" : ""}`}>
     <div className="auth-switch-form">
-    <Link to="/" className="mb-7 inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:text-brand-900"><ArrowLeft className="h-4 w-4" /> Retour à la boutique</Link>
     <img src="/batire-logo.jpg" alt="BâtiRe" className="mb-6 h-16 w-auto object-contain" />
     <h1 className="text-3xl font-black tracking-tight text-zinc-950">{title}</h1><p className="mt-2 text-sm text-zinc-600">{subtitle}</p>
     <form className="mt-7 space-y-4" onSubmit={run(needsCode ? mode === "mfa" ? completeMfa : completeLoginCode : mode === "reset-request" ? resetPassword : mode === "reset" ? completeReset : mode === "signup" ? createAccount : loginWithPassword)}>
@@ -121,8 +121,7 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
       {error ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{error}</p> : null}
       <button disabled={busy} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white transition hover:bg-brand-700 disabled:opacity-60">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserRound className="h-4 w-4" />}{needsCode || mode === "reset" ? "Confirmer" : mode === "reset-request" ? "Envoyer le code" : mode === "signup" ? "Créer mon compte" : "Se connecter"}</button>
     </form>
-    {mode === "signin" ? <div className="mt-5 flex flex-wrap justify-between gap-3 text-sm font-semibold text-brand-700"><button type="button" onClick={() => void run(sendLoginCode)()} disabled={!email || busy}>Recevoir un code de connexion</button><button type="button" onClick={() => { setMode("reset-request"); setError(null); }}>Mot de passe oublié ?</button><button type="button" onClick={() => { setMode("signup"); setError(null); }}>Créer un compte</button></div> : null}
-    {mode === "signup" ? <p className="mt-5 text-center text-sm text-zinc-600">Déjà un compte ? <button className="font-semibold text-brand-700" onClick={() => setMode("signin")}>Se connecter</button></p> : null}
+    {mode === "signin" ? <div className="mt-5 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold text-brand-700"><button type="button" onClick={() => void run(sendLoginCode)()} disabled={busy}>Recevoir un code de connexion</button><button type="button" onClick={() => { setMode("reset-request"); setError(null); }}>Mot de passe oublié ?</button></div> : null}
     </div>
     <div className="auth-switch-panels">
       <aside className="auth-switch-panel left-panel">
@@ -130,6 +129,7 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
           <h2>Nouveau ici ?</h2>
           <p>Créez votre espace pour suivre vos commandes, dons et recherches.</p>
           <button type="button" onClick={() => { setMode("signup"); setError(null); }}>Créer un compte</button>
+          <Link to="/" className="auth-switch-back-link"><ArrowLeft className="h-4 w-4" /> Retour à la boutique</Link>
         </div>
       </aside>
       <aside className="auth-switch-panel right-panel">
@@ -137,6 +137,7 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
           <h2>Déjà membre ?</h2>
           <p>Retrouvez votre espace BâtiRe et vos démarches en cours.</p>
           <button type="button" onClick={() => { setMode("signin"); setError(null); }}>Se connecter</button>
+          <Link to="/" className="auth-switch-back-link"><ArrowLeft className="h-4 w-4" /> Retour à la boutique</Link>
         </div>
       </aside>
     </div>
