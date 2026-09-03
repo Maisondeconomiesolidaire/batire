@@ -92,7 +92,7 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
   const createAccount = async () => {
     if (!signUpLoaded || !signUp) return;
     if (!termsAccepted) throw new Error("Vous devez accepter les conditions d'utilisation pour créer un compte.");
-    const result = await signUp.create({ emailAddress: email.trim(), password, firstName, lastName });
+    const result = await signUp.create({ emailAddress: email.trim(), password, firstName, lastName, legalAccepted: termsAccepted });
     if (result.status === "complete") return go(result.createdSessionId, setSignUpActive);
     throw new Error("L'inscription n'a pas pu être finalisée. Vérifiez les informations saisies.");
   };
