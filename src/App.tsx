@@ -23,6 +23,7 @@ import { ProfileSync } from "./components/ProfileSync";
 import { PortalButton } from "./components/PortalButton";
 import { AccountMenu } from "./components/public/AccountMenu";
 import { AuthSwitch } from "./components/ui/auth-switch";
+import { ConditionsGenerales, PolitiqueConfidentialite } from "./pages/public/Legal";
 
 export default function App() {
   return (
@@ -34,6 +35,8 @@ export default function App() {
       <Routes>
       <Route path="/connexion" element={<AuthSwitch />} />
       <Route path="/inscription" element={<AuthSwitch initialMode="signup" />} />
+      <Route path="/conditions-generales" element={<ConditionsGenerales />} />
+      <Route path="/politique-confidentialite" element={<PolitiqueConfidentialite />} />
       <Route element={<PublicShell />}>
         <Route path="/" element={<BoutiqueRoute />} />
         <Route path="/materiau/:id" element={<MaterialDetail />} />
@@ -149,9 +152,11 @@ function PublicShell() {
       <footer className="mt-16 border-t border-[var(--border)] py-8">
         <div className={cn("flex w-full flex-wrap items-center justify-between gap-3 text-sm text-[var(--muted-foreground)]", PAGE_X)}>
           <p>BâtiRe</p>
-          <Link to="/crm" className="hover:text-brand-700">
-            Espace équipe
-          </Link>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Link to="/conditions-generales" className="hover:text-brand-700">Conditions générales d’utilisation</Link>
+            <Link to="/politique-confidentialite" className="hover:text-brand-700">Politique de confidentialité</Link>
+            <Link to="/crm" className="hover:text-brand-700">Espace équipe</Link>
+          </div>
         </div>
       </footer>
     </div>

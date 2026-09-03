@@ -48,7 +48,7 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
   };
   const sendLoginCode = async () => {
     if (!signInLoaded || !signIn) return;
-    const result = await signIn.create({ strategy: "email_code", identifier: email });
+    const result = await signIn.create({ identifier: email.trim() });
     const factor = result.supportedFirstFactors?.find((item) => item.strategy === "email_code");
     if (!factor || factor.strategy !== "email_code") throw new Error("La connexion par code n'est pas disponible pour cette adresse.");
     await result.prepareFirstFactor({ strategy: "email_code", emailAddressId: factor.emailAddressId });
@@ -56,7 +56,7 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
   };
   const loginWithPassword = async () => {
     if (!signInLoaded || !signIn) return;
-    const result = await signIn.create({ strategy: "password", identifier: email, password });
+    const result = await signIn.create({ strategy: "password", identifier: email.trim(), password });
     if (result.status === "complete") return go(result.createdSessionId, setSignInActive);
     if (result.status === "needs_second_factor") return prepareMfa(result);
     throw new Error("Cette connexion nécessite une étape supplémentaire.");
@@ -77,7 +77,7 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
   };
   const resetPassword = async () => {
     if (!signInLoaded || !signIn) return;
-    const result = await signIn.create({ strategy: "reset_password_email_code", identifier: email });
+    const result = await signIn.create({ strategy: "reset_password_email_code", identifier: email.trim() });
     const factor = result.supportedFirstFactors?.find((item) => item.strategy === "reset_password_email_code");
     if (!factor || factor.strategy !== "reset_password_email_code") throw new Error("La réinitialisation par email n'est pas disponible.");
     await result.prepareFirstFactor({ strategy: "reset_password_email_code", emailAddressId: factor.emailAddressId });
@@ -92,7 +92,7 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
   const createAccount = async () => {
     if (!signUpLoaded || !signUp) return;
     if (!termsAccepted) throw new Error("Vous devez accepter les conditions d'utilisation pour créer un compte.");
-    const result = await signUp.create({ emailAddress: email, password, firstName, lastName });
+    const result = await signUp.create({ emailAddress: email.trim(), password, firstName, lastName });
     if (result.status === "complete") return go(result.createdSessionId, setSignUpActive);
     throw new Error("L'inscription n'a pas pu être finalisée. Vérifiez les informations saisies.");
   };
@@ -115,7 +115,7 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
       {mode === "signup" ? <div className="grid gap-4 sm:grid-cols-2"><Field label="Prénom" value={firstName} onChange={setFirstName} /><Field label="Nom" value={lastName} onChange={setLastName} /></div> : null}
       {!needsCode && mode !== "reset" ? <Field label="Adresse email" value={email} onChange={setEmail} type="email" icon={<Mail className="h-4 w-4" />} /> : null}
       {(mode === "signin" || mode === "signup") ? <Field label="Mot de passe" value={password} onChange={setPassword} type="password" icon={<LockKeyhole className="h-4 w-4" />} /> : null}
-      {mode === "signup" ? <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm leading-5 text-zinc-700"><input required checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} type="checkbox" className="mt-0.5 h-4 w-4 accent-brand-600" /><span>J'accepte les conditions générales d'utilisation et la politique de confidentialité.</span></label> : null}
+      {mode === "signup" ? <div className="flex items-start gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm leading-5 text-zinc-700"><input id="terms-acceptance" required checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-brand-600" /><label htmlFor="terms-acceptance">J'accepte les <Link to="/conditions-generales" className="font-medium text-brand-700 underline underline-offset-2 hover:text-brand-900">conditions générales d'utilisation</Link> et la <Link to="/politique-confidentialite" className="font-medium text-brand-700 underline underline-offset-2 hover:text-brand-900">politique de confidentialité</Link>.</label></div> : null}
       {needsCode || mode === "reset" ? <Field label="Code de confirmation" value={code} onChange={setCode} inputMode="numeric" icon={<KeyRound className="h-4 w-4" />} /> : null}
       {mode === "reset" ? <Field label="Nouveau mot de passe" value={newPassword} onChange={setNewPassword} type="password" icon={<LockKeyhole className="h-4 w-4" />} /> : null}
       {error ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{error}</p> : null}

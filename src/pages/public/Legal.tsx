@@ -1,0 +1,14 @@
+import { Link } from "react-router-dom";
+import type { ReactNode } from "react";
+
+function LegalPage({ title, children }: { title: string; children: ReactNode }) {
+  return <main className="min-h-screen bg-[var(--background)] px-4 py-12 sm:px-6"><article className="mx-auto max-w-3xl"><Link to="/" className="text-sm font-semibold text-brand-700 hover:text-brand-900">← Retour à la boutique</Link><h1 className="mt-8 text-3xl font-black tracking-tight text-zinc-950 sm:text-4xl">{title}</h1><div className="mt-8 space-y-6 text-sm leading-7 text-zinc-700">{children}</div></article></main>;
+}
+
+export function ConditionsGenerales() {
+  return <LegalPage title="Conditions générales d’utilisation"><p>Dernière mise à jour : 3 septembre 2026.</p><section><h2 className="text-lg font-bold text-zinc-950">Objet</h2><p>BâtiRe permet de consulter des matériaux issus du réemploi, de réserver des produits et de proposer des dons. L’utilisation du site implique l’acceptation des présentes conditions.</p></section><section><h2 className="text-lg font-bold text-zinc-950">Compte utilisateur</h2><p>Vous êtes responsable des informations renseignées lors de la création de votre compte et de la confidentialité de vos accès. En cas d’utilisation non autorisée, contactez-nous dès que possible.</p></section><section><h2 className="text-lg font-bold text-zinc-950">Réservations et retraits</h2><p>Les disponibilités affichées peuvent évoluer. Une réservation ou une demande ne vaut pas confirmation définitive avant validation par l’équipe BâtiRe.</p></section><section><h2 className="text-lg font-bold text-zinc-950">Utilisation du site</h2><p>Vous vous engagez à utiliser le site de manière loyale et à ne pas perturber son fonctionnement. Ces conditions pourront être mises à jour lorsque les services évolueront.</p></section></LegalPage>;
+}
+
+export function PolitiqueConfidentialite() {
+  return <LegalPage title="Politique de confidentialité"><p>Dernière mise à jour : 3 septembre 2026.</p><section><h2 className="text-lg font-bold text-zinc-950">Données collectées</h2><p>Lors de la création d’un compte ou d’une demande, BâtiRe peut collecter vos nom, prénom, adresse email et les informations nécessaires au suivi de vos démarches.</p></section><section><h2 className="text-lg font-bold text-zinc-950">Utilisation</h2><p>Ces données servent uniquement à gérer votre compte, vos réservations, vos dons et les échanges associés. Elles ne sont pas vendues à des tiers.</p></section><section><h2 className="text-lg font-bold text-zinc-950">Conservation et sécurité</h2><p>Les données sont conservées pendant la durée nécessaire au fonctionnement du service et protégées par des mesures techniques et organisationnelles adaptées.</p></section><section><h2 className="text-lg font-bold text-zinc-950">Vos droits</h2><p>Vous pouvez demander l’accès, la rectification ou la suppression de vos données en contactant l’équipe BâtiRe.</p></section></LegalPage>;
+}
