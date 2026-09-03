@@ -59,7 +59,7 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
     switchTimer.current = window.setTimeout(() => {
       setMode(nextMode);
       switchTimer.current = null;
-    }, 1700);
+    }, 600);
   };
   const sendLoginCode = async () => {
     if (!signInLoaded || !signIn) return;
@@ -93,10 +93,8 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
   };
   const resetPassword = async () => {
     if (!signInLoaded || !signIn) return;
-    const result = await signIn.create({ strategy: "reset_password_email_code", identifier: email.trim() });
-    const factor = result.supportedFirstFactors?.find((item) => item.strategy === "reset_password_email_code");
-    if (!factor || factor.strategy !== "reset_password_email_code") throw new Error("La réinitialisation par email n'est pas disponible.");
-    await result.prepareFirstFactor({ strategy: "reset_password_email_code", emailAddressId: factor.emailAddressId });
+    if (!email.trim()) throw new Error("Renseignez votre adresse email avant de demander la réinitialisation.");
+    await signIn.create({ strategy: "reset_password_email_code", identifier: email.trim() });
     setMode("reset");
   };
   const completeReset = async () => {
