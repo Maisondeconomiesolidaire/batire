@@ -37,7 +37,7 @@ if (!convexUrl || !clerkKey) {
         signUpUrl="/inscription"
         signInFallbackRedirectUrl="/"
         signUpFallbackRedirectUrl="/"
-        appearance={{ variables: { colorPrimary: "#c9741f" } }}
+        appearance={{ variables: { colorPrimary: "#2795b3" } }}
       >
         <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
           <BrowserRouter>

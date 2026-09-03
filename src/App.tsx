@@ -107,8 +107,8 @@ function PublicShell() {
             <span className="hidden sm:inline">Menu</span>
           </button>
 
-          <Link to="/" className="shrink-0 text-xl font-black tracking-tight">
-            BâtiRe<span className="text-brand-600">.</span>
+          <Link to="/" className="shrink-0" aria-label="BâtiRe - Accueil">
+            <img src="/logo-BATIRE.jpg" alt="BâtiRe" className="h-12 w-12 rounded-lg object-contain" />
           </Link>
 
           {/* La recherche ne tient pas sur la même ligne qu'un téléphone : elle
@@ -151,7 +151,7 @@ function PublicShell() {
 
       <footer className="mt-16 border-t border-[var(--border)] py-8">
         <div className={cn("flex w-full flex-wrap items-center justify-between gap-3 text-sm text-[var(--muted-foreground)]", PAGE_X)}>
-          <p>BâtiRe</p>
+          <img src="/logo-BATIRE.jpg" alt="BâtiRe" className="h-10 w-10 rounded-md object-contain" />
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <Link to="/conditions-generales" className="hover:text-brand-700">Conditions générales d’utilisation</Link>
             <Link to="/politique-confidentialite" className="hover:text-brand-700">Politique de confidentialité</Link>
@@ -190,8 +190,8 @@ function KioskShell() {
             <span className="hidden sm:inline">Menu</span>
           </button>
 
-          <Link to="/kiosk" className="shrink-0 text-xl font-black tracking-tight">
-            BâtiRe<span className="text-brand-600">.</span>
+          <Link to="/kiosk" className="shrink-0" aria-label="BâtiRe - Accueil">
+            <img src="/logo-BATIRE.jpg" alt="BâtiRe" className="h-12 w-12 rounded-lg object-contain" />
           </Link>
 
           <div className="relative min-w-0 flex-1">

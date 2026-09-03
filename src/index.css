@@ -5,17 +5,27 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  /* Palette Bâtire : un ocre de chantier, lisible sur fond clair comme sombre. */
-  --color-brand-50: #fdf6ec;
-  --color-brand-100: #f9e7cd;
-  --color-brand-200: #f1cb98;
-  --color-brand-300: #e6ab62;
-  --color-brand-400: #db8f3a;
-  --color-brand-500: #c9741f;
-  --color-brand-600: #a75c18;
-  --color-brand-700: #834717;
-  --color-brand-800: #653818;
-  --color-brand-900: #4f2d16;
+  /* Palette BâtiRe : bleu du logo pour les actions, vert pour les accents. */
+  --color-brand-50: #eef9fc;
+  --color-brand-100: #d7f0f6;
+  --color-brand-200: #afe1ec;
+  --color-brand-300: #82d0e0;
+  --color-brand-400: #56bdd2;
+  --color-brand-500: #36a9c5;
+  --color-brand-600: #2795b3;
+  --color-brand-700: #1e718a;
+  --color-brand-800: #155064;
+  --color-brand-900: #0c303d;
+  --color-secondary-50: #f5f7ed;
+  --color-secondary-100: #e5ecd2;
+  --color-secondary-200: #cbd9a7;
+  --color-secondary-300: #b1c57b;
+  --color-secondary-400: #94a753;
+  --color-secondary-500: #7f963f;
+  --color-secondary-600: #6e8735;
+  --color-secondary-700: #566a29;
+  --color-secondary-800: #3e4e1e;
+  --color-secondary-900: #273315;
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -51,13 +61,13 @@ body {
 
 /* Adaptation BâtiRe de l'animation « Auth Switch » : les deux panneaux se
    croisent à l'inscription, sans les connexions sociales du composant source. */
-.auth-switch-page { min-height: 100vh; display: grid; place-items: center; padding: 2rem 1rem; background: linear-gradient(135deg, #fdf6ec, #f1cb98); overflow: hidden; }
+.auth-switch-page { min-height: 100vh; display: grid; place-items: center; padding: 2rem 1rem; background: linear-gradient(135deg, #eef9fc, #e5ecd2); overflow: hidden; }
 .auth-switch-container { position: relative; width: min(100%, 1100px); height: 700px; overflow: hidden; border-radius: 1.5rem; background: #fff; box-shadow: 0 25px 50px rgb(79 45 22 / 25%); }
-.auth-switch-container::before { content: ""; position: absolute; z-index: 6; top: -10%; right: 48%; width: 2000px; height: 2000px; border-radius: 50%; background: linear-gradient(-45deg, #c9741f, #834717); transform: translateY(-50%); transition: 1.8s ease-in-out; }
+.auth-switch-container::before { content: ""; position: absolute; z-index: 6; top: -10%; right: 48%; width: 2000px; height: 2000px; border-radius: 50%; background: linear-gradient(-45deg, #2795b3, #6e8735); transform: translateY(-50%); transition: 1.8s ease-in-out; }
 .auth-switch-form { position: absolute; z-index: 5; top: 50%; left: 75%; width: 50%; padding: 2.5rem 4.5rem; transform: translate(-50%, -50%); transition: left 1s .7s ease-in-out; }
 .auth-switch-panels { position: absolute; z-index: 7; inset: 0; display: grid; grid-template-columns: repeat(2, 1fr); pointer-events: none; }
 .auth-switch-panel { display: flex; flex-direction: column; align-items: flex-end; justify-content: space-around; text-align: center; color: white; }.auth-switch-panel-content { display: flex; flex-direction: column; align-items: center; gap: 1.25rem; transition: transform .9s ease-in-out; transition-delay: .6s; }.left-panel { padding: 3rem 17% 2rem 12%; pointer-events: all; }.right-panel { padding: 3rem 12% 2rem 17%; pointer-events: none; }.right-panel .auth-switch-panel-content { transform: translateX(800px); }
-.auth-switch-panel h2, .auth-switch-panel p { margin: 0; }.auth-switch-panel h2 { font-size: 2rem; font-weight: 800; }.auth-switch-panel p { max-width: 22rem; line-height: 1.55; }.auth-switch-panel button { border: 1px solid rgb(255 255 255 / .8); border-radius: 999px; padding: .75rem 1.4rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; transition: background .2s, color .2s; }.auth-switch-panel button:hover { background: white; color: #834717; }.auth-switch-back-link { display: inline-flex; align-items: center; gap: .45rem; font-size: .875rem; font-weight: 600; color: rgb(255 255 255 / .92); text-decoration: underline; text-underline-offset: 3px; }.auth-switch-back-link:hover { color: white; }
+.auth-switch-panel h2, .auth-switch-panel p { margin: 0; }.auth-switch-panel h2 { font-size: 2rem; font-weight: 800; }.auth-switch-panel p { max-width: 22rem; line-height: 1.55; }.auth-switch-panel button { border: 1px solid rgb(255 255 255 / .8); border-radius: 999px; padding: .75rem 1.4rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; transition: background .2s, color .2s; }.auth-switch-panel button:hover { background: white; color: #1e718a; }.auth-switch-back-link { display: inline-flex; align-items: center; gap: .45rem; font-size: .875rem; font-weight: 600; color: rgb(255 255 255 / .92); text-decoration: underline; text-underline-offset: 3px; }.auth-switch-back-link:hover { color: white; }
 .sign-up-mode::before { right: 52%; transform: translate(100%, -50%); }.sign-up-mode .auth-switch-form { left: 25%; }.sign-up-mode .left-panel .auth-switch-panel-content { transform: translateX(-800px); }.sign-up-mode .right-panel .auth-switch-panel-content { transform: translateX(0); }.sign-up-mode .left-panel { pointer-events: none; }.sign-up-mode .right-panel { pointer-events: all; }
 @media (max-width: 700px) { .auth-switch-container { height: 820px; }.auth-switch-container::before { top: initial; right: initial; bottom: 66%; left: 50%; width: 1300px; height: 1300px; transform: translateX(-50%); }.auth-switch-form { top: 65%; left: 50%; width: 100%; padding: 2rem 1.5rem; transform: translate(-50%, -50%); }.auth-switch-panels { height: 34%; grid-template-columns: 1fr; }.auth-switch-panel { align-items: center; padding: 2rem 18%; }.right-panel { display: none; }.sign-up-mode::before { right: initial; transform: translate(-50%, 100%); }.sign-up-mode .auth-switch-form { left: 50%; }.sign-up-mode .left-panel .auth-switch-panel-content { transform: none; } }
 

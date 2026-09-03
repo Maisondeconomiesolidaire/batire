@@ -71,8 +71,8 @@ export function CrmLayout() {
             <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col border-r border-[var(--border)] bg-[var(--card)] lg:flex">
               <div className="flex items-start justify-between gap-2 px-5 py-5">
                 <div className="min-w-0">
-                  <NavLink to="/crm" className="text-lg font-black tracking-tight">
-                    BâtiRe<span className="text-brand-500">.</span>
+                  <NavLink to="/crm" aria-label="BâtiRe CRM">
+                    <img src="/logo-BATIRE.jpg" alt="BâtiRe" className="h-14 w-14 rounded-lg object-contain" />
                   </NavLink>
                   <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">Espace équipe</p>
                 </div>

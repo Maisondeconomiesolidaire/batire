@@ -103,9 +103,7 @@ export function MegaMenu({
             >
               <X className="h-6 w-6" />
             </button>
-            <span className="text-lg font-black tracking-tight">
-              BâtiRe<span className="text-brand-600">.</span>
-            </span>
+            <img src="/logo-BATIRE.jpg" alt="BâtiRe" className="h-12 w-12 rounded-lg object-contain" />
           </div>
 
           <div className="mx-5 border-t border-[var(--border)]" />
