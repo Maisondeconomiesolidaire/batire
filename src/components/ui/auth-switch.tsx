@@ -3,7 +3,7 @@ import { useSignIn, useSignUp } from "@clerk/clerk-react";
 import { ArrowLeft, KeyRound, Loader2, LockKeyhole, Mail, UserRound } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
-type Mode = "signin" | "signup" | "code" | "reset-request" | "reset" | "signup-code" | "mfa";
+type Mode = "signin" | "signup" | "code" | "reset-request" | "reset" | "mfa";
 
 function message(error: unknown) {
   if (typeof error === "object" && error && "errors" in error) {
@@ -94,13 +94,7 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
     if (!termsAccepted) throw new Error("Vous devez accepter les conditions d'utilisation pour créer un compte.");
     const result = await signUp.create({ emailAddress: email, password, firstName, lastName });
     if (result.status === "complete") return go(result.createdSessionId, setSignUpActive);
-    await result.prepareEmailAddressVerification({ strategy: "email_code" }); setMode("signup-code");
-  };
-  const completeSignup = async () => {
-    if (!signUp) return;
-    const result = await signUp.attemptEmailAddressVerification({ code: code.replace(/\s/g, "") });
-    if (result.status === "complete") return go(result.createdSessionId, setSignUpActive);
-    throw new Error("Code incorrect ou expiré.");
+    throw new Error("L'inscription n'a pas pu être finalisée. Vérifiez les informations saisies.");
   };
   const completeMfa = async () => {
     if (!signIn) return;
@@ -108,16 +102,16 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
     if (result.status === "complete") return go(result.createdSessionId, setSignInActive);
     throw new Error("Code incorrect ou expiré.");
   };
-  const title = mode === "signup" || mode === "signup-code" ? "Créer votre compte" : mode === "reset" ? "Nouveau mot de passe" : mode === "reset-request" ? "Réinitialiser le mot de passe" : "Bienvenue sur BâtiRe";
-  const subtitle = mode === "signup" ? "Créez votre espace en quelques instants." : mode === "reset" ? "Saisissez le code reçu et choisissez un nouveau mot de passe." : mode === "reset-request" ? "Nous vous enverrons un code de réinitialisation." : mode === "code" || mode === "signup-code" || mode === "mfa" ? "Saisissez le code de sécurité reçu par email." : "Connectez-vous pour suivre vos demandes et vos commandes.";
-  const needsCode = mode === "code" || mode === "signup-code" || mode === "mfa";
+  const title = mode === "signup" ? "Créer votre compte" : mode === "reset" ? "Nouveau mot de passe" : mode === "reset-request" ? "Réinitialiser le mot de passe" : "Bienvenue sur BâtiRe";
+  const subtitle = mode === "signup" ? "Créez votre espace en quelques instants." : mode === "reset" ? "Saisissez le code reçu et choisissez un nouveau mot de passe." : mode === "reset-request" ? "Nous vous enverrons un code de réinitialisation." : mode === "code" || mode === "mfa" ? "Saisissez le code de sécurité reçu par email." : "Connectez-vous pour suivre vos demandes et vos commandes.";
+  const needsCode = mode === "code" || mode === "mfa";
   const signUpMode = mode === "signup";
   return <main className="auth-switch-page"><section className={`auth-switch-container ${signUpMode ? "sign-up-mode" : ""}`}>
     <div className="auth-switch-form">
     <Link to="/" className="mb-7 inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:text-brand-900"><ArrowLeft className="h-4 w-4" /> Retour à la boutique</Link>
     <img src="/batire-logo.jpg" alt="BâtiRe" className="mb-6 h-16 w-auto object-contain" />
     <h1 className="text-3xl font-black tracking-tight text-zinc-950">{title}</h1><p className="mt-2 text-sm text-zinc-600">{subtitle}</p>
-    <form className="mt-7 space-y-4" onSubmit={run(needsCode ? mode === "signup-code" ? completeSignup : mode === "mfa" ? completeMfa : completeLoginCode : mode === "reset-request" ? resetPassword : mode === "reset" ? completeReset : mode === "signup" ? createAccount : loginWithPassword)}>
+    <form className="mt-7 space-y-4" onSubmit={run(needsCode ? mode === "mfa" ? completeMfa : completeLoginCode : mode === "reset-request" ? resetPassword : mode === "reset" ? completeReset : mode === "signup" ? createAccount : loginWithPassword)}>
       {mode === "signup" ? <div className="grid gap-4 sm:grid-cols-2"><Field label="Prénom" value={firstName} onChange={setFirstName} /><Field label="Nom" value={lastName} onChange={setLastName} /></div> : null}
       {!needsCode && mode !== "reset" ? <Field label="Adresse email" value={email} onChange={setEmail} type="email" icon={<Mail className="h-4 w-4" />} /> : null}
       {(mode === "signin" || mode === "signup") ? <Field label="Mot de passe" value={password} onChange={setPassword} type="password" icon={<LockKeyhole className="h-4 w-4" />} /> : null}
