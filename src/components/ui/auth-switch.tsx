@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type HTMLAttributes, type ReactNode } from "react";
+import { useRef, useState, type FormEvent, type HTMLAttributes, type ReactNode } from "react";
 import { useSignIn, useSignUp } from "@clerk/clerk-react";
 import { ArrowLeft, KeyRound, Loader2, LockKeyhole, Mail, UserRound } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -27,7 +27,9 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
   const [lastName, setLastName] = useState("");
   const [code, setCode] = useState("");
   const [mfaStrategy, setMfaStrategy] = useState<"email_code" | "phone_code" | "totp" | "backup_code">("totp");
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
+  const actionInProgress = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const returnTo = params.get("redirect_url") || "/";
 
@@ -36,9 +38,13 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
     await setActive({ session: sessionId });
     navigate(returnTo, { replace: true });
   };
-  const run = (action: () => Promise<void>) => async (event: FormEvent) => {
-    event.preventDefault(); setBusy(true); setError(null);
+  const run = (action: () => Promise<void>) => async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (actionInProgress.current) return;
+    actionInProgress.current = true;
+    setBusy(true); setError(null);
     try { await action(); } catch (caught) { setError(message(caught)); } finally { setBusy(false); }
+    actionInProgress.current = false;
   };
   const sendLoginCode = async () => {
     if (!signInLoaded || !signIn) return;
@@ -64,7 +70,7 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
   };
   const completeLoginCode = async () => {
     if (!signIn) return;
-    const result = await signIn.attemptFirstFactor({ strategy: "email_code", code });
+    const result = await signIn.attemptFirstFactor({ strategy: "email_code", code: code.replace(/\s/g, "") });
     if (result.status === "complete") return go(result.createdSessionId, setSignInActive);
     if (result.status === "needs_second_factor") return prepareMfa(result);
     throw new Error("Code incorrect ou expiré.");
@@ -79,30 +85,31 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
   };
   const completeReset = async () => {
     if (!signIn) return;
-    const result = await signIn.attemptFirstFactor({ strategy: "reset_password_email_code", code, password: newPassword });
+    const result = await signIn.attemptFirstFactor({ strategy: "reset_password_email_code", code: code.replace(/\s/g, ""), password: newPassword });
     if (result.status === "complete") return go(result.createdSessionId, setSignInActive);
     throw new Error("Le code ou le nouveau mot de passe est invalide.");
   };
   const createAccount = async () => {
     if (!signUpLoaded || !signUp) return;
+    if (!termsAccepted) throw new Error("Vous devez accepter les conditions d'utilisation pour créer un compte.");
     const result = await signUp.create({ emailAddress: email, password, firstName, lastName });
     if (result.status === "complete") return go(result.createdSessionId, setSignUpActive);
     await result.prepareEmailAddressVerification({ strategy: "email_code" }); setMode("signup-code");
   };
   const completeSignup = async () => {
     if (!signUp) return;
-    const result = await signUp.attemptEmailAddressVerification({ code });
+    const result = await signUp.attemptEmailAddressVerification({ code: code.replace(/\s/g, "") });
     if (result.status === "complete") return go(result.createdSessionId, setSignUpActive);
     throw new Error("Code incorrect ou expiré.");
   };
   const completeMfa = async () => {
     if (!signIn) return;
-    const result = await signIn.attemptSecondFactor({ strategy: mfaStrategy, code } as never);
+    const result = await signIn.attemptSecondFactor({ strategy: mfaStrategy, code: code.replace(/\s/g, "") } as never);
     if (result.status === "complete") return go(result.createdSessionId, setSignInActive);
     throw new Error("Code incorrect ou expiré.");
   };
   const title = mode === "signup" || mode === "signup-code" ? "Créer votre compte" : mode === "reset" ? "Nouveau mot de passe" : mode === "reset-request" ? "Réinitialiser le mot de passe" : "Bienvenue sur BâtiRe";
-  const subtitle = mode === "signup" ? "Créez votre espace en quelques instants." : mode === "reset" ? "Saisissez le code reçu et choisissez un nouveau mot de passe." : mode === "reset-request" ? "Nous vous enverrons un code de réinitialisation." : mode === "code" || mode === "signup-code" || mode === "mfa" ? "Saisissez le code de sécurité envoyé par Clerk." : "Connectez-vous pour suivre vos demandes et vos commandes.";
+  const subtitle = mode === "signup" ? "Créez votre espace en quelques instants." : mode === "reset" ? "Saisissez le code reçu et choisissez un nouveau mot de passe." : mode === "reset-request" ? "Nous vous enverrons un code de réinitialisation." : mode === "code" || mode === "signup-code" || mode === "mfa" ? "Saisissez le code de sécurité reçu par email." : "Connectez-vous pour suivre vos demandes et vos commandes.";
   const needsCode = mode === "code" || mode === "signup-code" || mode === "mfa";
   const signUpMode = mode === "signup";
   return <main className="auth-switch-page"><section className={`auth-switch-container ${signUpMode ? "sign-up-mode" : ""}`}>
@@ -114,12 +121,13 @@ export function AuthSwitch({ initialMode = "signin" }: { initialMode?: "signin" 
       {mode === "signup" ? <div className="grid gap-4 sm:grid-cols-2"><Field label="Prénom" value={firstName} onChange={setFirstName} /><Field label="Nom" value={lastName} onChange={setLastName} /></div> : null}
       {!needsCode && mode !== "reset" ? <Field label="Adresse email" value={email} onChange={setEmail} type="email" icon={<Mail className="h-4 w-4" />} /> : null}
       {(mode === "signin" || mode === "signup") ? <Field label="Mot de passe" value={password} onChange={setPassword} type="password" icon={<LockKeyhole className="h-4 w-4" />} /> : null}
+      {mode === "signup" ? <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm leading-5 text-zinc-700"><input required checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} type="checkbox" className="mt-0.5 h-4 w-4 accent-brand-600" /><span>J'accepte les conditions générales d'utilisation et la politique de confidentialité.</span></label> : null}
       {needsCode || mode === "reset" ? <Field label="Code de confirmation" value={code} onChange={setCode} inputMode="numeric" icon={<KeyRound className="h-4 w-4" />} /> : null}
       {mode === "reset" ? <Field label="Nouveau mot de passe" value={newPassword} onChange={setNewPassword} type="password" icon={<LockKeyhole className="h-4 w-4" />} /> : null}
       {error ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{error}</p> : null}
       <button disabled={busy} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white transition hover:bg-brand-700 disabled:opacity-60">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserRound className="h-4 w-4" />}{needsCode || mode === "reset" ? "Confirmer" : mode === "reset-request" ? "Envoyer le code" : mode === "signup" ? "Créer mon compte" : "Se connecter"}</button>
     </form>
-    {mode === "signin" ? <div className="mt-5 flex flex-wrap justify-between gap-3 text-sm font-semibold text-brand-700"><button onClick={() => void sendLoginCode()} disabled={!email || busy}>Recevoir un code de connexion</button><button onClick={() => { setMode("reset-request"); setError(null); }}>Mot de passe oublié ?</button><button onClick={() => { setMode("signup"); setError(null); }}>Créer un compte</button></div> : null}
+    {mode === "signin" ? <div className="mt-5 flex flex-wrap justify-between gap-3 text-sm font-semibold text-brand-700"><button type="button" onClick={() => void run(sendLoginCode)()} disabled={!email || busy}>Recevoir un code de connexion</button><button type="button" onClick={() => { setMode("reset-request"); setError(null); }}>Mot de passe oublié ?</button><button type="button" onClick={() => { setMode("signup"); setError(null); }}>Créer un compte</button></div> : null}
     {mode === "signup" ? <p className="mt-5 text-center text-sm text-zinc-600">Déjà un compte ? <button className="font-semibold text-brand-700" onClick={() => setMode("signin")}>Se connecter</button></p> : null}
     </div>
     <div className="auth-switch-panels">
