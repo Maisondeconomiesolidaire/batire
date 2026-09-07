@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft, FileText, ImagePlus, ScanLine, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Camera, FileText, ImagePlus, ScanLine, Sparkles, X } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "../ui/Button";
@@ -524,8 +524,23 @@ export function MaterialForm() {
                   </button>
                 </div>
               ))}
-              <label className="flex h-20 w-20 cursor-pointer items-center justify-center rounded-lg border border-dashed border-[var(--border)] text-[var(--muted-foreground)] hover:border-brand-400">
+              {/* Deux entrées distinctes : sur Android, le sélecteur de
+                  fichiers n'ouvre pas toujours l'appareil photo — `capture`
+                  lance directement la caméra arrière. */}
+              <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-[var(--border)] text-[var(--muted-foreground)] hover:border-brand-400">
+                <Camera className="h-5 w-5" />
+                <span className="text-[10px] font-semibold uppercase tracking-wide">Photo</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(event) => void addPhotos(event.target.files)}
+                />
+              </label>
+              <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-[var(--border)] text-[var(--muted-foreground)] hover:border-brand-400">
                 {uploading ? <Spinner className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-5 w-5" />}
+                <span className="text-[10px] font-semibold uppercase tracking-wide">Galerie</span>
                 <input
                   type="file"
                   accept="image/*"
