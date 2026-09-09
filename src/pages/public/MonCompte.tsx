@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   BellRing,
   ChevronRight,
+  FileText,
   HeartHandshake,
   Lock,
   PackageOpen,
@@ -45,7 +46,28 @@ type MyDonation = {
   createdAt: number;
 };
 
-type Tab = "infos" | "dons" | "recherches";
+type Tab = "infos" | "dons" | "recherches" | "documents";
+
+/**
+ * Documents à connaître avant de déposer un premier lot.
+ *
+ * L'email de bienvenue y renvoie : un compte créé ne suffit pas à déposer, et
+ * ces textes disent ce que la ressourcerie accepte et dans quel état.
+ */
+const CLIENT_DOCUMENTS: { title: string; description: string; to: string }[] = [
+  {
+    title: "Conditions générales d'utilisation",
+    description:
+      "Ce que permet BâtiRe : consulter le catalogue, réserver un matériau, proposer un don, et les règles qui s'y appliquent.",
+    to: "/conditions-generales",
+  },
+  {
+    title: "Politique de confidentialité",
+    description:
+      "Les données collectées à la création de votre compte et lors de vos démarches, leur usage et vos droits.",
+    to: "/politique-confidentialite",
+  },
+];
 
 type SearchAlert = {
   _id: Id<"btSearchAlerts">;
@@ -67,7 +89,14 @@ export function MonCompte() {
 
   const [params, setParams] = useSearchParams();
   const onglet = params.get("onglet");
-  const tab: Tab = onglet === "dons" ? "dons" : onglet === "recherches" ? "recherches" : "infos";
+  const tab: Tab =
+    onglet === "dons"
+      ? "dons"
+      : onglet === "recherches"
+        ? "recherches"
+        : onglet === "documents"
+          ? "documents"
+          : "infos";
   const setTab = (next: Tab) => {
     const updated = new URLSearchParams(params);
     if (next === "infos") updated.delete("onglet");
@@ -182,9 +211,47 @@ export function MonCompte() {
           { key: "infos", label: "Mes informations" },
           { key: "dons", label: "Mes dons" },
           { key: "recherches", label: "Mes recherches" },
+          { key: "documents", label: "Documents" },
         ]}
         counts={{ dons: donations?.length, recherches: alerts?.length }}
       />
+
+      {tab === "documents" ? (
+        <section className="mt-6 max-w-3xl space-y-4">
+          <div className="rounded-2xl border border-brand-200 bg-brand-50/60 p-4 text-sm leading-6 text-zinc-700">
+            <p className="font-semibold text-zinc-950">À lire avant votre premier dépôt</p>
+            <p className="mt-1">
+              Ces documents précisent ce que BâtiRe accepte, dans quel état, et les règles
+              qui encadrent vos dons. Prenez-en connaissance avant de nous apporter un lot.
+            </p>
+          </div>
+
+          <ul className="space-y-3">
+            {CLIENT_DOCUMENTS.map((document) => (
+              <li key={document.to}>
+                <Link
+                  to={document.to}
+                  className="flex items-start gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 transition-colors hover:border-brand-400"
+                >
+                  <FileText className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-semibold text-zinc-950">{document.title}</span>
+                    <span className="mt-0.5 block text-sm text-[var(--muted-foreground)]">
+                      {document.description}
+                    </span>
+                  </span>
+                  <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-[var(--muted-foreground)]" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          <p className="text-sm text-[var(--muted-foreground)]">
+            Une question sur un matériau ou sur les conditions de dépôt ? Écrivez-nous depuis
+            la <Link to="/messagerie" className="font-semibold text-brand-700 underline underline-offset-2">messagerie</Link>.
+          </p>
+        </section>
+      ) : null}
 
       {tab === "recherches" ? (
         <section className="mt-6">
