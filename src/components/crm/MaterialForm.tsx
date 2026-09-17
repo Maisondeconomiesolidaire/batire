@@ -378,6 +378,14 @@ export function MaterialForm() {
   }
 
   async function save() {
+    const price = Number(form.price.replace(",", "."));
+    if (form.published && (!Number.isFinite(price) || price <= 0)) {
+      setError(
+        "Indiquez un prix avant de mettre la fiche en ligne : sans prix, elle reste invisible en boutique.",
+      );
+      return;
+    }
+
     setSaving(true);
     setError(null);
     try {
@@ -390,7 +398,7 @@ export function MaterialForm() {
         condition: form.condition,
         unit: form.unit,
         quantity: Number(form.quantity.replace(",", ".")) || 0,
-        price: Number(form.price.replace(",", ".")) || 0,
+        price: price || 0,
         originalPrice: form.originalPrice.trim()
           ? Number(form.originalPrice.replace(",", ".")) || undefined
           : undefined,
@@ -954,7 +962,7 @@ export function MaterialForm() {
             </div>
           </section>
 
-          {error ? <p className="text-sm text-red-500">{error}</p> : null}
+          {error ? <p role="alert" className="text-sm text-red-500">{error}</p> : null}
 
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={onClose}>
