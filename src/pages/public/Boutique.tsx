@@ -185,6 +185,20 @@ export function Boutique({
       ) : null}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
+        {/* Le catalogue se parcourt aussi par le méga-menu : ce filtre écrit le
+            même paramètre d'URL, pour que le fil d'Ariane et le lien partagé
+            restent cohérents. Changer de catégorie efface famille et
+            sous-famille, qui n'appartiennent plus à la branche choisie. */}
+        <Dropdown
+          className="w-60"
+          value={category}
+          onChange={setCategory}
+          placeholder="Toutes les catégories de matériaux"
+          options={[
+            { value: "", label: "Toutes les catégories de matériaux" },
+            ...(facets?.categories ?? []).map((value) => ({ value, label: value })),
+          ]}
+        />
         <Dropdown
           className="w-44"
           value={unit}

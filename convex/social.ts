@@ -1,10 +1,11 @@
+import { removeSocialRecord } from "./socialSync";
 /**
  * Publication sur les réseaux sociaux depuis Mes Outils.
  *
  * Facebook n'a pas d'API de programmation à notre charge : on lui envoie le
  * post avec `published=false` et une date, et il le publie lui-même à l'heure
- * dite. Aucun cron de notre côté, donc aucune publication perdue si le
- * déploiement redémarre.
+ * dite pour les partages d’évènements. Le compositeur Réseaux utilise le
+ * scheduler persistant Convex pour les envois Facebook et Instagram.
  *
  * Les jetons de Page vivent dans `socialFacebookPages` et ne sortent jamais du
  * backend : le navigateur ne reçoit que l'identifiant et le nom des Pages.
@@ -18,11 +19,24 @@ import {
   query,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
+import type { ActionCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { formatUserName, requireCrmPermission, requireUser } from "./lib";
 
 const PAGE_KEY = "mesoutils:actualites";
 const GRAPH_VERSION = "v26.0";
+/**
+ * Les vidéos ne passent pas par `graph.facebook.com` : Facebook les reçoit sur
+ * un hôte dédié, même quand on lui donne simplement l'URL à aller chercher.
+ */
+const GRAPH_VIDEO_HOST = "https://graph-video.facebook.com";
+/**
+ * Instagram encode un Reel de façon asynchrone : le conteneur n'est publiable
+ * qu'une fois `FINISHED`. On l'interroge jusqu'à ce délai, au-delà duquel
+ * l'encodage est considéré comme perdu (une action Convex ne vit pas 10 min).
+ */
+const REEL_POLL_INTERVAL_MS = 5_000;
+const REEL_POLL_TIMEOUT_MS = 5 * 60 * 1000;
 
 /**
  * Facebook n'accepte une programmation qu'entre 10 minutes et 6 mois. On garde
@@ -40,7 +54,7 @@ export const listPages = query({
     const pages = await ctx.db.query("socialFacebookPages").collect();
     return pages
       .filter((page) => page.active)
-      .map((page) => ({ pageId: page.pageId, name: page.name }))
+      .map((page) => ({ pageId: page.pageId, name: page.name, profileImageUrl: page.profileImageUrl }))
       .sort((a, b) => a.name.localeCompare(b.name, "fr"));
   },
 });
@@ -84,6 +98,8 @@ export const postsForEvent = query({
 
 export const eventPayload = internalQuery({
   args: {
+    composerId: v.optional(v.id("socialCompositions")),
+    sourcePostId: v.optional(v.id("posts")),
     eventId: v.optional(v.id("events")),
     recycappEventId: v.optional(v.id("recycappCalendarEvents")),
     pageId: v.string(),
@@ -99,6 +115,33 @@ export const eventPayload = internalQuery({
           .unique();
     if (!page || ("active" in page && !page.active)) {
       throw new Error("Page Facebook inconnue ou désactivée.");
+    }
+
+    if ([args.eventId, args.recycappEventId, args.sourcePostId, args.composerId].filter(Boolean).length !== 1) {
+      throw new Error("Choisissez un seul post ou événement à partager.");
+    }
+    if (args.composerId) {
+      const composition = await ctx.db.get(args.composerId);
+      if (!composition) throw new Error("Publication introuvable.");
+      return {
+        page: { pageId: page.pageId, name: page.name, accessToken: page.accessToken },
+        event: { title: "", description: composition.message, location: undefined, start: undefined, photoUrl: null },
+      };
+    }
+    if (args.sourcePostId) {
+      await requireCrmPermission(ctx, PAGE_KEY, "read");
+      const post = await ctx.db.get(args.sourcePostId);
+      if (!post) throw new Error("Post introuvable.");
+      return {
+        page: { pageId: page.pageId, name: page.name, accessToken: page.accessToken },
+        event: {
+          title: post.title ?? "",
+          description: [post.body, post.externalLink].filter(Boolean).join("\n\n"),
+          location: undefined,
+          start: undefined,
+          photoUrl: post.images?.[0] ? await ctx.storage.getUrl(post.images[0]) : null,
+        },
+      };
     }
 
     if (args.eventId) {
@@ -143,6 +186,8 @@ export const eventPayload = internalQuery({
 
 export const recordPost = internalMutation({
   args: {
+    composerId: v.optional(v.id("socialCompositions")),
+    sourcePostId: v.optional(v.id("posts")),
     eventId: v.optional(v.id("events")),
     recycappEventId: v.optional(v.id("recycappCalendarEvents")),
     network: v.optional(v.union(v.literal("facebook"), v.literal("instagram"))),
@@ -152,11 +197,14 @@ export const recordPost = internalMutation({
     message: v.string(),
     scheduledFor: v.optional(v.number()),
     withPhoto: v.boolean(),
+    withVideo: v.optional(v.boolean()),
     authorClerkId: v.string(),
     authorName: v.string(),
   },
   handler: async (ctx, args) => {
-    await ctx.db.insert("socialFacebookPosts", { ...args, createdAt: Date.now() });
+    const existing = (await ctx.db.query("socialFacebookPosts").withIndex("by_postId", q => q.eq("postId", args.postId)).collect()).find(p => p.pageId === args.pageId && (p.network ?? "facebook") === (args.network ?? "facebook"));
+    if (existing) await ctx.db.patch(existing._id, { ...args, importedFromNetwork: false });
+    else await ctx.db.insert("socialFacebookPosts", { ...args, createdAt: Date.now() });
   },
 });
 
@@ -198,8 +246,9 @@ function buildMessage(event: {
   return lines.join("\n");
 }
 
-export const publishEvent = action({
-  args: {
+const sendFacebookArgs = {
+    composerId: v.optional(v.id("socialCompositions")),
+    sourcePostId: v.optional(v.id("posts")),
     eventId: v.optional(v.id("events")),
     recycappEventId: v.optional(v.id("recycappCalendarEvents")),
     pageId: v.string(),
@@ -209,9 +258,17 @@ export const publishEvent = action({
     message: v.optional(v.string()),
     /** Photos du post. À défaut, celles de l'évènement. */
     photoStorageIds: v.optional(v.array(v.id("_storage"))),
-  },
-  handler: async (ctx, args): Promise<{ postId: string; scheduledFor?: number }> => {
-    const author: { clerkId: string; name: string } = await ctx.runQuery(
+    /**
+     * Vidéo du post. Facebook ne mélange pas vidéo et photos dans une même
+     * publication : dès qu'une vidéo est là, les photos sont ignorées.
+     */
+    videoStorageIds: v.optional(v.array(v.id("_storage"))),
+};
+
+export const publishEvent = action({ args: sendFacebookArgs, handler: (ctx, args) => sendFacebook(ctx, args) });
+
+export async function sendFacebook(ctx: ActionCtx, args: import("convex/values").ObjectType<typeof sendFacebookArgs>, trustedAuthor?: { clerkId: string; name: string }): Promise<{ postId: string; scheduledFor?: number }> {
+    const author: { clerkId: string; name: string } = trustedAuthor ?? await ctx.runQuery(
       internal.social.assertCanPublish,
       {},
     );
@@ -229,6 +286,8 @@ export const publishEvent = action({
     }
 
     const payload = await ctx.runQuery(internal.social.eventPayload, {
+      composerId: args.composerId,
+      sourcePostId: args.sourcePostId,
       eventId: args.eventId,
       recycappEventId: args.recycappEventId,
       pageId: args.pageId,
@@ -237,7 +296,7 @@ export const publishEvent = action({
     const message = args.message?.trim() || buildMessage(payload.event);
 
     // Photos choisies dans le formulaire ; à défaut, celle de l'évènement.
-    const photoUrls: string[] = args.photoStorageIds?.length
+    const photoUrls: string[] = args.photoStorageIds !== undefined
       ? (
           await Promise.all(
             args.photoStorageIds.map((id) => ctx.storage.getUrl(id as Id<"_storage">)),
@@ -246,6 +305,15 @@ export const publishEvent = action({
       : payload.event.photoUrl
         ? [payload.event.photoUrl]
         : [];
+
+    const videoUrls: string[] = (
+      await Promise.all(
+        (args.videoStorageIds ?? []).map((id) => ctx.storage.getUrl(id as Id<"_storage">)),
+      )
+    ).filter((url): url is string => Boolean(url));
+    if ((args.videoStorageIds?.length ?? 0) > 0 && videoUrls.length === 0) {
+      throw new Error("Vidéo introuvable.");
+    }
 
     const graph = (path: string, params: URLSearchParams) =>
       fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${path}`, {
@@ -263,6 +331,52 @@ export const publishEvent = action({
           : "";
       return new Error(`Facebook a refusé la publication : ${detail}.${hint}`);
     };
+
+    /**
+     * Vidéo : Facebook la télécharge lui-même depuis l'URL Convex, sur son
+     * hôte vidéo. Le post porte alors la vidéo et son texte — les photos n'y
+     * ont pas leur place, l'API ne les rattache pas à une publication vidéo.
+     */
+    if (videoUrls.length > 0) {
+      const videoBody = new URLSearchParams({
+        access_token: payload.page.accessToken,
+        file_url: videoUrls[0],
+        description: message,
+      });
+      if (args.scheduledFor !== undefined) {
+        videoBody.set("published", "false");
+        videoBody.set("scheduled_publish_time", String(Math.floor(args.scheduledFor / 1000)));
+      }
+      const response = await fetch(
+        `${GRAPH_VIDEO_HOST}/${GRAPH_VERSION}/${payload.page.pageId}/videos`,
+        { method: "POST", body: videoBody },
+      );
+      const result = (await response.json()) as {
+        id?: string;
+        post_id?: string;
+        error?: { message?: string; code?: number };
+      };
+      if (!response.ok || result.error) throw fail(result, response.status);
+      const videoPostId = result.post_id ?? result.id;
+      if (!videoPostId) throw new Error("Facebook n'a pas renvoyé d'identifiant de publication.");
+
+      await ctx.runMutation(internal.social.recordPost, {
+        composerId: args.composerId,
+        sourcePostId: args.sourcePostId,
+        eventId: args.eventId,
+        recycappEventId: args.recycappEventId,
+        pageId: payload.page.pageId,
+        pageName: payload.page.name,
+        postId: videoPostId,
+        message,
+        scheduledFor: args.scheduledFor,
+        withPhoto: false,
+        withVideo: true,
+        authorClerkId: author.clerkId,
+        authorName: author.name,
+      });
+      return { postId: videoPostId, scheduledFor: args.scheduledFor };
+    }
 
     /**
      * Les photos sont d'abord déposées sans être publiées, puis rattachées au
@@ -309,6 +423,8 @@ export const publishEvent = action({
     if (!postId) throw new Error("Facebook n'a pas renvoyé d'identifiant de publication.");
 
     await ctx.runMutation(internal.social.recordPost, {
+      composerId: args.composerId,
+      sourcePostId: args.sourcePostId,
       eventId: args.eventId,
       recycappEventId: args.recycappEventId,
       pageId: payload.page.pageId,
@@ -322,8 +438,8 @@ export const publishEvent = action({
     });
 
     return { postId, scheduledFor: args.scheduledFor };
-  },
-});
+}
+
 
 /**
  * Enregistre (ou met à jour) une Page et son jeton.
@@ -414,111 +530,22 @@ export const recordedPosts = internalQuery({
 export const forgetPost = internalMutation({
   args: { id: v.id("socialFacebookPosts") },
   handler: async (ctx, { id }) => {
-    await ctx.db.delete(id);
+    await removeSocialRecord(ctx, id);
   },
 });
 
-/** Identifiants d'une liste Graph, en suivant la pagination. */
-async function collectIds(url: string, max = 300) {
-  const ids = new Set<string>();
-  let oldest: number | undefined;
-  let next: string | undefined = url;
-  while (next && ids.size < max) {
-    const response = await fetch(next);
-    const result = (await response.json()) as {
-      data?: Array<{ id: string; created_time?: string }>;
-      paging?: { next?: string };
-      error?: { message?: string };
-    };
-    if (result.error || !result.data) break;
-    for (const item of result.data) {
-      ids.add(item.id);
-      if (item.created_time) {
-        const time = Date.parse(item.created_time);
-        if (Number.isFinite(time)) oldest = Math.min(oldest ?? time, time);
-      }
-    }
-    next = result.paging?.next;
-  }
-  return { ids, oldest };
-}
-
-/**
- * Retire les publications qui n'existent plus sur Facebook.
- *
- * Une publication supprimée depuis Facebook ou Meta Business Suite — ou une
- * programmation annulée — laissait une ligne « Publié le… » sur la fiche de
- * l'évènement, qui affirmait une annonce qui n'existe plus.
- *
- * La vérification passe par les listes de la Page (`feed` et `scheduled_posts`)
- * et non par l'identifiant du post : interroger `/{postId}?fields=id` renvoie
- * l'identifiant même pour un objet disparu, ce qui ne prouvait rien.
- *
- * En cas de doute, la ligne est conservée : une liste illisible (jeton
- * invalide, panne réseau) ou une publication plus ancienne que la fenêtre
- * consultée ne prouvent pas une suppression.
- */
+/** Compatibility entry point used by event details; both networks share one sync. */
 export const reconcilePosts = internalAction({
-  args: {
-    eventId: v.optional(v.id("events")),
-    recycappEventId: v.optional(v.id("recycappCalendarEvents")),
-  },
-  handler: async (ctx, args): Promise<{ checked: number; forgotten: number }> => {
-    const posts: Array<{
-      id: Id<"socialFacebookPosts">;
-      postId: string;
-      pageId: string;
-      createdAt: number;
-      accessToken: string;
-    }> = await ctx.runQuery(internal.social.recordedPosts, {
-      eventId: args.eventId,
-      recycappEventId: args.recycappEventId,
-    });
-
-    const byPage = new Map<string, typeof posts>();
-    for (const post of posts) {
-      byPage.set(post.pageId, [...(byPage.get(post.pageId) ?? []), post]);
-    }
-
-    let forgotten = 0;
-    for (const [pageId, pagePosts] of byPage) {
-      const token = encodeURIComponent(pagePosts[0].accessToken);
-      const base = `https://graph.facebook.com/${GRAPH_VERSION}/${pageId}`;
-      try {
-        const [published, scheduled] = await Promise.all([
-          collectIds(`${base}/feed?fields=id,created_time&limit=100&access_token=${token}`),
-          collectIds(`${base}/scheduled_posts?fields=id&limit=100&access_token=${token}`),
-        ]);
-        // Aucune liste lisible : on ne conclut rien pour cette Page.
-        if (published.ids.size === 0 && scheduled.ids.size === 0 && published.oldest === undefined) {
-          continue;
-        }
-        for (const post of pagePosts) {
-          if (published.ids.has(post.postId) || scheduled.ids.has(post.postId)) continue;
-          // Publication antérieure à la fenêtre consultée : son absence de la
-          // liste ne dit pas qu'elle a été supprimée.
-          if (published.oldest !== undefined && post.createdAt < published.oldest) continue;
-          await ctx.runMutation(internal.social.forgetPost, { id: post.id });
-          forgotten += 1;
-        }
-      } catch (error) {
-        // Réseau indisponible : on retentera à la prochaine passe.
-        console.warn(
-          `Vérification des publications de la Page ${pageId} impossible :`,
-          error instanceof Error ? error.message : String(error),
-        );
-      }
-    }
-    return { checked: posts.length, forgotten };
+  args: { eventId: v.optional(v.id("events")), recycappEventId: v.optional(v.id("recycappCalendarEvents")) },
+  handler: async (ctx): Promise<{ checked: number; forgotten: number }> => {
+    return await ctx.runAction(internal.socialSync.run, {});
   },
 });
 
 /**
  * Vérifie les publications d'un seul évènement, à l'ouverture de sa fiche.
  *
- * La repasse horaire suffit à tenir la liste à jour, mais pas à ce qu'on voie
- * juste après avoir supprimé un post depuis Facebook : cet appel comble
- * l'attente sans rien changer à la logique.
+ * Cette vérification est déclenchée à l’ouverture de la fiche, sans polling.
  */
 export const verifyEventPosts = action({
   args: {
@@ -562,6 +589,7 @@ export const listInstagramAccounts = query({
         instagramId: page.instagramId!,
         username: page.instagramUsername ?? page.name,
         pageName: page.name,
+        profileImageUrl: page.instagramProfileImageUrl,
       }))
       .sort((a, b) => a.username.localeCompare(b.username, "fr"));
   },
@@ -572,7 +600,7 @@ export const instagramTargets = internalQuery({
   handler: async (ctx, { instagramIds }) => {
     const pages = await ctx.db.query("socialFacebookPages").collect();
     return pages
-      .filter((page) => page.instagramId && instagramIds.includes(page.instagramId))
+      .filter((page) => page.active && page.instagramId && instagramIds.includes(page.instagramId))
       .map((page) => ({
         instagramId: page.instagramId!,
         username: page.instagramUsername ?? page.name,
@@ -656,41 +684,53 @@ export const pageTokens = internalQuery({
 /**
  * Publie un évènement sur un ou plusieurs comptes Instagram.
  *
- * Instagram exige au moins une image — un post texte n'y existe pas — et
- * publie en deux temps : on dépose d'abord un conteneur, on le publie ensuite.
+ * Instagram exige au moins une image ou une vidéo — un post texte n'y existe
+ * pas — et publie en deux temps : on dépose d'abord un conteneur, on le publie
+ * ensuite. Une vidéo part en Reel, après son encodage par Instagram.
  * L'API ne connaît pas la programmation, contrairement à Facebook : la
  * publication part immédiatement.
  *
  * Un compte en échec n'interrompt pas les autres : le rapport dit ce qui est
  * passé et ce qui a échoué, plutôt que de tout annuler sur un refus.
  */
-export const publishEventToInstagram = action({
-  args: {
+const sendInstagramArgs = {
+    composerId: v.optional(v.id("socialCompositions")),
+    sourcePostId: v.optional(v.id("posts")),
     eventId: v.optional(v.id("events")),
     recycappEventId: v.optional(v.id("recycappCalendarEvents")),
     instagramIds: v.array(v.string()),
     message: v.optional(v.string()),
     photoStorageIds: v.array(v.id("_storage")),
-  },
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{ published: string[]; failed: Array<{ account: string; reason: string }> }> => {
-    const author: { clerkId: string; name: string } = await ctx.runQuery(
+    /**
+     * Vidéo du post. Instagram la publie en Reel : un Reel ne porte qu'une
+     * vidéo, et jamais de photo à côté.
+     */
+    videoStorageIds: v.optional(v.array(v.id("_storage"))),
+};
+
+export const publishEventToInstagram = action({ args: sendInstagramArgs, handler: (ctx, args) => sendInstagram(ctx, args) });
+
+export async function sendInstagram(ctx: ActionCtx, args: import("convex/values").ObjectType<typeof sendInstagramArgs>, trustedAuthor?: { clerkId: string; name: string }): Promise<{ published: string[]; failed: Array<{ account: string; reason: string }> }> {
+    const author: { clerkId: string; name: string } = trustedAuthor ?? await ctx.runQuery(
       internal.social.assertCanPublish,
       {},
     );
     if (args.instagramIds.length === 0) throw new Error("Choisissez au moins un compte.");
-    if (args.photoStorageIds.length === 0) {
-      throw new Error("Instagram exige au moins une photo : un post texte n'y existe pas.");
+    const videoIds = args.videoStorageIds ?? [];
+    if (args.photoStorageIds.length === 0 && videoIds.length === 0) {
+      throw new Error("Instagram exige au moins une photo ou une vidéo : un post texte n'y existe pas.");
     }
 
-    const photoUrls = (
+    const photoUrls = videoIds.length > 0 ? [] : (
       await Promise.all(
         args.photoStorageIds.map((id) => ctx.storage.getUrl(id as Id<"_storage">)),
       )
     ).filter((url): url is string => Boolean(url));
-    if (photoUrls.length === 0) throw new Error("Photos introuvables.");
+    const videoUrls = (
+      await Promise.all(videoIds.map((id) => ctx.storage.getUrl(id as Id<"_storage">)))
+    ).filter((url): url is string => Boolean(url));
+    if (videoIds.length > 0 && videoUrls.length === 0) throw new Error("Vidéo introuvable.");
+    if (videoIds.length === 0 && photoUrls.length === 0) throw new Error("Photos introuvables.");
 
     const targets: Array<{ instagramId: string; username: string; accessToken: string }> =
       await ctx.runQuery(internal.social.instagramTargets, {
@@ -698,6 +738,8 @@ export const publishEventToInstagram = action({
       });
 
     const payload = await ctx.runQuery(internal.social.eventPayload, {
+      composerId: args.composerId,
+      sourcePostId: args.sourcePostId,
       eventId: args.eventId,
       recycappEventId: args.recycappEventId,
       pageId: "",
@@ -720,13 +762,55 @@ export const publishEventToInstagram = action({
       return result.id;
     };
 
+    /**
+     * Un conteneur Reel n'est publiable qu'une fois encodé. Publier trop tôt
+     * renvoie une erreur sèche : on attend l'état `FINISHED`, et on abandonne
+     * proprement si Instagram signale une erreur ou prend trop de temps.
+     */
+    const awaitReelReady = async (containerId: string, accessToken: string) => {
+      const deadline = Date.now() + REEL_POLL_TIMEOUT_MS;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, REEL_POLL_INTERVAL_MS));
+        const response = await fetch(
+          `https://graph.facebook.com/${GRAPH_VERSION}/${containerId}?` +
+            new URLSearchParams({ fields: "status_code,status", access_token: accessToken }),
+        );
+        const result = (await response.json()) as {
+          status_code?: string;
+          status?: string;
+          error?: { message?: string };
+        };
+        if (!response.ok || result.error) {
+          throw new Error(result.error?.message ?? `HTTP ${response.status}`);
+        }
+        if (result.status_code === "FINISHED") return;
+        if (result.status_code === "ERROR" || result.status_code === "EXPIRED") {
+          throw new Error(result.status ?? "Instagram n'a pas pu encoder la vidéo.");
+        }
+      }
+      throw new Error(
+        "Instagram met trop de temps à encoder la vidéo. Réessayez avec une vidéo plus courte ou plus légère.",
+      );
+    };
+
     const published: string[] = [];
     const failed: Array<{ account: string; reason: string }> = [];
 
     for (const target of targets) {
       try {
         let containerId: string;
-        if (photoUrls.length === 1) {
+        if (videoUrls.length > 0) {
+          containerId = await call(
+            `${target.instagramId}/media`,
+            new URLSearchParams({
+              access_token: target.accessToken,
+              media_type: "REELS",
+              video_url: videoUrls[0],
+              caption,
+            }),
+          );
+          await awaitReelReady(containerId, target.accessToken);
+        } else if (photoUrls.length === 1) {
           containerId = await call(
             `${target.instagramId}/media`,
             new URLSearchParams({
@@ -771,6 +855,8 @@ export const publishEventToInstagram = action({
         );
 
         await ctx.runMutation(internal.social.recordPost, {
+          composerId: args.composerId,
+          sourcePostId: args.sourcePostId,
           eventId: args.eventId,
           recycappEventId: args.recycappEventId,
           network: "instagram",
@@ -778,7 +864,8 @@ export const publishEventToInstagram = action({
           pageName: `@${target.username}`,
           postId,
           message: caption,
-          withPhoto: true,
+          withPhoto: videoUrls.length === 0,
+          withVideo: videoUrls.length > 0,
           authorClerkId: author.clerkId,
           authorName: author.name,
         });
@@ -795,5 +882,4 @@ export const publishEventToInstagram = action({
       throw new Error(`Instagram a refusé la publication : ${failed[0].reason}`);
     }
     return { published, failed };
-  },
-});
+}
