@@ -9,6 +9,11 @@ import {
   MessageSquare,
   PackageOpen,
   QrCode as QrIcon,
+  Check,
+  Copy,
+  Mail,
+  MessageCircle,
+  Share2,
 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -244,6 +249,11 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
                     upcoming={upcoming}
                   />
                   <AskBlock materialId={material._id} />
+                  <ShareBlock
+                    title={material.title}
+                    price={formatUnitPrice(material.price, material.unit)}
+                    url={`${window.location.origin}/materiau/${material._id}`}
+                  />
                 </>
               )}
             </div>
@@ -252,6 +262,106 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
       </div>
 
       <Suggestions materialId={material._id} base={base} />
+    </div>
+  );
+}
+
+/**
+ * Partage d'une annonce à une connaissance.
+ *
+ * Sur mobile, le partage natif ouvre les applications déjà installées — c'est
+ * là que se trouvent les contacts, et aucune liste maison ne fera mieux. Sur un
+ * ordinateur, l'API n'existe pas : on déplie alors le lien à copier et les
+ * canaux les plus courants, préremplis.
+ *
+ * Le lien partagé est toujours l'adresse publique de l'annonce, jamais celle du
+ * kiosque : une connaissance qui le reçoit ouvre la boutique, pas la borne.
+ */
+function ShareBlock({ title, price, url }: { title: string; price: string; url: string }) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const message = `${title} — ${price} sur BâtiRE`;
+  const canShareNatively = typeof navigator !== "undefined" && typeof navigator.share === "function";
+
+  async function share() {
+    if (canShareNatively) {
+      try {
+        await navigator.share({ title, text: message, url });
+        return;
+      } catch {
+        // Partage refusé ou interrompu : on déplie les canaux plutôt que de
+        // laisser le clic sans effet.
+      }
+    }
+    setOpen((value) => !value);
+  }
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  const channels = [
+    {
+      label: "Email",
+      icon: Mail,
+      href: `mailto:?subject=${encodeURIComponent(message)}&body=${encodeURIComponent(`${message}\n\n${url}`)}`,
+    },
+    {
+      label: "WhatsApp",
+      icon: MessageCircle,
+      href: `https://wa.me/?text=${encodeURIComponent(`${message} ${url}`)}`,
+    },
+    {
+      label: "SMS",
+      icon: MessageSquare,
+      href: `sms:?&body=${encodeURIComponent(`${message} ${url}`)}`,
+    },
+  ];
+
+  return (
+    <div className="mt-4 border-t border-[var(--border)] pt-4">
+      <Button variant="outline" className="w-full" onClick={() => void share()}>
+        <Share2 className="h-4 w-4" /> Partager cette annonce
+      </Button>
+
+      {open ? (
+        <div className="mt-3 space-y-3">
+          <div className="flex gap-2">
+            <input
+              readOnly
+              value={url}
+              onFocus={(event) => event.currentTarget.select()}
+              className="min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-[var(--muted)] px-3 py-2 text-sm text-[var(--muted-foreground)]"
+              aria-label="Lien de l'annonce"
+            />
+            <Button variant="outline" onClick={() => void copyLink()}>
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {copied ? "Copié" : "Copier"}
+            </Button>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {channels.map((channel) => (
+              <a
+                key={channel.label}
+                href={channel.href}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:border-brand-500 hover:text-brand-700"
+              >
+                <channel.icon className="h-4 w-4" />
+                {channel.label}
+              </a>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
