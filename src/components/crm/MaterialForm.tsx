@@ -176,7 +176,7 @@ export function MaterialForm() {
   const createMaterial = useMutation(api.batire.createMaterial);
   const updateMaterial = useMutation(api.batire.updateMaterial);
   const analyze = useAnalyzePhotos();
-  const { upload, uploading } = useUpload();
+  const { upload, uploading } = useUpload({ thumbnails: true });
 
   const [form, setForm] = useState<FormState>(EMPTY);
   const [photos, setPhotos] = useState<Id<"_storage">[]>([]);

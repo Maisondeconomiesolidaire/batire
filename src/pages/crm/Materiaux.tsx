@@ -198,7 +198,7 @@ export function Materiaux() {
                     <div className="flex items-center gap-3">
                       <span className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-[var(--muted)]">
                         {material.photoUrls[0] ? (
-                          <img src={material.photoUrls[0]} alt="" className="h-full w-full object-cover" />
+                          <img src={material.thumbUrl ?? material.photoUrls[0]} alt="" className="h-full w-full object-cover" />
                         ) : null}
                       </span>
                       <div className="min-w-0">

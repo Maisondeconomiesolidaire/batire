@@ -12,13 +12,20 @@ import type { Id } from "../../convex/_generated/dataModel";
 const MAX_DIMENSION = 1600;
 const WEBP_QUALITY = 0.82;
 const JPEG_QUALITY = 0.78;
+/** Miniature des grilles (voir convex/thumbnails.ts). */
+const THUMB_DIMENSION = 640;
 
-async function compressImage(file: File): Promise<File> {
+async function compressImage(
+  file: File,
+  maxDimension = MAX_DIMENSION,
+  webpQuality = WEBP_QUALITY,
+  jpegQuality = JPEG_QUALITY,
+): Promise<File> {
   if (!file.type.startsWith("image/") || file.type === "image/gif") return file;
   if (typeof createImageBitmap !== "function" || typeof document === "undefined") return file;
   try {
     const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));
+    const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(bitmap.width * scale);
     canvas.height = Math.round(bitmap.height * scale);
@@ -31,9 +38,9 @@ async function compressImage(file: File): Promise<File> {
     bitmap.close?.();
     const encode = (type: string, quality: number) =>
       new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, quality));
-    let blob = await encode("image/webp", WEBP_QUALITY);
+    let blob = await encode("image/webp", webpQuality);
     if (blob && blob.type !== "image/webp") {
-      blob = (await encode("image/jpeg", JPEG_QUALITY)) ?? blob;
+      blob = (await encode("image/jpeg", jpegQuality)) ?? blob;
     }
     if (!blob || blob.size >= file.size) return file;
     const extension = blob.type === "image/webp" ? ".webp" : blob.type === "image/jpeg" ? ".jpg" : ".png";
@@ -43,9 +50,14 @@ async function compressImage(file: File): Promise<File> {
   }
 }
 
-/** Envoi de photos vers le stockage Convex, une par une (compressées au passage). */
-export function useUpload() {
+/**
+ * Envoi de photos vers le stockage Convex, une par une (compressées au passage).
+ * `thumbnails` : produit aussi la miniature des grilles — réservé aux écrans
+ * connectés, l'enregistrement exige un compte.
+ */
+export function useUpload({ thumbnails = false }: { thumbnails?: boolean } = {}) {
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+  const registerThumbnail = useMutation(api.thumbnails.register);
   const [uploading, setUploading] = useState(false);
 
   const upload = useCallback(
@@ -53,8 +65,7 @@ export function useUpload() {
       setUploading(true);
       try {
         const ids: Id<"_storage">[] = [];
-        for (const original of files) {
-          const file = await compressImage(original);
+        const send = async (file: File) => {
           const url = await generateUploadUrl();
           const response = await fetch(url, {
             method: "POST",
@@ -63,14 +74,27 @@ export function useUpload() {
           });
           if (!response.ok) throw new Error(`Envoi de « ${file.name} » impossible.`);
           const { storageId } = (await response.json()) as { storageId: Id<"_storage"> };
+          return storageId;
+        };
+        for (const original of files) {
+          const file = await compressImage(original);
+          const storageId = await send(file);
           ids.push(storageId);
+          if (!thumbnails) continue;
+          // Facultative : en cas d'échec, les cartes affichent simplement la photo.
+          try {
+            const thumb = await compressImage(file, THUMB_DIMENSION, 0.72, 0.7);
+            if (thumb !== file) await registerThumbnail({ source: storageId, thumb: await send(thumb) });
+          } catch {
+            // Sans miniature.
+          }
         }
         return ids;
       } finally {
         setUploading(false);
       }
     },
-    [generateUploadUrl],
+    [generateUploadUrl, registerThumbnail, thumbnails],
   );
 
   return { upload, uploading };

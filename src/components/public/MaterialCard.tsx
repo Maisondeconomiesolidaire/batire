@@ -26,6 +26,8 @@ export type PublicMaterial = {
   /** Mise en ligne : c'est elle qui classe les nouveautés. */
   publishedAt?: number;
   photoUrls: string[];
+  /** Miniature de la couverture (repli : la photo). */
+  thumbUrl?: string | null;
 };
 
 export function MaterialCard({
@@ -49,7 +51,7 @@ export function MaterialCard({
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-[var(--muted)]">
         {material.photoUrls[0] ? (
           <img
-            src={material.photoUrls[0]}
+            src={material.thumbUrl ?? material.photoUrls[0]}
             alt={material.title}
             loading="lazy"
             className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
