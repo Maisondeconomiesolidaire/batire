@@ -11,12 +11,14 @@ const STATUS_TONES: Record<string, string> = {
   payee: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300",
   en_attente: "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300",
   annulee: "bg-zinc-200 text-zinc-600 dark:bg-zinc-500/15 dark:text-zinc-400",
+  reservee: "bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300",
 };
 
 const STATUS_LABELS: Record<string, string> = {
   payee: "Payée",
   en_attente: "En attente",
   annulee: "Annulée",
+  reservee: "Réservée",
 };
 
 export function Ventes() {

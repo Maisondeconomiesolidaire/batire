@@ -459,7 +459,7 @@ function BuyBlock({
   /** Lot annoncé mais pas encore ouvert à la vente. */
   upcoming?: boolean;
 }) {
-  const startCheckout = useAction(api.batire.startCheckout);
+  const reserveMaterial = useMutation(api.batire.reserveMaterial);
   const { isSignedIn } = useUser();
   // La fiche donateur de l'espace client remplit le formulaire d'achat : le
   // client connecté ne ressaisit pas des coordonnées déjà connues.
@@ -467,6 +467,7 @@ function BuyBlock({
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reference, setReference] = useState<string | null>(null);
   const [pickupLocation, setPickupLocation] = useState<PickupLocationId | null>(null);
   const [customerCoordinates, setCustomerCoordinates] = useState<{
     latitude: number;
@@ -534,7 +535,7 @@ function BuyBlock({
 
   /**
    * La saisie est bornée au stock : plutôt que d'accepter un nombre qu'on
-   * refuserait au moment de payer, on le ramène au maximum disponible et on
+   * refuserait au moment de réserver, on le ramène au maximum disponible et on
    * le dit.
    */
   function setQuantity(raw: string) {
@@ -549,11 +550,11 @@ function BuyBlock({
     set("quantity")(cleaned);
   }
 
-  async function pay() {
+  async function reserve() {
     setSaving(true);
     setError(null);
     try {
-      const { checkoutUrl } = await startCheckout({
+      const result = await reserveMaterial({
         materialId,
         quantity,
         customer: {
@@ -564,11 +565,11 @@ function BuyBlock({
           company: form.company || undefined,
         },
         pickupLocation: pickupLocation!,
-        returnUrl: `${window.location.origin}/materiau/${materialId}`,
       });
-      window.location.assign(checkoutUrl);
+      setReference(result.reference);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Paiement indisponible.");
+      setError(errorMessage(caught, "Réservation impossible."));
+    } finally {
       setSaving(false);
     }
   }
@@ -623,6 +624,20 @@ function BuyBlock({
     </div>
   );
 
+  if (reference) {
+    const location = PICKUP_LOCATIONS.find((item) => item.id === pickupLocation);
+    return (
+      <div className="space-y-2 rounded-2xl border border-[var(--border)] bg-[var(--muted)] p-4">
+        <p className="font-semibold text-[var(--foreground)]">Réservation enregistrée</p>
+        <p className="text-sm text-[var(--muted-foreground)]">
+          Référence <span className="font-mono font-semibold text-[var(--foreground)]">{reference}</span>.
+          {location ? ` Retrait à ${location.name}, ${location.address}.` : ""} Le règlement se
+          fait sur place ; un email de confirmation vous a été envoyé.
+        </p>
+      </div>
+    );
+  }
+
   if (!open) {
     return (
       <div className="space-y-3">
@@ -632,7 +647,7 @@ function BuyBlock({
           onClick={() => setOpen(true)}
           disabled={stock <= 0 || quantity <= 0 || quantity > stock}
         >
-          {stock > 0 ? "Acheter" : upcoming ? "Bientôt disponible" : "Épuisé"}
+          {stock > 0 ? "Réserver" : upcoming ? "Bientôt disponible" : "Épuisé"}
         </Button>
       </div>
     );
@@ -724,7 +739,7 @@ function BuyBlock({
           Annuler
         </Button>
         <Button
-          onClick={() => void pay()}
+          onClick={() => void reserve()}
           disabled={
             saving ||
             !form.firstName ||
@@ -737,7 +752,7 @@ function BuyBlock({
             quantity > stock
           }
         >
-          {saving ? "Redirection…" : "Payer en ligne"}
+          {saving ? "Réservation…" : "Réserver"}
         </Button>
       </div>
     </div>
