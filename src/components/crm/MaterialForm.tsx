@@ -91,7 +91,7 @@ const EMPTY: FormState = {
   category: CATEGORIES[0]!,
   family: "",
   subcategory: "",
-  condition: "Bon",
+  condition: "Bon état",
   unit: "unité",
   quantity: "",
   price: "",

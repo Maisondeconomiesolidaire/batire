@@ -17,7 +17,11 @@ export const UNIT_LABELS: Record<Unit, string> = {
   lot: "au lot",
 };
 
-export const CONDITIONS = ["Neuf", "Très bon", "Bon", "Usagé"] as const;
+/**
+ * Les cinq états de Leboncoin, mot pour mot : l'extension Bâtire → Leboncoin
+ * les reporte tels quels dans l'annonce.
+ */
+export const CONDITIONS = ["État neuf", "Très bon état", "Bon état", "État satisfaisant", "Pour pièces"] as const;
 
 /**
  * Provenance du matériau, telle qu'elle se déclare dans un diagnostic PEMD.
@@ -133,10 +137,12 @@ export type DonationStatus = (typeof DONATION_STATUSES)[number];
 export type Unit = (typeof UNITS)[number];
 /** Valeurs retirées du référentiel mais encore portées par d'anciennes fiches. */
 export const LEGACY_CONDITIONS = [
+  "Neuf",
+  "Très bon",
+  "Bon",
+  "Usagé",
   "Déstockage",
   "Reconditionné",
-  "Très bon état",
-  "Bon état",
   "À reconditionner",
   "À rénover",
 ] as const;

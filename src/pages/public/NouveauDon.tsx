@@ -48,7 +48,7 @@ const EMPTY_LOT: LotForm = {
   category: "",
   family: "",
   subcategory: "",
-  condition: "Bon",
+  condition: "Bon état",
   quantity: "",
   unit: "unité",
   availableFrom: undefined,

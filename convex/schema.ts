@@ -205,6 +205,14 @@ export const bpBilling = v.object({
     ),
   ),
   paidAt: v.optional(v.number()),
+  /**
+   * Statut posé à la main que Stripe ne peut pas refléter (ex. facture payée
+   * remise « en attente ») : l'actualisation depuis Stripe ne l'écrase pas.
+   */
+  paymentStatusManual: v.optional(v.boolean()),
+  /** Dernier changement manuel du statut de règlement : qui et quand. */
+  paymentStatusUpdatedBy: v.optional(v.string()),
+  paymentStatusUpdatedAt: v.optional(v.number()),
   /** Horodatage de la dernière relance de règlement envoyée par email. */
   lastReminderAt: v.optional(v.number()),
   error: v.optional(v.string()),
@@ -265,17 +273,22 @@ export const btUnit = v.union(
 );
 
 export const btCondition = v.union(
+  /* Référentiel actuel : les cinq états de Leboncoin, mot pour mot, pour que
+   * l'extension Bâtire → Leboncoin les reporte sans traduction. */
+  v.literal("État neuf"),
+  v.literal("Très bon état"),
+  v.literal("Bon état"),
+  v.literal("État satisfaisant"),
+  v.literal("Pour pièces"),
+  /** @deprecated Anciens référentiels (quatre valeurs, puis la liste
+   *  d'origine). Conservés pour les fiches créées avant le changement :
+   *  retirer ces valeurs les rendrait invalides. */
   v.literal("Neuf"),
   v.literal("Très bon"),
   v.literal("Bon"),
   v.literal("Usagé"),
-  /** @deprecated Référentiel d'états d'avant la simplification en quatre
-   *  valeurs. Conservé pour les fiches créées avant le changement : retirer
-   *  ces valeurs les rendrait invalides. */
   v.literal("Déstockage"),
   v.literal("Reconditionné"),
-  v.literal("Très bon état"),
-  v.literal("Bon état"),
   v.literal("À reconditionner"),
   v.literal("À rénover"),
 );
@@ -516,6 +529,8 @@ export default defineSchema(
     caisseId: v.optional(v.id("caisses")),
     originalPrice: v.optional(v.number()),
     internalReference: v.optional(v.string()),
+    /** Référence GDR de l'article (logiciel de gestion), saisie à la main. */
+    gdrReference: v.optional(v.string()),
     /**
      * Recyclerie qui détient physiquement l'article : le client vient le
      * retirer sur ce site, et la boutique en ligne permet de filtrer dessus.
@@ -523,6 +538,8 @@ export default defineSchema(
     site: v.optional(v.union(v.literal("60"), v.literal("76"))),
     category: v.string(),
     subcategory: v.optional(v.string()),
+    /** Hiérarchie Label Emmaüs complète, de l'univers au niveau le plus précis. */
+    categoryPath: v.optional(v.array(v.string())),
     condition: v.string(),
     keywords: v.optional(v.array(v.string())),
     themeKey: v.optional(v.string()),
@@ -656,6 +673,14 @@ export default defineSchema(
     assignedTo: v.optional(v.id("teamMembers")),
     /** Équipe opérationnelle Recyclerie (remplace progressivement assignedTo). */
     assignedWorkerId: v.optional(v.id("polyvalentWorkers")),
+    /**
+     * Équipe complète mobilisée sur la demande, depuis le planning.
+     *
+     * Une collecte part rarement seule. `assignedWorkerId` reste renseigné avec
+     * le premier de la liste : les vues et l'index `by_assignedWorkerId` qui
+     * s'appuient dessus continuent de fonctionner sans rien changer.
+     */
+    assignedWorkerIds: v.optional(v.array(v.id("polyvalentWorkers"))),
     estimatedHours: v.optional(v.number()),
     actualHours: v.optional(v.number()),
     quoteAmount: v.optional(v.number()),
@@ -3471,6 +3496,12 @@ export default defineSchema(
   })
     .index("by_projectId", ["projectId"])
     .index("by_taskId", ["taskId"]),
+
+  /** Miniature (~480 px) d'une photo du stockage, pour les grilles. Voir thumbnails.ts. */
+  storageThumbnails: defineTable({
+    source: v.id("_storage"),
+    thumb: v.id("_storage"),
+  }).index("by_source", ["source"]),
   },
   { schemaValidation: false },
 );
