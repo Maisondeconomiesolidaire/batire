@@ -8,7 +8,6 @@ import {
   MapPin,
   MessageSquare,
   PackageOpen,
-  QrCode as QrIcon,
   Check,
   Copy,
   Mail,
@@ -32,7 +31,6 @@ import {
   unitLabel,
 } from "../../lib/format";
 import { PAGE_X, UNIT_LABELS, type Unit } from "../../lib/constants";
-import { QrCode } from "../../components/ui/QrCode";
 import {
   KIOSK_CALL_MESSAGE,
   MaterialCard,
@@ -232,26 +230,14 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
 
             <div className="border-t border-[var(--border)] p-5">
               {kiosk ? (
-                <div className="flex flex-col items-center gap-4 text-center">
-                  {/* Vitrine seulement : un vendeur conclut la vente sur place,
-                      comme à la Recyclerie. */}
-                  <div className="flex w-full items-center gap-4 rounded-2xl border border-brand-200 bg-brand-50 p-4 text-left">
-                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-brand-700">
-                      <UserRound className="h-6 w-6" />
-                    </span>
-                    <p className="min-w-0 text-lg font-bold leading-7 text-[var(--foreground)]">
-                      {KIOSK_CALL_MESSAGE}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-white p-2">
-                    <QrCode
-                      value={`${window.location.origin}/materiau/${material._id}`}
-                      size={150}
-                      className="text-black"
-                    />
-                  </div>
-                  <p className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
-                    <QrIcon className="h-4 w-4" /> Scannez pour réserver depuis votre téléphone
+                /* Vitrine seulement : un vendeur conclut la vente sur place,
+                   comme à la Recyclerie. */
+                <div className="flex items-center gap-4 rounded-2xl border border-brand-200 bg-brand-50 p-4">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-brand-700">
+                    <UserRound className="h-6 w-6" />
+                  </span>
+                  <p className="min-w-0 text-lg font-bold leading-7 text-[var(--foreground)]">
+                    {KIOSK_CALL_MESSAGE}
                   </p>
                 </div>
               ) : (
