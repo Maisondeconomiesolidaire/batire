@@ -1,8 +1,14 @@
 import { Link } from "react-router-dom";
-import { PackageOpen } from "lucide-react";
+import { PackageOpen, UserRound } from "lucide-react";
 import { Pill } from "../ui/Badge";
 import { formatDimensions, formatPrice, formatStock, formatUnitPrice } from "../../lib/format";
 import type { Unit } from "../../lib/constants";
+
+/**
+ * Consigne de la vitrine : on ne réserve pas sur l'écran du dépôt, un vendeur
+ * conclut la vente sur place. Même formule que la vitrine de la Recyclerie.
+ */
+export const KIOSK_CALL_MESSAGE = "Intéressé(e) ? Faites appel à un vendeur";
 
 export type PublicMaterial = {
   _id: string;
@@ -34,9 +40,12 @@ export function MaterialCard({
   material,
   to,
   note,
+  kiosk = false,
 }: {
   material: PublicMaterial;
   to: string;
+  /** Vitrine du dépôt : la carte invite à appeler un vendeur. */
+  kiosk?: boolean;
   /** Mention sous le titre : « Disponible à partir du 12/09 » pour un lot à venir. */
   note?: string;
 }) {
@@ -99,6 +108,16 @@ export function MaterialCard({
             {material.depot ? ` · ${material.depot}` : ""}
           </p>
         </div>
+        {kiosk ? (
+          <div className="mt-1 flex items-center gap-3 rounded-2xl bg-[var(--muted)] p-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--card)] text-[var(--foreground)]">
+              <UserRound className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 text-sm font-bold leading-5 text-[var(--foreground)]">
+              {KIOSK_CALL_MESSAGE}
+            </span>
+          </div>
+        ) : null}
       </div>
     </Link>
   );

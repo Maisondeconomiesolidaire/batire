@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Link, Navigate, Outlet, Route, Routes, useOutletContext } from "react-router-dom";
-import { HeartHandshake, Menu, Radar, Search } from "lucide-react";
+import { ArrowLeft, HeartHandshake, Menu, Radar, Search } from "lucide-react";
 import { Boutique } from "./pages/public/Boutique";
 import { MaterialDetail } from "./pages/public/MaterialDetail";
+import { Kiosk } from "./pages/public/Kiosk";
+import { KioskUniverseNav } from "./components/KioskUniverseNav";
 import { QrLanding } from "./pages/public/QrLanding";
 import { MonCompte } from "./pages/public/MonCompte";
 import { NouveauDon } from "./pages/public/NouveauDon";
@@ -47,8 +49,8 @@ export default function App() {
         <Route path="/je-recherche" element={<JeRecherche />} />
       </Route>
 
+      <Route path="/kiosk" element={<Kiosk />} />
       <Route element={<KioskShell />}>
-        <Route path="/kiosk" element={<KioskBoutique />} />
         <Route path="/kiosk/materiau/:id" element={<MaterialDetail kiosk />} />
       </Route>
 
@@ -170,52 +172,23 @@ function BoutiqueRoute() {
 }
 
 /**
- * Vitrine du dépôt. Même catalogue et même menu que la boutique, sans compte
- * ni messagerie : devant un écran posé à l'entrée, ils n'ont pas d'usage.
+ * Fiche matériau en vitrine : la barre d'univers et un retour au catalogue,
+ * sans compte ni messagerie — devant l'écran du dépôt, ils n'ont pas d'usage.
  */
 function KioskShell() {
-  const [search, setSearch] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
-
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--background)]/95 backdrop-blur">
-        <div className={cn("flex w-full items-center gap-4 py-3", PAGE_X)}>
-          <button
-            type="button"
-            onClick={() => setMenuOpen(true)}
-            className="-ml-3 inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition hover:bg-[var(--muted)]"
-          >
-            <Menu className="h-5 w-5" />
-            <span className="hidden sm:inline">Menu</span>
-          </button>
-
-          <Link to="/kiosk" className="shrink-0" aria-label="BâtiRe - Accueil">
-            <img src="/logo-BATIRE.jpg" alt="BâtiRe" className="h-12 w-12 rounded-lg object-contain" />
-          </Link>
-
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Rechercher un matériau…"
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--card)] py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
-            />
-          </div>
-
-          <PortalButton className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm text-[var(--foreground)] hover:border-brand-300 hover:text-brand-700" />
-        </div>
-      </header>
-
-      <MegaMenu open={menuOpen} onClose={() => setMenuOpen(false)} basePath="/kiosk" />
-
-      <Outlet context={{ search }} />
+      <KioskUniverseNav current="batiment" />
+      <div className={cn("pt-5", PAGE_X)}>
+        <Link
+          to="/kiosk"
+          className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-medium text-[var(--muted-foreground)] shadow-sm transition hover:text-[var(--foreground)]"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Retour à la vitrine
+        </Link>
+      </div>
+      <Outlet />
     </div>
   );
-}
-
-function KioskBoutique() {
-  const { search } = useOutletContext<{ search: string }>();
-  return <Boutique kiosk search={search} />;
 }

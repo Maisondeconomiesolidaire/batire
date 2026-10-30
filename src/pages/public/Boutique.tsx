@@ -13,13 +13,7 @@ import { PAGE_X, CONDITIONS, UNITS, type Condition, type Unit } from "../../lib/
 import { formatDate } from "../../lib/format";
 import { cn } from "../../lib/cn";
 
-export function Boutique({
-  kiosk = false,
-  search = "",
-}: {
-  kiosk?: boolean;
-  search?: string;
-}) {
+export function Boutique({ search = "" }: { search?: string }) {
   // L'arborescence vit dans l'URL : le méga-menu y renvoie, et un lien vers
   // une famille se partage tel quel.
   const [params, setParams] = useSearchParams();
@@ -90,8 +84,7 @@ export function Boutique({
   const viewTitle =
     view === "nouveautes" ? "Nouvelles arrivées" : view === "bientot" ? "Bientôt disponible" : "";
   const shown = view === "bientot" ? upcoming : view === "nouveautes" ? newest : visible;
-  const cardLink = (material: PublicMaterial) =>
-    `${kiosk ? "/kiosk" : ""}/materiau/${material._id}`;
+  const cardLink = (material: PublicMaterial) => `/materiau/${material._id}`;
   const upcomingNote = (material: PublicMaterial) =>
     material.availableFrom
       ? `Disponible à partir du ${formatDate(material.availableFrom)}`
@@ -161,7 +154,7 @@ export function Boutique({
 
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
-          {viewTitle || subcategory || family || category || (kiosk ? "Nos matériaux" : "Catalogue")}
+          {viewTitle || subcategory || family || category || "Catalogue"}
         </h1>
         <p className="text-sm text-[var(--muted-foreground)]">
           {materials === undefined
@@ -172,17 +165,15 @@ export function Boutique({
 
       {/* Le dépôt vit des matériaux qu'on lui apporte : l'appel au don a sa
           place dans le catalogue, pas seulement dans l'en-tête. */}
-      {!kiosk ? (
-        <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-          Vous avez des matériaux à donner ?{" "}
-          <Link
-            to="/don/nouveau"
-            className="font-semibold text-brand-700 underline decoration-brand-300 underline-offset-4 transition hover:decoration-brand-600"
-          >
-            Proposer un don
-          </Link>
-        </p>
-      ) : null}
+      <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+        Vous avez des matériaux à donner ?{" "}
+        <Link
+          to="/don/nouveau"
+          className="font-semibold text-brand-700 underline decoration-brand-300 underline-offset-4 transition hover:decoration-brand-600"
+        >
+          Proposer un don
+        </Link>
+      </p>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {/* Le catalogue se parcourt aussi par le méga-menu : ce filtre écrit le

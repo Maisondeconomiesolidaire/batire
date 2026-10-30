@@ -14,6 +14,7 @@ import {
   Mail,
   MessageCircle,
   Share2,
+  UserRound,
 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -32,7 +33,11 @@ import {
 } from "../../lib/format";
 import { PAGE_X, UNIT_LABELS, type Unit } from "../../lib/constants";
 import { QrCode } from "../../components/ui/QrCode";
-import { MaterialCard, type PublicMaterial } from "../../components/public/MaterialCard";
+import {
+  KIOSK_CALL_MESSAGE,
+  MaterialCard,
+  type PublicMaterial,
+} from "../../components/public/MaterialCard";
 import { AddressAutocomplete } from "../../components/ui/AddressAutocomplete";
 import { cn } from "../../lib/cn";
 import { errorMessage } from "../../lib/errors";
@@ -227,7 +232,17 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
 
             <div className="border-t border-[var(--border)] p-5">
               {kiosk ? (
-                <div className="flex flex-col items-center gap-3 text-center">
+                <div className="flex flex-col items-center gap-4 text-center">
+                  {/* Vitrine seulement : un vendeur conclut la vente sur place,
+                      comme à la Recyclerie. */}
+                  <div className="flex w-full items-center gap-4 rounded-2xl border border-brand-200 bg-brand-50 p-4 text-left">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-brand-700">
+                      <UserRound className="h-6 w-6" />
+                    </span>
+                    <p className="min-w-0 text-lg font-bold leading-7 text-[var(--foreground)]">
+                      {KIOSK_CALL_MESSAGE}
+                    </p>
+                  </div>
                   <div className="rounded-xl bg-white p-2">
                     <QrCode
                       value={`${window.location.origin}/materiau/${material._id}`}
@@ -236,7 +251,7 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
                     />
                   </div>
                   <p className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
-                    <QrIcon className="h-4 w-4" /> Scannez pour payer au comptoir
+                    <QrIcon className="h-4 w-4" /> Scannez pour réserver depuis votre téléphone
                   </p>
                 </div>
               ) : (
@@ -429,6 +444,7 @@ function SuggestionShelf({
             key={material._id}
             material={material}
             to={`${base}/materiau/${material._id}`}
+            kiosk={base === "/kiosk"}
           />
         ))}
       </div>
