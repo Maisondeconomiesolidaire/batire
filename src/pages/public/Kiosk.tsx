@@ -6,11 +6,7 @@ import { api } from "../../../convex/_generated/api";
 import { FullSpinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { KioskUniverseNav } from "../../components/KioskUniverseNav";
-import {
-  KIOSK_CALL_MESSAGE,
-  MaterialCard,
-  type PublicMaterial,
-} from "../../components/public/MaterialCard";
+import { MaterialCard, type PublicMaterial } from "../../components/public/MaterialCard";
 
 /**
  * Vitrine physique (mode kiosque).
@@ -59,7 +55,7 @@ export function Kiosk() {
       <KioskUniverseNav current="batiment" />
       <section className="border-b border-black/5">
         <div className="mx-auto w-full max-w-[92rem] px-5 py-8 sm:px-7 sm:py-10 lg:px-8">
-          <div className="flex flex-col items-center gap-6 overflow-hidden rounded-[36px] border border-white/35 bg-white/70 px-6 py-10 text-center shadow-[0_30px_90px_rgba(24,24,27,0.1)] backdrop-blur-[3px] sm:flex-row sm:px-10 sm:text-left">
+          <div className="flex flex-col items-center gap-6 text-center sm:flex-row sm:text-left">
             <img
               src="/logo-BATIRE.jpg"
               alt="BâtiRe"
@@ -78,13 +74,6 @@ export function Kiosk() {
             </div>
           </div>
         </div>
-      </section>
-
-      {/* Consigne d'achat : c'est la seule action possible ici. */}
-      <section className="mx-auto w-full max-w-[92rem] px-5 sm:px-7 lg:px-8">
-        <p className="rounded-[28px] bg-brand-700 px-6 py-5 text-center text-base font-bold text-white shadow-[0_18px_45px_rgba(30,113,138,0.24)] sm:text-lg">
-          {KIOSK_CALL_MESSAGE}.
-        </p>
       </section>
 
       {/* Catégories : les mêmes que dans le menu de la boutique. */}
