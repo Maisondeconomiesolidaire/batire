@@ -1,7 +1,8 @@
 import { useCallback, useSyncExternalStore } from "react";
 import type { Id } from "../../convex/_generated/dataModel";
 
-export type CartItem = { materialId: Id<"btMaterials">; quantity: number };
+export type CartVendor = "recyclerie" | "dechetlab";
+export type CartItem = { materialId: Id<"btMaterials">; quantity: number; vendor?: CartVendor };
 const KEY = "batire-cart-v1";
 let cachedRaw: string | null = null;
 let cachedItems: CartItem[] = [];
@@ -29,12 +30,13 @@ const subscribe = (listener: () => void) => { listeners.add(listener); return ()
 
 export function useCart() {
   const items = useSyncExternalStore(subscribe, read, () => cachedItems);
-  const add = useCallback((materialId: Id<"btMaterials">, quantity: number) => {
+  const add = useCallback((materialId: Id<"btMaterials">, quantity: number, vendor: CartVendor) => {
     const current = read(); const existing = current.find((item) => item.materialId === materialId);
-    write(existing ? current.map((item) => item.materialId === materialId ? { ...item, quantity: item.quantity + quantity } : item) : [...current, { materialId, quantity }]);
+    write(existing ? current.map((item) => item.materialId === materialId ? { ...item, quantity: item.quantity + quantity, vendor } : item) : [...current, { materialId, quantity, vendor }]);
   }, []);
+  const hasOtherVendor = useCallback((vendor: CartVendor) => read().some((item) => item.vendor && item.vendor !== vendor), []);
   const remove = useCallback((materialId: Id<"btMaterials">) => write(read().filter((item) => item.materialId !== materialId)), []);
   const update = useCallback((materialId: Id<"btMaterials">, quantity: number) => write(read().map((item) => item.materialId === materialId ? { ...item, quantity } : item).filter((item) => item.quantity > 0)), []);
   const clear = useCallback(() => write([]), []);
-  return { items, add, remove, update, clear };
+  return { items, add, hasOtherVendor, remove, update, clear };
 }

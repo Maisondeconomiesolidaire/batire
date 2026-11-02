@@ -245,6 +245,7 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
                 <>
                   <BuyBlock
                     materialId={material._id}
+                    category={material.category}
                     unit={material.unit}
                     price={material.price}
                     stock={material.quantity}
@@ -450,12 +451,14 @@ function SuggestionShelf({
 
 function BuyBlock({
   materialId,
+  category,
   unit,
   price,
   stock,
   upcoming = false,
 }: {
   materialId: Id<"btMaterials">;
+  category: string;
   unit: Unit;
   price: number;
   stock: number;
@@ -471,6 +474,7 @@ function BuyBlock({
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cartNotice, setCartNotice] = useState<string | null>(null);
   const [reference, setReference] = useState<string | null>(null);
   const [pickupLocation, setPickupLocation] = useState<PickupLocationId | null>(null);
   const [customerCoordinates, setCustomerCoordinates] = useState<{
@@ -533,6 +537,8 @@ function BuyBlock({
   const [capped, setCapped] = useState(false);
 
   const quantity = Number(form.quantity.replace(",", ".")) || 0;
+  const vendor = category === "Mobilier de bureau" ? "recyclerie" : "dechetlab";
+  const vendorName = vendor === "recyclerie" ? "la Recyclerie" : "Déchet’Lab / MatériauSol";
   const total = quantity > 0 ? quantity * price : 0;
   const step = 1;
   const round = (value: number) => Math.round(value * 100) / 100;
@@ -646,9 +652,10 @@ function BuyBlock({
     return (
       <div className="space-y-3">
         {quantityPicker}
-        <Button variant="outline" className="w-full" onClick={() => cart.add(materialId, quantity)} disabled={stock <= 0 || quantity <= 0 || quantity > stock}>
+        <Button variant="outline" className="w-full" onClick={() => { if (cart.hasOtherVendor(vendor)) { setCartNotice(`Votre panier contient déjà des articles vendus par ${vendor === "recyclerie" ? "Déchet’Lab / MatériauSol" : "la Recyclerie"}. Cet article est vendu par ${vendorName} et doit être payé séparément : finalisez ce panier avant d’en commencer un autre.`); return; } cart.add(materialId, quantity, vendor); setCartNotice(`Article ajouté au panier ${vendorName}.`); }} disabled={stock <= 0 || quantity <= 0 || quantity > stock}>
           Ajouter au panier
         </Button>
+        {cartNotice ? <p className={`rounded-xl px-3 py-2 text-sm ${cartNotice.startsWith("Votre") ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-800"}`}>{cartNotice}</p> : null}
         <Button
           className="w-full"
           onClick={() => setOpen(true)}
