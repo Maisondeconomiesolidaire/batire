@@ -29,6 +29,7 @@ import {
   type Unit,
 } from "../../lib/constants";
 import { CATEGORIES, familiesOf, subFamiliesOf } from "../../lib/taxonomy";
+import { PICKUP_LOCATIONS } from "../../lib/pickupLocations";
 
 type FormState = {
   title: string;
@@ -378,6 +379,10 @@ export function MaterialForm() {
   }
 
   async function save() {
+    if (!form.depot) {
+      setError("Choisissez le lieu de stockage du matériau.");
+      return;
+    }
     const price = Number(form.price.replace(",", "."));
     if (form.published && (!Number.isFinite(price) || price <= 0)) {
       setError(
@@ -599,8 +604,13 @@ export function MaterialForm() {
           {/* ── Stockage et publication ──────────────────────────────────── */}
           <section className="grid gap-4 rounded-2xl border border-[var(--border)] p-4 sm:grid-cols-3">
             <p className="text-sm font-semibold sm:col-span-3">Dépôt et mise en ligne</p>
-            <Field label="Localisation">
-              <Input value={form.depot} onChange={(e) => set("depot", e.target.value)} />
+            <Field label="Lieu de stockage" required>
+              <Dropdown
+                value={form.depot}
+                onChange={(value) => set("depot", value)}
+                placeholder="Choisir le lieu"
+                options={PICKUP_LOCATIONS.map((location) => ({ value: location.name, label: location.name }))}
+              />
             </Field>
             <Field label="Emplacement">
               <Input value={form.location} onChange={(e) => set("location", e.target.value)} />
@@ -970,7 +980,7 @@ export function MaterialForm() {
             </Button>
             <Button
               onClick={() => void save()}
-              disabled={saving || uploading || !form.title.trim() || !form.description.trim()}
+              disabled={saving || uploading || !form.title.trim() || !form.description.trim() || !form.depot}
             >
               {saving ? "Enregistrement…" : materialId ? "Enregistrer" : "Créer le matériau"}
             </Button>

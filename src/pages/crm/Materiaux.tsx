@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "convex/react";
 import {
   Boxes,
+  LayoutGrid,
+  List,
   Download,
   Eye,
   EyeOff,
@@ -33,6 +35,7 @@ export function Materiaux() {
   const [search, setSearch] = useState("");
   const [scanning, setScanning] = useState(false);
   const [status, setStatus] = useState<"" | MaterialStatus>("");
+  const [stockView, setStockView] = useState<"grid" | "table">("grid");
   const materials = useQuery(api.batire.listMaterials, {
     search: search.trim() || undefined,
     status: status || undefined,
@@ -161,6 +164,10 @@ export function Materiaux() {
             ...MATERIAL_STATUSES.map((value) => ({ value, label: STATUS_LABELS[value] })),
           ]}
         />
+        <div className="ml-auto inline-flex rounded-xl border border-[var(--border)] bg-[var(--card)] p-1">
+          <button type="button" onClick={() => setStockView("grid")} className={`rounded-lg p-2 ${stockView === "grid" ? "bg-[var(--accent)] text-brand-700" : "text-[var(--muted-foreground)]"}`} aria-label="Vue grille"><LayoutGrid className="h-4 w-4" /></button>
+          <button type="button" onClick={() => setStockView("table")} className={`rounded-lg p-2 ${stockView === "table" ? "bg-[var(--accent)] text-brand-700" : "text-[var(--muted-foreground)]"}`} aria-label="Vue tableau"><List className="h-4 w-4" /></button>
+        </div>
       </div>
 
       {materials === undefined ? (
@@ -177,6 +184,15 @@ export function Materiaux() {
             ) : undefined
           }
         />
+      ) : stockView === "grid" ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {materials.map((material) => (
+            <article key={material._id} className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm">
+              <div className="flex aspect-[16/8] items-center justify-center bg-[var(--muted)]">{material.photoUrls[0] ? <img src={material.thumbUrl ?? material.photoUrls[0]} alt="" className="h-full w-full object-cover" /> : <Boxes className="h-8 w-8 text-[var(--muted-foreground)]" />}</div>
+              <div className="p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="truncate font-semibold">{material.title}</h2><p className="mt-1 truncate text-xs text-[var(--muted-foreground)]">{taxonomyPath(material.category, material.family, material.subcategory)}</p></div><StatusBadge status={material.status} /></div><div className="mt-4 flex items-end justify-between"><div><p className="font-bold text-brand-700">{material.price > 0 ? formatUnitPrice(material.price, material.unit) : "Prix manquant"}</p><p className="mt-1 text-xs text-[var(--muted-foreground)]">{formatStock(material.quantity, material.unit)} · {material.depot ?? "Lieu à renseigner"}</p></div>{canUpdate ? <button type="button" onClick={() => navigate(`/crm/materiaux/${material._id}`)} className="rounded-lg p-2 text-[var(--muted-foreground)] hover:bg-[var(--accent)]" aria-label="Modifier"><Pencil className="h-4 w-4" /></button> : null}</div></div>
+            </article>
+          ))}
+        </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-[var(--border)]">
           <table className="w-full min-w-[860px] text-sm">

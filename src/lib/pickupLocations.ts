@@ -1,7 +1,7 @@
 export const PICKUP_LOCATIONS = [
   {
     id: "usine_agile",
-    name: "Usine Agile",
+    name: "Recyclerie du Solidarium",
     address: "31 Rue de l'Industrie, 60000 Beauvais",
     latitude: 49.41671,
     longitude: 2.12381,
@@ -22,7 +22,7 @@ export const PICKUP_LOCATIONS = [
   },
   {
     id: "esspace_150",
-    name: "Esspace 150",
+    name: "Esspace 150 / Recyclerie de Gournay",
     address: "150 Rte de Paris, 76220 Gournay-en-Bray",
     latitude: 49.469388,
     longitude: 1.725067,
