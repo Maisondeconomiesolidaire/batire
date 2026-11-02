@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, Navigate, Outlet, Route, Routes, useOutletContext } from "react-router-dom";
-import { ArrowLeft, HeartHandshake, Menu, Radar, Search } from "lucide-react";
+import { ArrowLeft, HeartHandshake, Menu, Radar, Search, ShoppingCart } from "lucide-react";
 import { Boutique } from "./pages/public/Boutique";
 import { MaterialDetail } from "./pages/public/MaterialDetail";
 import { Kiosk } from "./pages/public/Kiosk";
@@ -21,11 +21,14 @@ import { MessagerieCrm } from "./pages/crm/Messagerie";
 import { Messagerie } from "./pages/public/Messagerie";
 import { QrCodes } from "./pages/crm/QrCodes";
 import { Dons } from "./pages/crm/Dons";
+import { Demandes } from "./pages/crm/Demandes";
 import { ProfileSync } from "./components/ProfileSync";
 import { PortalButton } from "./components/PortalButton";
 import { AccountMenu } from "./components/public/AccountMenu";
 import { AuthSwitch } from "./components/ui/auth-switch";
 import { ConditionsGenerales, PolitiqueConfidentialite } from "./pages/public/Legal";
+import { CartPage, CartReturn } from "./pages/public/CartPage";
+import { useCart } from "./lib/useCart";
 
 export default function App() {
   return (
@@ -47,6 +50,8 @@ export default function App() {
         <Route path="/mon-compte" element={<MonCompte />} />
         <Route path="/don/nouveau" element={<NouveauDon />} />
         <Route path="/je-recherche" element={<JeRecherche />} />
+        <Route path="/panier" element={<CartPage />} />
+        <Route path="/panier/retour" element={<CartReturn />} />
       </Route>
 
       <Route path="/kiosk" element={<Kiosk />} />
@@ -59,6 +64,7 @@ export default function App() {
         <Route path="materiaux/nouveau" element={<MaterialForm />} />
         <Route path="materiaux/:id" element={<MaterialForm />} />
         <Route path="dons" element={<Dons />} />
+        <Route path="demandes" element={<Demandes />} />
         <Route path="ventes" element={<Ventes />} />
         <Route path="messagerie" element={<MessagerieCrm />} />
         <Route path="qr" element={<QrCodes />} />
@@ -96,6 +102,7 @@ function SearchField({
 function PublicShell() {
   const [search, setSearch] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const cart = useCart();
   return (
     <div className="min-h-screen bg-[var(--background)]">
       <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--background)]/95 backdrop-blur">
@@ -121,6 +128,7 @@ function PublicShell() {
           </div>
 
           <div className="ml-auto flex shrink-0 items-center gap-2 sm:ml-0">
+            <Link to="/panier" className="relative rounded-xl border border-[var(--border)] p-2.5 text-[var(--foreground)] hover:text-brand-700" aria-label="Voir mon panier"><ShoppingCart className="h-4 w-4" />{cart.items.length > 0 ? <span className="absolute -right-1 -top-1 rounded-full bg-brand-600 px-1.5 text-[10px] font-bold text-white">{cart.items.length}</span> : null}</Link>
             <PortalButton className="rounded-xl border border-[var(--border)] px-2.5 py-2 text-sm text-[var(--foreground)] hover:border-brand-300 hover:text-brand-700 xl:px-3" />
             <Link
               to="/don/nouveau"

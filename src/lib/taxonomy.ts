@@ -8,6 +8,14 @@
 export type Taxonomy = Record<string, Record<string, string[]>>;
 
 export const TAXONOMY: Taxonomy = {
+  "Mobilier de bureau": {
+    "Bureaux": ["Bureaux d'angle & arrondis", "Bureaux avec caisson intégré", "Bureaux droits", "Accessoires & pièces (dessus)"],
+    "Rangement": ["Caissons mobiles", "Armoires métalliques", "Armoires & meubles bois", "Rayonnages", "Dessertes & chariots"],
+    "Assises": ["Fauteuils de bureau", "Chaises visiteurs", "Chaises de collectivité (réfectoire)"],
+    "Tables": ["Tables pliantes & diverses", "Tables de réfectoire", "Tables de réunion", "Ensembles table + assises", "Tables rondes"],
+    "Électroménager & divers": ["Froid (réfrigérateurs)", "Micro-ondes", "Présentoirs"],
+    "Cloisons acoustiques": ["Cloisons pleines", "Cloisons vitrées & ensembles"]
+  },
   "Équipement de protection, sécurité": {
     "Vêtements & pantalon de travail": [
       "Pantalons",

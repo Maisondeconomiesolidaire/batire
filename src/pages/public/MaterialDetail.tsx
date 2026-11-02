@@ -41,6 +41,7 @@ import { cn } from "../../lib/cn";
 import { errorMessage } from "../../lib/errors";
 import { searchAddresses } from "../../lib/address";
 import { distanceInKm, PICKUP_LOCATIONS, type PickupLocationId } from "../../lib/pickupLocations";
+import { useCart } from "../../lib/useCart";
 
 export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
   const { id } = useParams<{ id: string }>();
@@ -462,6 +463,7 @@ function BuyBlock({
   upcoming?: boolean;
 }) {
   const reserveMaterial = useMutation(api.batire.reserveMaterial);
+  const cart = useCart();
   const { isSignedIn } = useUser();
   // La fiche donateur de l'espace client remplit le formulaire d'achat : le
   // client connecté ne ressaisit pas des coordonnées déjà connues.
@@ -644,6 +646,9 @@ function BuyBlock({
     return (
       <div className="space-y-3">
         {quantityPicker}
+        <Button variant="outline" className="w-full" onClick={() => cart.add(materialId, quantity)} disabled={stock <= 0 || quantity <= 0 || quantity > stock}>
+          Ajouter au panier
+        </Button>
         <Button
           className="w-full"
           onClick={() => setOpen(true)}
