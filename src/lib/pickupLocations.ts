@@ -31,6 +31,17 @@ export const PICKUP_LOCATIONS = [
 
 export type PickupLocationId = (typeof PICKUP_LOCATIONS)[number]["id"];
 
+/** Même rapprochement que le backend, pour expliquer clairement les frais au client. */
+export function storageLocationId(depot?: string): PickupLocationId | undefined {
+  const value = depot?.trim().toLocaleLowerCase("fr-FR") ?? "";
+  if (!value) return undefined;
+  if (value.includes("comptoir")) return "comptoir_c";
+  if (value.includes("solidarium") || value.includes("usine agile")) return "usine_agile";
+  if (value.includes("pays de bray") || value.includes("lachapelle")) return "recyclerie_pays_de_bray";
+  if (value.includes("esspace") || value.includes("gournay")) return "esspace_150";
+  return undefined;
+}
+
 /** Distance à vol d'oiseau : suffisamment claire pour comparer les retraits. */
 export function distanceInKm(
   from: { latitude: number; longitude: number },
