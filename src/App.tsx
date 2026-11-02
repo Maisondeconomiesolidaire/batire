@@ -155,7 +155,7 @@ function PublicShell() {
         </div>
       </header>
 
-      <MegaMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
+      <MegaMenu open={menuOpen} onClose={() => setMenuOpen(false)} vendor={cart.activeVendor} />
 
       <Outlet context={{ search }} />
 

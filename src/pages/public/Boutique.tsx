@@ -12,8 +12,10 @@ import { Dropdown } from "../../components/ui/Dropdown";
 import { PAGE_X, CONDITIONS, UNITS, type Condition, type Unit } from "../../lib/constants";
 import { formatDate } from "../../lib/format";
 import { cn } from "../../lib/cn";
+import { useCart, vendorForCategory } from "../../lib/useCart";
 
 export function Boutique({ search = "" }: { search?: string }) {
+  const { activeVendor } = useCart();
   // L'arborescence vit dans l'URL : le méga-menu y renvoie, et un lien vers
   // une famille se partage tel quel.
   const [params, setParams] = useSearchParams();
@@ -62,7 +64,7 @@ export function Boutique({ search = "" }: { search?: string }) {
     depot: depot || undefined,
   }) as PublicMaterial[] | undefined;
 
-  const visible = materials ?? [];
+  const visible = (materials ?? []).filter((material) => !activeVendor || vendorForCategory(material.category) === activeVendor);
 
   const filtersActive = Boolean(
     search.trim() || category || family || subcategory || unit || condition || depot || view,
@@ -162,6 +164,7 @@ export function Boutique({ search = "" }: { search?: string }) {
             : `${shown.length} référence${shown.length > 1 ? "s" : ""}`}
         </p>
       </div>
+      {activeVendor ? <p className="mt-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-900">Votre panier est réservé aux articles vendus par {activeVendor === "recyclerie" ? "la Recyclerie" : "Déchet’Lab / MatériauSol"}. Les autres articles réapparaîtront après le paiement ou lorsque le panier sera vidé.</p> : null}
 
       {/* Le dépôt vit des matériaux qu'on lui apporte : l'appel au don a sa
           place dans le catalogue, pas seulement dans l'en-tête. */}

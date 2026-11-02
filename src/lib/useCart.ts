@@ -4,6 +4,9 @@ import type { Id } from "../../convex/_generated/dataModel";
 export type CartVendor = "recyclerie" | "dechetlab";
 export type CartItem = { materialId: Id<"btMaterials">; quantity: number; vendor?: CartVendor };
 const KEY = "batire-cart-v1";
+export function vendorForCategory(category: string): CartVendor {
+  return category === "Mobilier de bureau" ? "recyclerie" : "dechetlab";
+}
 let cachedRaw: string | null = null;
 let cachedItems: CartItem[] = [];
 /**
@@ -35,8 +38,9 @@ export function useCart() {
     write(existing ? current.map((item) => item.materialId === materialId ? { ...item, quantity: item.quantity + quantity, vendor } : item) : [...current, { materialId, quantity, vendor }]);
   }, []);
   const hasOtherVendor = useCallback((vendor: CartVendor) => read().some((item) => item.vendor && item.vendor !== vendor), []);
+  const activeVendor = items.find((item) => item.vendor)?.vendor;
   const remove = useCallback((materialId: Id<"btMaterials">) => write(read().filter((item) => item.materialId !== materialId)), []);
   const update = useCallback((materialId: Id<"btMaterials">, quantity: number) => write(read().map((item) => item.materialId === materialId ? { ...item, quantity } : item).filter((item) => item.quantity > 0)), []);
   const clear = useCallback(() => write([]), []);
-  return { items, add, hasOtherVendor, remove, update, clear };
+  return { items, activeVendor, add, hasOtherVendor, remove, update, clear };
 }

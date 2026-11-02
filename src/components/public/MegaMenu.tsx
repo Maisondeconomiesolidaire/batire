@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ChevronRight, X } from "lucide-react";
 import { CATEGORIES, familiesOf, subFamiliesOf } from "../../lib/taxonomy";
 import { cn } from "../../lib/cn";
+import type { CartVendor } from "../../lib/useCart";
 
 /**
  * Menu du catalogue, à la manière des négoces de matériaux : une colonne de
@@ -16,13 +17,18 @@ export function MegaMenu({
   open,
   onClose,
   basePath = "/",
+  vendor,
 }: {
   open: boolean;
   onClose: () => void;
   /** Racine de navigation : la vitrine du dépôt reste sur ses propres routes. */
   basePath?: string;
+  vendor?: CartVendor;
 }) {
   const navigate = useNavigate();
+  const categories = CATEGORIES.filter(
+    (category) => !vendor || (vendor === "recyclerie" ? category === "Mobilier de bureau" : category !== "Mobilier de bureau"),
+  );
   // La première catégorie est ouverte d'emblée : le volet de droite ne doit
   // pas rester vide à l'ouverture du menu.
   const [active, setActive] = useState<string>(CATEGORIES[0]!);
@@ -61,6 +67,11 @@ export function MegaMenu({
       document.body.style.overflow = "";
     };
   }, [open, requestClose]);
+
+  useEffect(() => {
+    setActive(categories[0]!);
+    setDrilled(false);
+  }, [vendor]);
 
   if (!open && !closing) return null;
 
@@ -109,7 +120,7 @@ export function MegaMenu({
           <div className="mx-5 border-t border-[var(--border)]" />
 
           <nav className="flex-1 overflow-y-auto px-2 py-1.5">
-            {CATEGORIES.map((category) => (
+            {categories.map((category) => (
               <button
                 key={category}
                 type="button"

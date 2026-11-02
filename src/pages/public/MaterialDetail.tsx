@@ -41,9 +41,10 @@ import { cn } from "../../lib/cn";
 import { errorMessage } from "../../lib/errors";
 import { searchAddresses } from "../../lib/address";
 import { distanceInKm, PICKUP_LOCATIONS, type PickupLocationId } from "../../lib/pickupLocations";
-import { useCart } from "../../lib/useCart";
+import { useCart, vendorForCategory } from "../../lib/useCart";
 
 export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
+  const { activeVendor } = useCart();
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get("order_id");
@@ -74,6 +75,9 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
         />
       </div>
     );
+  }
+  if (!kiosk && activeVendor && vendorForCategory(material.category) !== activeVendor) {
+    return <div className={cn("mx-auto max-w-3xl py-16 text-center", PAGE_X)}><EmptyState icon={<PackageOpen className="h-10 w-10" />} title="Article d’un autre vendeur" description={`Votre panier contient déjà des articles vendus par ${activeVendor === "recyclerie" ? "la Recyclerie" : "Déchet’Lab / MatériauSol"}. Finalisez ce panier avant d’acheter des articles d’un autre vendeur.`} action={<Link to="/panier" className="text-sm font-semibold text-brand-700">Voir mon panier</Link>} /></div>;
   }
 
   const base = kiosk ? "/kiosk" : "";
