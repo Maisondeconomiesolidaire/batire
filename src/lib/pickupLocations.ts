@@ -1,12 +1,5 @@
 export const PICKUP_LOCATIONS = [
   {
-    id: "usine_agile",
-    name: "Recyclerie du Solidarium",
-    address: "31 Rue de l'Industrie, 60000 Beauvais",
-    latitude: 49.41671,
-    longitude: 2.12381,
-  },
-  {
     id: "comptoir_c",
     name: "Comptoir C",
     address: "13 Av. Pierre Bérégovoy, 60000 Beauvais",
@@ -36,8 +29,7 @@ export function storageLocationId(depot?: string): PickupLocationId | undefined 
   const value = depot?.trim().toLocaleLowerCase("fr-FR") ?? "";
   if (!value) return undefined;
   if (value.includes("comptoir")) return "comptoir_c";
-  if (value.includes("solidarium") || value.includes("usine agile")) return "usine_agile";
-  if (value.includes("pays de bray") || value.includes("lachapelle")) return "recyclerie_pays_de_bray";
+  if (value.includes("solidarium") || value.includes("usine") || value.includes("pays de bray") || value.includes("lachapelle")) return "recyclerie_pays_de_bray";
   if (value.includes("esspace") || value.includes("gournay")) return "esspace_150";
   return undefined;
 }
