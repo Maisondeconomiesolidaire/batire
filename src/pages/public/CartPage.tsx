@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAction, useMutation, useQuery } from "convex/react";
+import { useUser } from "@clerk/clerk-react";
 import { CheckCircle2, Home, Loader2, MapPin, PackageOpen, ShoppingCart, Trash2, Truck } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { AddressAutocomplete } from "../../components/ui/AddressAutocomplete";
@@ -16,9 +17,24 @@ export function CartPage() {
   const materials = useQuery(api.batire.listPublicMaterials, {});
   const startCheckout = useAction(api.batire.startCartCheckout);
   const requestDelivery = useMutation(api.batire.requestHomeDelivery);
+  const { isSignedIn } = useUser();
+  const profile = useQuery(api.batireDons.getMyDonorProfile, isSignedIn ? {} : "skip");
   const [loading, setLoading] = useState(false); const [error, setError] = useState(""); const [success, setSuccess] = useState("");
   const [coordinates, setCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "", address: "", pickupLocation: "" as PickupLocationId | "", fulfillment: "pickup" as "pickup" | "delivery" });
+  // Aide sans surprise : les données connues remplissent les champs vides,
+  // mais ne remplacent jamais ce que le client vient de saisir.
+  useEffect(() => {
+    if (!profile) return;
+    setForm((current) => ({
+      ...current,
+      firstName: current.firstName || profile.firstName,
+      lastName: current.lastName || profile.lastName,
+      email: current.email || profile.email,
+      phone: current.phone || profile.phone,
+      address: current.address || [profile.address, profile.postalCode, profile.city].filter(Boolean).join(", "),
+    }));
+  }, [profile]);
   const lines = useMemo(() => (materials ?? []).flatMap((material) => { const item = cart.items.find((x) => x.materialId === material._id); return item ? [{ material, quantity: item.quantity }] : []; }), [cart.items, materials]);
   const subtotal = lines.reduce((sum, line) => sum + line.material.price * line.quantity, 0);
   const transferNeeded = !!form.pickupLocation && lines.some(({ material }) => { const location = storageLocationId(material.depot); return location && location !== form.pickupLocation; });
