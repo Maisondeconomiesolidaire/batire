@@ -5,7 +5,7 @@ export type CartVendor = "recyclerie" | "dechetlab";
 export type CartItem = { materialId: Id<"btMaterials">; quantity: number; vendor?: CartVendor };
 const KEY = "batire-cart-v1";
 export function vendorForCategory(category: string): CartVendor {
-  return category === "Mobilier de bureau" ? "recyclerie" : "dechetlab";
+  return category.trim().toLocaleLowerCase("fr-FR").startsWith("mobilier") ? "recyclerie" : "dechetlab";
 }
 let cachedRaw: string | null = null;
 let cachedItems: CartItem[] = [];

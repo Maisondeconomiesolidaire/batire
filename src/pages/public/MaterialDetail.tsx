@@ -541,7 +541,7 @@ function BuyBlock({
   const [capped, setCapped] = useState(false);
 
   const quantity = Number(form.quantity.replace(",", ".")) || 0;
-  const vendor = category === "Mobilier de bureau" ? "recyclerie" : "dechetlab";
+  const vendor = vendorForCategory(category);
   const vendorName = vendor === "recyclerie" ? "la Recyclerie" : "Déchet’Lab / MatériauSol";
   const total = quantity > 0 ? quantity * price : 0;
   const step = 1;
