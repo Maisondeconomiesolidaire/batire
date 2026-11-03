@@ -164,7 +164,12 @@ export function Boutique({ search = "" }: { search?: string }) {
             : `${shown.length} référence${shown.length > 1 ? "s" : ""}`}
         </p>
       </div>
-      {activeVendor ? <p className="mt-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-900">Votre panier est réservé aux articles vendus par {activeVendor === "recyclerie" ? "la Recyclerie" : "Déchet’Lab / MatériauSol"}. Les autres articles réapparaîtront après le paiement ou lorsque le panier sera vidé.</p> : null}
+      {activeVendor ? (
+        <p className="mt-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-900" role="status">
+          <strong>Votre panier contient un article de {activeVendor === "recyclerie" ? "la Recyclerie" : "Déchet’Lab / MatériauSol"}.</strong>{" "}
+          Pour permettre un règlement séparé selon le vendeur, le catalogue affiche maintenant uniquement les articles de ce vendeur. Ce n’est pas un bug : les autres références réapparaîtront après le paiement ou lorsque vous viderez le panier.
+        </p>
+      ) : null}
 
       {/* Le dépôt vit des matériaux qu'on lui apporte : l'appel au don a sa
           place dans le catalogue, pas seulement dans l'en-tête. */}
