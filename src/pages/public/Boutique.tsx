@@ -167,7 +167,7 @@ export function Boutique({ search = "" }: { search?: string }) {
       {activeVendor ? (
         <p className="mt-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-900" role="status">
           <strong>Votre panier contient un article de {activeVendor === "recyclerie" ? "la Recyclerie" : "Déchet’Lab / MatériauSol"}.</strong>{" "}
-          Pour permettre un règlement séparé selon le vendeur, le catalogue affiche maintenant uniquement les articles de ce vendeur. Ce n’est pas un bug : les autres références réapparaîtront après le paiement ou lorsque vous viderez le panier.
+          Pour permettre un règlement séparé selon le vendeur, le catalogue affiche maintenant uniquement les articles de ce vendeur. Les autres références réapparaîtront après le paiement ou lorsque vous viderez le panier.
         </p>
       ) : null}
 
