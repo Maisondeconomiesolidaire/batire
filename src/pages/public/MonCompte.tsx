@@ -10,8 +10,11 @@ import {
   HeartHandshake,
   Lock,
   PackageOpen,
+  Phone,
   Plus,
+  ShoppingBag,
   Trash2,
+  Truck,
 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -26,6 +29,7 @@ import { formatDate, formatDateTime } from "../../lib/format";
 import { PAGE_X, type DonationStatus } from "../../lib/constants";
 import { errorMessage } from "../../lib/errors";
 import { cn } from "../../lib/cn";
+import { PICKUP_LOCATIONS } from "../../lib/pickupLocations";
 
 type MyDonation = {
   _id: string;
@@ -46,7 +50,30 @@ type MyDonation = {
   createdAt: number;
 };
 
-type Tab = "infos" | "dons" | "recherches" | "documents";
+type Tab = "infos" | "commandes" | "dons" | "recherches" | "documents";
+
+type MyOrder = {
+  _id: Id<"btOrders">;
+  reference: string;
+  materialTitle: string;
+  quantity: number;
+  unit: string;
+  amountCents: number;
+  pickupFeeCents?: number;
+  pickupLocation?: string;
+  status: "en_attente" | "payee" | "annulee" | "reservee";
+  createdAt: number;
+};
+
+type MyDeliveryRequest = {
+  _id: Id<"btRequests">;
+  reference: string;
+  items: Array<{ title: string; quantity: number; unit: string }>;
+  outcome: "nouveau" | "en_cours" | "gagnee" | "perdue";
+  createdAt: number;
+};
+
+type MyOrderActivity = { orders: MyOrder[]; deliveryRequests: MyDeliveryRequest[] };
 
 /**
  * Documents à connaître avant de déposer un premier lot.
@@ -84,13 +111,16 @@ export function MonCompte() {
   const profile = useQuery(api.batireDons.getMyDonorProfile, {});
   const donations = useQuery(api.batireDons.myDonations, {}) as MyDonation[] | undefined;
   const alerts = useQuery(api.batire.mySearchAlerts, {}) as SearchAlert[] | undefined;
+  const orderActivity = useQuery(api.batire.myOrderActivity, {}) as MyOrderActivity | undefined;
   const removeAlert = useMutation(api.batire.removeSearchAlert);
   const save = useMutation(api.batireDons.saveMyDonorProfile);
 
   const [params, setParams] = useSearchParams();
   const onglet = params.get("onglet");
   const tab: Tab =
-    onglet === "dons"
+    onglet === "commandes"
+      ? "commandes"
+      : onglet === "dons"
       ? "dons"
       : onglet === "recherches"
         ? "recherches"
@@ -209,12 +239,17 @@ export function MonCompte() {
         }}
         items={[
           { key: "infos", label: "Mes informations" },
+          { key: "commandes", label: "Mes commandes" },
           { key: "dons", label: "Mes dons" },
           { key: "recherches", label: "Mes recherches" },
           { key: "documents", label: "Documents" },
         ]}
-        counts={{ dons: donations?.length, recherches: alerts?.length }}
+        counts={{ commandes: orderActivity ? orderActivity.orders.length + orderActivity.deliveryRequests.length : undefined, dons: donations?.length, recherches: alerts?.length }}
       />
+
+      {tab === "commandes" ? (
+        <OrdersPanel activity={orderActivity} />
+      ) : null}
 
       {tab === "documents" ? (
         <section className="mt-6 max-w-3xl space-y-4">
@@ -345,7 +380,7 @@ export function MonCompte() {
             ) : null}
           </div>
         </section>
-      ) : (
+      ) : tab === "dons" ? (
         <section className="mt-6">
           {donations === undefined ? (
             <FullSpinner />
@@ -398,9 +433,87 @@ export function MonCompte() {
             </ul>
           )}
         </section>
-      )}
+      ) : null}
     </div>
   );
+}
+
+function OrdersPanel({ activity }: { activity: MyOrderActivity | undefined }) {
+  if (activity === undefined) return <section className="mt-6"><FullSpinner /></section>;
+  const { orders, deliveryRequests } = activity;
+  if (!orders.length && !deliveryRequests.length) {
+    return (
+      <section className="mt-6">
+        <EmptyState
+          icon={<ShoppingBag className="h-9 w-9" />}
+          title="Aucune commande pour le moment"
+          description="Vos achats, réservations et demandes de livraison apparaîtront ici."
+          action={<Link to="/"><Button variant="outline">Voir le catalogue</Button></Link>}
+        />
+      </section>
+    );
+  }
+
+  return (
+    <section className="mt-6 space-y-8">
+      {orders.length ? (
+        <div>
+          <div className="flex items-center gap-2"><ShoppingBag className="h-5 w-5 text-brand-700" /><h2 className="text-lg font-bold">Mes achats et réservations</h2></div>
+          <ul className="mt-3 divide-y divide-[var(--border)] rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4">
+            {orders.map((order) => {
+              const location = PICKUP_LOCATIONS.find((item) => item.id === order.pickupLocation);
+              const status = orderStatus(order.status);
+              const total = (order.amountCents + (order.pickupFeeCents ?? 0)) / 100;
+              return <li key={order._id} className="py-4 sm:flex sm:items-center sm:justify-between sm:gap-5">
+                <div className="min-w-0">
+                  <p className="font-semibold text-zinc-950">{order.materialTitle}</p>
+                  <p className="mt-1 text-sm text-[var(--muted-foreground)]">{order.reference} · {order.quantity} {order.unit} · {formatDate(order.createdAt)}</p>
+                  {location ? <p className="mt-1 text-sm text-[var(--muted-foreground)]">Retrait : {location.name}</p> : null}
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-3 sm:mt-0 sm:flex-col sm:items-end">
+                  <span className={cn("rounded-full px-2.5 py-1 text-xs font-bold", status.className)}>{status.label}</span>
+                  <span className="text-sm font-semibold text-zinc-950">{total.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</span>
+                </div>
+              </li>;
+            })}
+          </ul>
+        </div>
+      ) : null}
+
+      {deliveryRequests.length ? (
+        <div>
+          <div className="flex items-center gap-2"><Truck className="h-5 w-5 text-brand-700" /><h2 className="text-lg font-bold">Mes demandes de livraison</h2></div>
+          <ul className="mt-3 divide-y divide-[var(--border)] rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4">
+            {deliveryRequests.map((request) => {
+              const outcome = deliveryStatus(request.outcome);
+              return <li key={request._id} className="py-4 sm:flex sm:items-center sm:justify-between sm:gap-5">
+                <div className="min-w-0"><p className="font-semibold text-zinc-950">{request.items.map((item) => item.title).join(", ")}</p><p className="mt-1 text-sm text-[var(--muted-foreground)]">{request.reference} · Demandée le {formatDate(request.createdAt)}</p></div>
+                <span className={cn("mt-3 inline-block rounded-full px-2.5 py-1 text-xs font-bold sm:mt-0", outcome.className)}>{outcome.label}</span>
+              </li>;
+            })}
+          </ul>
+        </div>
+      ) : null}
+
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-brand-200 bg-brand-50/50 p-4 text-sm text-zinc-700">
+        <Phone className="h-5 w-5 shrink-0 text-brand-700" /><span>Une question sur votre commande ?</span><a href="tel:+33375150475" className="font-bold text-brand-700 underline underline-offset-2">03 75 15 04 75</a>
+      </div>
+    </section>
+  );
+}
+
+function orderStatus(status: MyOrder["status"]) {
+  if (status === "payee") return { label: "Payée", className: "bg-emerald-100 text-emerald-800" };
+  if (status === "reservee") return { label: "Réservée · paiement au retrait", className: "bg-blue-100 text-blue-800" };
+  if (status === "annulee") return { label: "Annulée", className: "bg-red-100 text-red-800" };
+  return { label: "Paiement en attente", className: "bg-amber-100 text-amber-800" };
+}
+
+function deliveryStatus(outcome: MyDeliveryRequest["outcome"]) {
+  if (outcome === "en_cours") return { label: "En cours d'étude", className: "bg-blue-100 text-blue-800" };
+  if (outcome === "gagnee") return { label: "Traitée", className: "bg-emerald-100 text-emerald-800" };
+  if (outcome === "perdue") return { label: "Non retenue", className: "bg-red-100 text-red-800" };
+  return { label: "Demande reçue", className: "bg-amber-100 text-amber-800" };
 }
 
 /** Fiche d'un don : ce que le donateur a envoyé, et la réponse de l'équipe. */

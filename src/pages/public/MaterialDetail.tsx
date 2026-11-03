@@ -12,6 +12,7 @@ import {
   Copy,
   Mail,
   MessageCircle,
+  Phone,
   Share2,
   UserRound,
 } from "lucide-react";
@@ -667,6 +668,9 @@ function BuyBlock({
         >
           {stock > 0 ? "Réserver" : upcoming ? "Bientôt disponible" : "Épuisé"}
         </Button>
+        <a href="tel:+33375150475" className="flex items-center justify-center gap-2 text-sm font-semibold text-brand-700 hover:text-brand-900">
+          <Phone className="h-4 w-4" /> Une question sur ce matériau ? 03 75 15 04 75
+        </a>
       </div>
     );
   }

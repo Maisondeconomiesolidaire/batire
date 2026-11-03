@@ -27,6 +27,7 @@ import { PortalButton } from "./components/PortalButton";
 import { AccountMenu } from "./components/public/AccountMenu";
 import { AuthSwitch } from "./components/ui/auth-switch";
 import { ConditionsGenerales, PolitiqueConfidentialite } from "./pages/public/Legal";
+import { Contact } from "./pages/public/Contact";
 import { CartPage, CartReturn } from "./pages/public/CartPage";
 import { useCart } from "./lib/useCart";
 import { CartPopover } from "./components/public/CartPopover";
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="/" element={<BoutiqueRoute />} />
         <Route path="/conditions-generales" element={<ConditionsGenerales />} />
         <Route path="/politique-confidentialite" element={<PolitiqueConfidentialite />} />
+        <Route path="/contact" element={<Contact />} />
         <Route path="/materiau/:id" element={<MaterialDetail />} />
         <Route path="/qr/:reference" element={<QrLanding />} />
         <Route path="/messagerie" element={<Messagerie />} />
@@ -166,6 +168,8 @@ function PublicShell() {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <Link to="/conditions-generales" className="hover:text-brand-700">Conditions générales d’utilisation</Link>
             <Link to="/politique-confidentialite" className="hover:text-brand-700">Politique de confidentialité</Link>
+            <Link to="/contact" className="hover:text-brand-700">Contact</Link>
+            <a href="tel:+33375150475" className="font-semibold text-brand-700 hover:text-brand-900">03 75 15 04 75</a>
             <Link to="/crm" className="hover:text-brand-700">Espace équipe</Link>
           </div>
         </div>

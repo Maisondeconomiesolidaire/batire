@@ -26,16 +26,26 @@ import { btCondition, btMaterialStatus, btUnit } from "./schema";
 
 const PAGE_MATERIAUX = "batire:materiaux";
 const PAGE_DEMANDES = "batire:demandes";
-const OFFICE_FURNITURE_CATEGORY = "Mobilier de bureau";
+/** Toute famille de mobilier est vendue par la Recyclerie. */
+function isRecyclerieFurniture(category: string) {
+  return category.trim().toLocaleLowerCase("fr-FR").startsWith("mobilier");
+}
 
-/** Le mobilier appartient à la filière Recyclerie ; les autres matériaux à Bennes & Pro. */
+/**
+ * Mobilier → compte Stripe Recyclerie. Tout le reste → compte Stripe
+ * MatériauSol / Déchet'Lab, dont la clé est administrée par Bennes Pro.
+ */
 function stripeKeyForCategory(category: string) {
-  if (category === OFFICE_FURNITURE_CATEGORY) return recycappSecretKey();
-  if (!env.BENNESPRO_STRIPE_SECRET_KEY) throw new Error("Paiement en ligne indisponible : BENNESPRO_STRIPE_SECRET_KEY n'est pas configurée côté Convex.");
+  if (isRecyclerieFurniture(category)) return recycappSecretKey();
+  if (!env.BENNESPRO_STRIPE_SECRET_KEY) {
+    throw new ConvexError(
+      "Paiement en ligne indisponible : la clé Stripe MatériauSol / Déchet'Lab n'est pas configurée côté Convex.",
+    );
+  }
   return env.BENNESPRO_STRIPE_SECRET_KEY;
 }
 function stripeProviderForCategory(category: string): "recycapp" | "bennespro" {
-  return category === OFFICE_FURNITURE_CATEGORY ? "recycapp" : "bennespro";
+  return isRecyclerieFurniture(category) ? "recycapp" : "bennespro";
 }
 
 /** Photos et fiche technique signées : un identifiant de stockage ne s'ouvre pas. */
@@ -1153,6 +1163,7 @@ export const startCartCheckout = action({
     const email = args.customer.email.trim().toLowerCase();
     if (!/^\S+@\S+\.\S+$/.test(email) || !args.customer.firstName.trim() || !args.customer.lastName.trim()) throw new ConvexError("Indiquez vos coordonnées complètes.");
     const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new ConvexError("Connectez-vous pour finaliser votre commande.");
     const groups = new Map<"recycapp" | "bennespro", Array<{ materialId: Id<"btMaterials">; quantity: number; category: string; depot?: string }>>();
     for (const item of args.items) {
       const material = await ctx.runQuery(internal.batire.materialForCheckout, { materialId: item.materialId });
@@ -1227,6 +1238,33 @@ export const listOrders = query({
   },
 });
 
+/** Commandes et demandes de livraison visibles par le client qui les a créées. */
+export const myOrderActivity = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return { orders: [], deliveryRequests: [] };
+
+    const [orders, requests] = await Promise.all([
+      ctx.db
+        .query("btOrders")
+        .withIndex("by_user_createdAt", (q) => q.eq("userId", identity.subject))
+        .order("desc")
+        .take(100),
+      ctx.db
+        .query("btRequests")
+        .withIndex("by_user_createdAt", (q) => q.eq("userId", identity.subject))
+        .order("desc")
+        .take(100),
+    ]);
+
+    return {
+      orders,
+      deliveryRequests: requests.filter((request) => request.type === "devis"),
+    };
+  },
+});
+
 /** Tableau de suivi des demandes Bâtire, même colonnes opérationnelles que Recycapp. */
 export const listRequests = query({
   args: {},
@@ -1260,6 +1298,7 @@ export const requestHomeDelivery = mutation({
       items.push({ materialId: material._id, title: material.title, quantity: line.quantity, unit: material.unit });
     }
     const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new ConvexError("Connectez-vous pour demander une livraison.");
     const count = await ctx.db.query("btRequests").take(500);
     const reference = `BTD${String(count.length + 1).padStart(5, "0")}`;
     await ctx.db.insert("btRequests", {
