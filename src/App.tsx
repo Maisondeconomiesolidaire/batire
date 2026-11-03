@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, Navigate, Outlet, Route, Routes, useOutletContext } from "react-router-dom";
-import { ArrowLeft, HeartHandshake, Menu, Radar, Search, ShoppingCart } from "lucide-react";
+import { ArrowLeft, HeartHandshake, Menu, Radar, Search } from "lucide-react";
 import { Boutique } from "./pages/public/Boutique";
 import { MaterialDetail } from "./pages/public/MaterialDetail";
 import { Kiosk } from "./pages/public/Kiosk";
@@ -29,6 +29,7 @@ import { AuthSwitch } from "./components/ui/auth-switch";
 import { ConditionsGenerales, PolitiqueConfidentialite } from "./pages/public/Legal";
 import { CartPage, CartReturn } from "./pages/public/CartPage";
 import { useCart } from "./lib/useCart";
+import { CartPopover } from "./components/public/CartPopover";
 
 export default function App() {
   return (
@@ -128,7 +129,7 @@ function PublicShell() {
           </div>
 
           <div className="ml-auto flex shrink-0 items-center gap-2 sm:ml-0">
-            <Link to="/panier" className="relative rounded-xl border border-[var(--border)] p-2.5 text-[var(--foreground)] hover:text-brand-700" aria-label="Voir mon panier"><ShoppingCart className="h-4 w-4" />{cart.items.length > 0 ? <span className="absolute -right-1 -top-1 rounded-full bg-brand-600 px-1.5 text-[10px] font-bold text-white">{cart.items.length}</span> : null}</Link>
+            <CartPopover />
             <PortalButton className="rounded-xl border border-[var(--border)] px-2.5 py-2 text-sm text-[var(--foreground)] hover:border-brand-300 hover:text-brand-700 xl:px-3" />
             <Link
               to="/don/nouveau"
