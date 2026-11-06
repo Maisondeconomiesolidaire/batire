@@ -10,7 +10,7 @@ export type PickupTrackingData = {
 export const PICKUP_STATUS: Record<string, string> = {
   payment: "En attente de paiement",
   waiting: "En attente de planification",
-  scheduled: "Navette planifiée",
+  scheduled: "Date programmée",
   transit: "En cours de transfert",
   preparing: "En préparation au point de retrait",
   ready: "Prêt à retirer",
