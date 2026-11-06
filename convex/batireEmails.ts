@@ -251,7 +251,7 @@ export const sendOrderReceipt = internalAction({
       heading: "Merci pour votre commande",
       intro:
         `Bonjour ${esc(args.firstName)},<br/><br/>` +
-        `Votre paiement est confirmé. Votre commande <strong>${esc(args.reference)}</strong> vous attend au dépôt.`,
+        `Votre paiement est confirmé pour cet article de la commande <strong>${esc(args.reference)}</strong>. Attendez la notification « Prêt à retirer » avant de vous déplacer. Chaque retrait est suivi séparément dans votre espace client.`,
       contentHtml:
         `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 22px;border-collapse:collapse;font-family:Helvetica,Arial,sans-serif;font-size:14px;color:#3f3f46;">
           <tr><td style="padding:10px 0;border-bottom:1px solid #f1e9dd;">${esc(args.title)}</td>
@@ -401,5 +401,25 @@ export const sendDonorWelcome = internalAction({
     });
 
     await resendSend(args.to, "Bienvenue sur BâtiRe — votre compte est créé", html, FROM);
+  },
+});
+
+
+export const sendPickupReady = internalAction({
+  args: { to: v.string(), reference: v.string(), title: v.string(), quantity: v.number(), unit: v.string(), location: v.object({ name: v.string(), address: v.string() }), hours: v.string() },
+  handler: async (_ctx, args) => {
+    await resendSend(args.to, `Retrait ${args.reference} prêt à retirer`, shell({ preheader: "Votre retrait est disponible.", heading: "Votre retrait est prêt", intro: `Le retrait <strong>${esc(args.reference)}</strong> est disponible.`, contentHtml: note(args.title, `${args.quantity} ${args.unit}`) + note(args.location.name, `${args.location.address}\nHoraires : ${args.hours}`) + button(`${appUrl()}/mon-compte`, "Voir mes retraits") }), FROM);
+  },
+});
+
+export const sendOfflineCartConfirmation = internalAction({
+  args: { to: v.string(), reference: v.string(), paymentMethod: v.union(v.literal("cash"), v.literal("bank_transfer")), amountCents: v.number() },
+  handler: async (_ctx, args) => {
+    const transfer = args.paymentMethod === "bank_transfer";
+    const amount = (args.amountCents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+    const instructions = transfer
+      ? `Coordonnées bancaires à confirmer : titulaire [À RENSEIGNER] · IBAN [À RENSEIGNER] · BIC [À RENSEIGNER]. Ne procédez pas au virement avant réception des coordonnées définitives. Référence à rappeler : ${args.reference}.`
+      : "Le paiement en espèces sera effectué au point de retrait. Attendez la confirmation que votre retrait est prêt avant de vous déplacer.";
+    await resendSend(args.to, `Demande ${args.reference} enregistrée`, shell({ preheader: "Votre demande a été enregistrée.", heading: "Votre demande est enregistrée", intro: `Votre demande <strong>${esc(args.reference)}</strong> de ${esc(amount)} est en attente de paiement.`, contentHtml: note(transfer ? "Virement bancaire" : "Paiement en espèces", instructions) + button(`${appUrl()}/mon-compte?onglet=commandes`, "Suivre ma commande") }), FROM);
   },
 });

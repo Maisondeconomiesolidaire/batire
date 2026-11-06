@@ -1,3 +1,4 @@
+import { PickupOrderDetail, PickupTracking, type PickupTrackingData } from "../../components/public/PickupTracking";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useUser } from "@clerk/clerk-react";
@@ -57,9 +58,14 @@ type MyDonation = {
   createdAt: number;
 };
 
-type Tab = "infos" | "commandes" | "dons" | "recherches" | "documents";
+type Tab = "infos" | "commandes" | "donateur" | "recherches" | "documents";
 
 type MyOrder = {
+  paymentMethod?: "card" | "cash" | "bank_transfer";
+  purchaseReference?: string;
+  pickupReference?: string;
+  pickupHours?: string;
+  fulfillment?: PickupTrackingData;
   _id: Id<"btOrders">;
   reference: string;
   materialId: Id<"btMaterials">;
@@ -137,8 +143,8 @@ export function MonCompte() {
   const tab: Tab =
     onglet === "commandes"
       ? "commandes"
-      : onglet === "dons"
-        ? "dons"
+      : onglet === "dons" || onglet === "donateur"
+        ? "donateur"
         : onglet === "recherches"
           ? "recherches"
           : onglet === "documents"
@@ -151,6 +157,8 @@ export function MonCompte() {
     setParams(updated, { replace: true });
   };
   const [openId, setOpenId] = useState<string | null>(null);
+  const [donorTab, setDonorTab] = useState<"profil" | "dons">(onglet === "dons" ? "dons" : "profil");
+  const [customerType, setCustomerType] = useState<"particulier" | "professionnel" | "collectivite">("particulier");
   const [donor, setDonor] = useState<DonorForm>(EMPTY_DONOR);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -158,6 +166,7 @@ export function MonCompte() {
 
   useEffect(() => {
     if (!profile) return;
+    setCustomerType(profile.customerType);
     setDonor({
       company: profile.company,
       siret: profile.siret,
@@ -189,6 +198,7 @@ export function MonCompte() {
     setError(null);
     try {
       await save({
+        customerType,
         company: donor.company,
         siret: donor.siret,
         apeCode: donor.apeCode,
@@ -267,21 +277,22 @@ export function MonCompte() {
         items={[
           { key: "infos", label: "Mes informations" },
           { key: "commandes", label: "Mes commandes" },
-          { key: "dons", label: "Mes dons" },
+          { key: "donateur", label: "Donateur" },
           { key: "recherches", label: "Mes recherches" },
           { key: "documents", label: "Documents" },
         ]}
         counts={{
           commandes: orderActivity
-            ? orderActivity.orders.length +
+            ? new Set(orderActivity.orders.map((order) => order.purchaseReference ?? order._id)).size +
               orderActivity.deliveryRequests.length
             : undefined,
-          dons: donations?.length,
+          donateur: donations?.length,
           recherches: alerts?.length,
         }}
       />
 
       {tab === "commandes" ? <OrdersPanel activity={orderActivity} /> : null}
+      {tab === "donateur" && <UnderlineTabs className="mt-4" value={donorTab} onChange={setDonorTab} items={[{ key: "profil", label: "Informations donateur" }, { key: "dons", label: "Mes dons" }]} counts={{ dons: donations?.length }} />}
 
       {tab === "documents" ? (
         <section className="mt-6 max-w-3xl space-y-4">
@@ -412,13 +423,18 @@ export function MonCompte() {
             </>
           )}
         </section>
-      ) : tab === "infos" ? (
+      ) : tab === "infos" || (tab === "donateur" && donorTab === "profil") ? (
         <section className="mt-6 max-w-3xl space-y-5">
           <p className="text-sm text-[var(--muted-foreground)]">
             Ces informations remplissent le formulaire d'achat et chaque
             proposition de don.
           </p>
-          <DonorFieldset donor={donor} set={set} patch={patch} />
+          {tab === "infos" && <fieldset className="space-y-3"><legend className="font-semibold">Vous êtes</legend>{([
+            ["particulier", "Particulier", "Paiement par carte"],
+            ["professionnel", "Professionnel / entreprise", "Carte ou espèces au retrait"],
+            ["collectivite", "Collectivité / PP / Assos", "Carte, espèces au retrait ou virement"],
+          ] as const).map(([value, label, description]) => <label key={value} className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--border)] p-3"><input type="radio" name="customerType" checked={customerType === value} onChange={() => { setCustomerType(value); setSaved(false); }} /><span><strong className="block text-sm">{label}</strong><span className="text-xs text-[var(--muted-foreground)]">{description}</span></span></label>)}</fieldset>}
+          <DonorFieldset donor={donor} set={set} patch={patch} showProfiles={tab === "donateur"} />
           {error ? (
             <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
               {error}
@@ -435,7 +451,7 @@ export function MonCompte() {
             ) : null}
           </div>
         </section>
-      ) : tab === "dons" ? (
+      ) : tab === "donateur" && donorTab === "dons" ? (
         <section className="mt-6">
           {donations === undefined ? (
             <FullSpinner />
@@ -517,6 +533,7 @@ function OrdersPanel({ activity }: { activity: MyOrderActivity | undefined }) {
       ? deliveryRequests.find((request) => String(request._id) === selected.id)
       : undefined;
 
+  if (selectedOrder?.purchaseReference) return <PickupOrderDetail lines={orders.filter(order => order.purchaseReference === selectedOrder.purchaseReference)} onBack={() => setSelected(null)} />;
   if (selectedOrder)
     return (
       <OrderDetail order={selectedOrder} onBack={() => setSelected(null)} />
@@ -555,12 +572,14 @@ function OrdersPanel({ activity }: { activity: MyOrderActivity | undefined }) {
             <h2 className="text-lg font-bold">Mes achats et réservations</h2>
           </div>
           <ul className="mt-3 divide-y divide-[var(--border)] rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4">
-            {orders.map((order) => {
+            {orders.filter((order, index) => !order.purchaseReference || orders.findIndex(other => other.purchaseReference === order.purchaseReference) === index).map((order) => {
+              const group = order.purchaseReference ? orders.filter(other => other.purchaseReference === order.purchaseReference) : [order];
+              const ready = group.filter(line => line.fulfillment?.status === "ready").length;
               const location = PICKUP_LOCATIONS.find(
                 (item) => item.id === order.pickupLocation,
               );
               const status = orderStatus(order.status);
-              const total = order.amountCents / 100;
+              const total = group.reduce((sum, line) => sum + line.amountCents, 0) / 100;
               return (
                 <li key={order._id}>
                   <button
@@ -575,13 +594,13 @@ function OrdersPanel({ activity }: { activity: MyOrderActivity | undefined }) {
                     </span>
                     <div className="min-w-0">
                       <p className="font-semibold text-zinc-950">
-                        {order.materialTitle}
+                        {order.purchaseReference ? `Commande ${order.purchaseReference} · ${ready} retrait${ready > 1 ? "s" : ""} disponible${ready > 1 ? "s" : ""} sur ${group.length}` : order.materialTitle}
                       </p>
                       <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                        {order.reference} · {order.quantity} {order.unit} ·{" "}
+                        {order.purchaseReference ? `${group.length} retraits` : `${order.reference} · ${order.quantity} ${order.unit}`} ·{" "}
                         {formatDate(order.createdAt)}
                       </p>
-                      {location ? (
+                      {location && !order.purchaseReference ? (
                         <p className="mt-1 text-sm text-[var(--muted-foreground)]">
                           Retrait : {location.name}
                         </p>
@@ -797,6 +816,7 @@ function OrderDetail({
           <MapPin className="h-5 w-5 text-brand-700" />
           <p className="font-semibold text-zinc-950">Retrait</p>
         </div>
+        {order.fulfillment && <PickupTracking tracking={order.fulfillment} quantity={order.quantity} unit={order.unit} />}
         {location ? (
           <>
             <p className="mt-3 font-medium">{location.name}</p>

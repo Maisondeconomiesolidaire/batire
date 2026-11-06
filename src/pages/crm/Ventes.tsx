@@ -1,4 +1,7 @@
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
+import { useState } from "react";
+import type { Id } from "../../../convex/_generated/dataModel";
+import { canAccess, useAccess } from "../../lib/access";
 import { Receipt } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { FullSpinner } from "../../components/ui/Spinner";
@@ -23,6 +26,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 export function Ventes() {
   const orders = useQuery(api.batire.listOrders, {});
+  const access = useAccess();
 
   return (
     <div className="space-y-5">
@@ -56,7 +60,7 @@ export function Ventes() {
             <tbody className="divide-y divide-[var(--border)]">
               {orders.map((order) => (
                 <tr key={order._id} className="bg-[var(--card)]">
-                  <td className="px-4 py-3 font-mono text-xs">{order.reference}</td>
+                  <td className="px-4 py-3 font-mono text-xs">{order.pickupReference ?? order.reference}</td>
                   <td className="px-4 py-3 font-medium">{order.materialTitle}</td>
                   <td className="px-4 py-3 text-[var(--muted-foreground)]">
                     {formatStock(order.quantity, order.unit)}
@@ -83,6 +87,7 @@ export function Ventes() {
                     <Pill className={STATUS_TONES[order.status] ?? ""}>
                       {STATUS_LABELS[order.status] ?? order.status}
                     </Pill>
+                    {order.paymentMethod && order.paymentMethod !== "card" && <div className="mt-2 text-xs">{order.paymentMethod === "cash" ? "Espèces au retrait" : "Virement"}{canAccess(access, "batire:demandes", "update") && ["reservee", "en_attente"].includes(order.status) && <ConfirmPayment orderId={order._id} />}</div>}
                   </td>
                   <td className="px-4 py-3 text-[var(--muted-foreground)]">
                     {formatDateTime(order.paidAt ?? order.createdAt)}
@@ -95,4 +100,15 @@ export function Ventes() {
       )}
     </div>
   );
+}
+
+function ConfirmPayment({ orderId }: { orderId: Id<"btOrders"> }) {
+  const confirm = useMutation(api.batire.confirmOfflinePayment);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function submit() {
+    setBusy(true); setError("");
+    try { await confirm({ orderId }); } catch (caught) { setError(caught instanceof Error ? caught.message : "Confirmation impossible."); } finally { setBusy(false); }
+  }
+  return <div className="mt-2"><button type="button" disabled={busy} className="font-semibold text-brand-700 underline disabled:opacity-50" onClick={() => void submit()}>{busy ? "Enregistrement…" : "Confirmer l’encaissement de ce retrait"}</button>{error && <p role="alert" className="mt-1 text-red-600">{error}</p>}</div>;
 }

@@ -41,7 +41,7 @@ import { AddressAutocomplete } from "../../components/ui/AddressAutocomplete";
 import { cn } from "../../lib/cn";
 import { errorMessage } from "../../lib/errors";
 import { searchAddresses } from "../../lib/address";
-import { distanceInKm, PICKUP_LOCATIONS, type PickupLocationId } from "../../lib/pickupLocations";
+import { distanceInKm, PICKUP_LOCATIONS, storageLocationId, type PickupLocationId } from "../../lib/pickupLocations";
 import { useCart, vendorForCategory } from "../../lib/useCart";
 
 export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
@@ -253,6 +253,7 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
                     category={material.category}
                     unit={material.unit}
                     price={material.price}
+                    depot={material.depot}
                     stock={material.quantity}
                     upcoming={upcoming}
                   />
@@ -459,6 +460,7 @@ function BuyBlock({
   category,
   unit,
   price,
+  depot,
   stock,
   upcoming = false,
 }: {
@@ -466,6 +468,7 @@ function BuyBlock({
   category: string;
   unit: Unit;
   price: number;
+  depot?: string;
   stock: number;
   /** Lot annoncé mais pas encore ouvert à la vente. */
   upcoming?: boolean;
@@ -661,13 +664,13 @@ function BuyBlock({
           Ajouter au panier
         </Button>
         {cartNotice ? <p className={`rounded-xl px-3 py-2 text-sm ${cartNotice.startsWith("Votre") ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-800"}`}>{cartNotice}</p> : null}
-        <Button
+        {isSignedIn && donorProfile?.customerType && donorProfile.customerType !== "particulier" && <Button
           className="w-full"
           onClick={() => setOpen(true)}
           disabled={stock <= 0 || quantity <= 0 || quantity > stock}
         >
-          {stock > 0 ? "Réserver" : upcoming ? "Bientôt disponible" : "Épuisé"}
-        </Button>
+          {stock > 0 ? "Réserver · espèces au retrait" : upcoming ? "Bientôt disponible" : "Épuisé"}
+        </Button>}
         <a href="tel:+33375150475" className="flex items-center justify-center gap-2 text-sm font-semibold text-brand-700 hover:text-brand-900">
           <Phone className="h-4 w-4" /> Une question ? 03 75 15 04 75
         </a>
@@ -754,6 +757,7 @@ function BuyBlock({
         </div>
       </div>
 
+      {pickupLocation && <p className="rounded-xl bg-[var(--muted)] p-3 text-sm">{!storageLocationId(depot) ? "Le dépôt de stockage doit être confirmé par l’équipe." : storageLocationId(depot) === pickupLocation ? "Matériau déjà sur place : retrait gratuit." : "Transfert nécessaire : supplément de 35 € pour cette réservation."}</p>}
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       <div className="flex justify-end gap-2">
@@ -770,6 +774,7 @@ function BuyBlock({
             !form.address ||
             !customerCoordinates ||
             !pickupLocation ||
+            !storageLocationId(depot) ||
             quantity <= 0 ||
             quantity > stock
           }

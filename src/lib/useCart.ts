@@ -1,8 +1,9 @@
 import { useCallback, useSyncExternalStore } from "react";
 import type { Id } from "../../convex/_generated/dataModel";
+import type { PickupLocationId } from "./pickupLocations";
 
 export type CartVendor = "recyclerie" | "dechetlab";
-export type CartItem = { materialId: Id<"btMaterials">; quantity: number; vendor?: CartVendor };
+export type CartItem = { materialId: Id<"btMaterials">; quantity: number; vendor?: CartVendor; pickupLocation?: PickupLocationId };
 const KEY = "batire-cart-v1";
 export function vendorForCategory(category: string): CartVendor {
   return category.trim().toLocaleLowerCase("fr-FR").startsWith("mobilier") ? "recyclerie" : "dechetlab";
@@ -42,5 +43,6 @@ export function useCart() {
   const remove = useCallback((materialId: Id<"btMaterials">) => write(read().filter((item) => item.materialId !== materialId)), []);
   const update = useCallback((materialId: Id<"btMaterials">, quantity: number) => write(read().map((item) => item.materialId === materialId ? { ...item, quantity } : item).filter((item) => item.quantity > 0)), []);
   const clear = useCallback(() => write([]), []);
-  return { items, activeVendor, add, hasOtherVendor, remove, update, clear };
+  const setPickupLocation = useCallback((materialId: Id<"btMaterials">, pickupLocation: PickupLocationId) => write(read().map(item => item.materialId === materialId ? { ...item, pickupLocation } : item)), []);
+  return { items, activeVendor, add, hasOtherVendor, remove, update, clear, setPickupLocation };
 }

@@ -46,18 +46,20 @@ export function DonorFieldset({
   set,
   patch,
   showSiret = true,
+  showProfiles = true,
 }: {
   donor: DonorForm;
   set: <K extends keyof DonorForm>(key: K, value: DonorForm[K]) => void;
   /** Une adresse choisie remplit rue, code postal et ville d'un seul coup. */
   patch: (values: Partial<DonorForm>) => void;
   showSiret?: boolean;
+  showProfiles?: boolean;
 }) {
   const phoneInvalid = donor.phone.trim().length > 0 && !isFrPhone(donor.phone);
 
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      <div className="sm:col-span-2">
+      {showProfiles && <div className="sm:col-span-2">
         <Field label="Type de donateur" hint="plusieurs choix possibles">
           <MultiPicker
             values={donor.profiles}
@@ -66,7 +68,7 @@ export function DonorFieldset({
             emptyLabel="Aucun type de donateur"
           />
         </Field>
-      </div>
+      </div>}
       <Field label="Entreprise">
         <Input
           value={donor.company}
