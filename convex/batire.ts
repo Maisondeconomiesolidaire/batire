@@ -1370,6 +1370,17 @@ export const updateRequestOutcome = mutation({
   },
 });
 
+/** Le suivi d'un article ne modifie pas les autres lignes ni le statut global. */
+export const updateRequestItemOutcome = mutation({
+  args: { id: v.id("btRequests"), index: v.number(), outcome: v.union(v.literal("nouveau"), v.literal("en_cours"), v.literal("gagnee"), v.literal("perdue")) },
+  handler: async (ctx, { id, index, outcome }) => {
+    await requireCrmPermission(ctx, PAGE_DEMANDES, "update");
+    const request = await ctx.db.get(id);
+    if (!request || !Number.isInteger(index) || index < 0 || index >= request.items.length) throw new ConvexError("Article introuvable dans cette demande.");
+    await ctx.db.patch(id, { items: request.items.map((item, itemIndex) => itemIndex === index ? { ...item, outcome } : item), updatedAt: Date.now() });
+  },
+});
+
 /** La livraison est chiffrée par l'équipe : elle ouvre donc une demande, jamais un paiement estimé. */
 export const requestHomeDelivery = mutation({
   args: {
@@ -3285,7 +3296,7 @@ export const pickupOperations = query({
     await requireCrmPermission(ctx, PAGE_DEMANDES, "read");
     const orders = await ctx.db.query("btOrders").order("desc").take(300);
     return {
-      orders: (await Promise.all(orders.filter(o => o.pickupLocation && ["payee", "reservee"].includes(o.status)).map(async order => ({ ...order, fulfillment: await pickupTracking(ctx, order) })))).filter(order => ["preparing", "ready", "collected"].includes(order.fulfillment.status)),
+      orders: await Promise.all(orders.filter(o => o.pickupLocation && (["payee", "reservee"].includes(o.status) || (o.status === "en_attente" && o.paymentMethod === "bank_transfer"))).map(async order => ({ ...order, fulfillment: await pickupTracking(ctx, order) }))),
     };
   },
 });

@@ -146,7 +146,7 @@ export function NouveauDon() {
         pickupPostalCode: lot.pickupPostalCode || undefined,
         pickupCity: lot.pickupCity || undefined,
         donor: {
-          company: donor.company || undefined,
+          company: (profile?.customerType ?? "particulier") === "particulier" ? undefined : donor.company || undefined,
           firstName: donor.firstName,
           lastName: donor.lastName,
           phone: donor.phone || undefined,
@@ -447,7 +447,7 @@ export function NouveauDon() {
                 Modifier ma fiche
               </Link>
             </div>
-            <DonorFieldset donor={donor} set={setDonorField} patch={patchDonor} showSiret={false} />
+            <DonorFieldset donor={donor} set={setDonorField} patch={patchDonor} customerType={profile?.customerType ?? "particulier"} showSiret={false} />
           </section>
         </div>
 
@@ -476,7 +476,7 @@ export function NouveauDon() {
               <Row
                 label="Donateur"
                 value={
-                  [donor.company, `${donor.firstName} ${donor.lastName}`.trim()]
+                  [(profile?.customerType ?? "particulier") === "particulier" ? "" : donor.company, `${donor.firstName} ${donor.lastName}`.trim()]
                     .filter(Boolean)
                     .join(" · ") || "—"
                 }

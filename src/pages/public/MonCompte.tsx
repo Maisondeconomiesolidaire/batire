@@ -1,5 +1,5 @@
 import { PickupOrderDetail, PickupTracking, type PickupTrackingData } from "../../components/public/PickupTracking";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useUser } from "@clerk/clerk-react";
 import { useMutation, useQuery } from "convex/react";
@@ -163,9 +163,10 @@ export function MonCompte() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const editingProfile = useRef(false);
 
   useEffect(() => {
-    if (!profile) return;
+    if (!profile || editingProfile.current) return;
     setCustomerType(profile.customerType);
     setDonor({
       company: profile.company,
@@ -183,12 +184,14 @@ export function MonCompte() {
   }, [profile]);
 
   const set = <K extends keyof DonorForm>(key: K, value: DonorForm[K]) => {
+    editingProfile.current = true;
     setSaved(false);
     setDonor((current) => ({ ...current, [key]: value }));
   };
   const selected =
     donations?.find((donation) => donation._id === openId) ?? null;
   const patch = (values: Partial<DonorForm>) => {
+    editingProfile.current = true;
     setSaved(false);
     setDonor((current) => ({ ...current, ...values }));
   };
@@ -210,6 +213,7 @@ export function MonCompte() {
         postalCode: donor.postalCode,
         city: donor.city,
       });
+      editingProfile.current = false;
       setSaved(true);
     } catch (caught) {
       setError(errorMessage(caught, "Enregistrement impossible."));
@@ -433,7 +437,7 @@ export function MonCompte() {
             ["particulier", "Particulier", "Paiement par carte"],
             ["professionnel", "Professionnel / entreprise", "Carte ou espèces au retrait"],
             ["collectivite", "Collectivité / PP / Assos", "Carte, espèces au retrait ou virement"],
-          ] as const).map(([value, label, description]) => <label key={value} className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--border)] p-3"><input type="radio" name="customerType" checked={customerType === value} onChange={() => { setCustomerType(value); setSaved(false); }} /><span><strong className="block text-sm">{label}</strong><span className="text-xs text-[var(--muted-foreground)]">{description}</span></span></label>)}</fieldset>}
+          ] as const).map(([value, label, description]) => <label key={value} className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--border)] p-3"><input type="radio" name="customerType" checked={customerType === value} onChange={() => { editingProfile.current = true; setCustomerType(value); setSaved(false); }} /><span><strong className="block text-sm">{label}</strong><span className="text-xs text-[var(--muted-foreground)]">{description}</span></span></label>)}</fieldset>}
           <DonorFieldset donor={donor} set={set} patch={patch} customerType={customerType} showProfiles={tab === "donateur"} />
           {error ? (
             <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
