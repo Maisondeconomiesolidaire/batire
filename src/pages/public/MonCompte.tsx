@@ -249,7 +249,7 @@ export function MonCompte() {
             Espace client
           </p>
           <h1 className="mt-1.5 truncate text-3xl font-black tracking-tight sm:text-4xl">
-            {donor.company.trim() || user?.fullName || "Mon espace"}
+            {(customerType !== "particulier" && donor.company.trim()) || user?.fullName || "Mon espace"}
           </h1>
           <p className="mt-1 text-sm text-[var(--muted-foreground)]">
             {[
@@ -434,7 +434,7 @@ export function MonCompte() {
             ["professionnel", "Professionnel / entreprise", "Carte ou espèces au retrait"],
             ["collectivite", "Collectivité / PP / Assos", "Carte, espèces au retrait ou virement"],
           ] as const).map(([value, label, description]) => <label key={value} className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--border)] p-3"><input type="radio" name="customerType" checked={customerType === value} onChange={() => { setCustomerType(value); setSaved(false); }} /><span><strong className="block text-sm">{label}</strong><span className="text-xs text-[var(--muted-foreground)]">{description}</span></span></label>)}</fieldset>}
-          <DonorFieldset donor={donor} set={set} patch={patch} showProfiles={tab === "donateur"} />
+          <DonorFieldset donor={donor} set={set} patch={patch} customerType={customerType} showProfiles={tab === "donateur"} />
           {error ? (
             <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
               {error}

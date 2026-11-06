@@ -47,6 +47,7 @@ export function DonorFieldset({
   patch,
   showSiret = true,
   showProfiles = true,
+  customerType,
 }: {
   donor: DonorForm;
   set: <K extends keyof DonorForm>(key: K, value: DonorForm[K]) => void;
@@ -54,6 +55,8 @@ export function DonorFieldset({
   patch: (values: Partial<DonorForm>) => void;
   showSiret?: boolean;
   showProfiles?: boolean;
+  /** When supplied by the account page, show only fields for this client type. */
+  customerType?: "particulier" | "professionnel" | "collectivite";
 }) {
   const phoneInvalid = donor.phone.trim().length > 0 && !isFrPhone(donor.phone);
 
@@ -69,14 +72,14 @@ export function DonorFieldset({
           />
         </Field>
       </div>}
-      <Field label="Entreprise">
+      {customerType !== "particulier" && <Field label={customerType === "collectivite" ? "Nom de l’association, collectivité ou organisme" : "Nom de l’entreprise"}>
         <Input
           value={donor.company}
           onChange={(event) => set("company", event.target.value)}
-          placeholder="Bâti Nord"
+          placeholder={customerType === "collectivite" ? "Nom de votre structure" : "Bâti Nord"}
         />
-      </Field>
-      {showSiret ? (
+      </Field>}
+      {showSiret && customerType !== "particulier" && customerType !== "collectivite" ? (
         <>
           <Field label="SIRET">
             <Input
