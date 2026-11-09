@@ -4,7 +4,7 @@ import { useQuery } from "convex/react";
 import { Minus, PackageOpen, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { formatPrice } from "../../lib/format";
-import { useCart } from "../../lib/useCart";
+import { OPEN_CART_EVENT, useCart } from "../../lib/useCart";
 import type { Id } from "../../../convex/_generated/dataModel";
 import type { PublicMaterial } from "./MaterialCard";
 
@@ -21,6 +21,13 @@ export function CartPopover() {
     return item ? [{ material, quantity: item.quantity }] : [];
   });
   const subtotal = lines.reduce((total, { material, quantity }) => total + material.price * quantity, 0);
+
+  // Un ajout au panier depuis une fiche ouvre l'aperçu.
+  useEffect(() => {
+    const openPreview = () => setOpen(true);
+    window.addEventListener(OPEN_CART_EVENT, openPreview);
+    return () => window.removeEventListener(OPEN_CART_EVENT, openPreview);
+  }, []);
 
   useEffect(() => {
     if (!open) return;

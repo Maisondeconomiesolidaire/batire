@@ -21,8 +21,6 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { FullSpinner } from "../../components/ui/Spinner";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Button } from "../../components/ui/Button";
-import { Field, Input } from "../../components/ui/Field";
-import { PhoneInput, formatFrPhone } from "../../components/ui/PhoneInput";
 import {
   formatDate,
   formatDimensions,
@@ -37,12 +35,9 @@ import {
   MaterialCard,
   type PublicMaterial,
 } from "../../components/public/MaterialCard";
-import { AddressAutocomplete } from "../../components/ui/AddressAutocomplete";
 import { cn } from "../../lib/cn";
 import { errorMessage } from "../../lib/errors";
-import { searchAddresses } from "../../lib/address";
-import { distanceInKm, PICKUP_LOCATIONS, storageLocationId, type PickupLocationId } from "../../lib/pickupLocations";
-import { useCart, vendorForCategory } from "../../lib/useCart";
+import { openCartPreview, useCart, vendorForCategory } from "../../lib/useCart";
 
 export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
   const { activeVendor } = useCart();
@@ -460,7 +455,6 @@ function BuyBlock({
   category,
   unit,
   price,
-  depot,
   stock,
   upcoming = false,
 }: {
@@ -473,78 +467,12 @@ function BuyBlock({
   /** Lot annoncé mais pas encore ouvert à la vente. */
   upcoming?: boolean;
 }) {
-  const reserveMaterial = useMutation(api.batire.reserveMaterial);
   const cart = useCart();
-  const { isSignedIn } = useUser();
-  // La fiche donateur de l'espace client remplit le formulaire d'achat : le
-  // client connecté ne ressaisit pas des coordonnées déjà connues.
-  const donorProfile = useQuery(api.batireDons.getMyDonorProfile, isSignedIn ? {} : "skip");
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [cartNotice, setCartNotice] = useState<string | null>(null);
-  const [reference, setReference] = useState<string | null>(null);
-  const [pickupLocation, setPickupLocation] = useState<PickupLocationId | null>(null);
-  const [customerCoordinates, setCustomerCoordinates] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
-  const [form, setForm] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    phone: "",
-    company: "",
-    address: "",
-    postalCode: "",
-    city: "",
-    quantity: "1",
-  });
-
-  // Sans écraser une saisie en cours : le préremplissage aide, il ne corrige
-  // pas ce que le client vient de taper.
-  useEffect(() => {
-    if (!donorProfile) return;
-    setForm((current) => ({
-      ...current,
-      firstName: current.firstName || donorProfile.firstName,
-      lastName: current.lastName || donorProfile.lastName,
-      email: current.email || donorProfile.email,
-      phone: current.phone || formatFrPhone(donorProfile.phone),
-      company: current.company || donorProfile.company,
-      address: current.address || donorProfile.address,
-      postalCode: current.postalCode || donorProfile.postalCode,
-      city: current.city || donorProfile.city,
-    }));
-  }, [donorProfile]);
-
-  const set = (key: keyof typeof form) => (value: string) =>
-    setForm((current) => ({ ...current, [key]: value }));
-
-  // Une adresse de profil est déjà connue sous forme de texte : on la géocode
-  // ici aussi, pour afficher les distances sans forcer le client à la ressaisir.
-  useEffect(() => {
-    const address = [form.address, form.postalCode, form.city].filter(Boolean).join(" ");
-    if (address.length < 3) {
-      setCustomerCoordinates(null);
-      return;
-    }
-    let cancelled = false;
-    void searchAddresses(address).then(([match]) => {
-      if (!cancelled) {
-        setCustomerCoordinates(
-          match ? { latitude: match.latitude, longitude: match.longitude } : null,
-        );
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [form.address, form.postalCode, form.city]);
-
+  const [quantityText, setQuantityText] = useState("1");
   const [capped, setCapped] = useState(false);
 
-  const quantity = Number(form.quantity.replace(",", ".")) || 0;
+  const quantity = Number(quantityText.replace(",", ".")) || 0;
   const vendor = vendorForCategory(category);
   const vendorName = vendor === "recyclerie" ? "la Recyclerie" : "Déchet’Lab / MatériauSol";
   const total = quantity > 0 ? quantity * price : 0;
@@ -553,7 +481,7 @@ function BuyBlock({
 
   /**
    * La saisie est bornée au stock : plutôt que d'accepter un nombre qu'on
-   * refuserait au moment de réserver, on le ramène au maximum disponible et on
+   * refuserait au moment du paiement, on le ramène au maximum disponible et on
    * le dit.
    */
   function setQuantity(raw: string) {
@@ -561,227 +489,80 @@ function BuyBlock({
     const parsed = Number(cleaned.replace(",", "."));
     if (Number.isFinite(parsed) && parsed > stock) {
       setCapped(true);
-      set("quantity")(String(round(stock)));
+      setQuantityText(String(round(stock)));
       return;
     }
     setCapped(false);
-    set("quantity")(cleaned);
+    setQuantityText(cleaned);
   }
 
-  async function reserve() {
-    setSaving(true);
-    setError(null);
-    try {
-      const result = await reserveMaterial({
-        materialId,
-        quantity,
-        customer: {
-          firstName: form.firstName,
-          lastName: form.lastName,
-          email: form.email,
-          phone: form.phone || undefined,
-          company: form.company || undefined,
-        },
-        pickupLocation: pickupLocation!,
-      });
-      setReference(result.reference);
-    } catch (caught) {
-      setError(errorMessage(caught, "Réservation impossible."));
-    } finally {
-      setSaving(false);
+  function addToCart() {
+    if (cart.hasOtherVendor(vendor)) {
+      setCartNotice(`Votre panier contient déjà des articles vendus par ${vendor === "recyclerie" ? "Déchet’Lab / MatériauSol" : "la Recyclerie"}. Cet article est vendu par ${vendorName} et doit être payé séparément : finalisez ce panier avant d’en commencer un autre.`);
+      return;
     }
-  }
-
-  const quantityPicker = (
-    <div className="space-y-2">
-      <p className="text-sm font-medium text-[var(--foreground)]">Quantité</p>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setQuantity(String(Math.max(step, round(quantity - step))))}
-          disabled={quantity <= step}
-          className="h-11 w-11 shrink-0 rounded-xl border border-[var(--border)] text-lg font-bold transition hover:bg-[var(--muted)] disabled:opacity-40"
-          aria-label="Diminuer la quantité"
-        >
-          −
-        </button>
-        {/* L'unité vit dans le champ, à droite du nombre : on lit « 10 tonnes »
-            et non un 10 dont il faudrait deviner ce qu'il compte. */}
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3.5 py-2.5 text-sm transition focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20">
-          <input
-            inputMode="decimal"
-            value={form.quantity}
-            onChange={(event) => setQuantity(event.target.value)}
-            aria-label="Quantité"
-            className="w-full min-w-0 flex-1 bg-transparent text-right font-semibold text-[var(--foreground)] outline-none"
-          />
-          <span className="shrink-0 text-[var(--muted-foreground)]">{unitLabel(quantity, unit)}</span>
-        </div>
-        <button
-          type="button"
-          onClick={() => setQuantity(String(round(Math.min(stock, quantity + step))))}
-          disabled={quantity >= stock}
-          className="h-11 w-11 shrink-0 rounded-xl border border-[var(--border)] text-lg font-bold transition hover:bg-[var(--muted)] disabled:opacity-40"
-          aria-label="Augmenter la quantité"
-        >
-          +
-        </button>
-      </div>
-      <p className="text-xs text-[var(--muted-foreground)]">{formatStock(stock, unit)} en stock</p>
-
-      <div className="flex items-baseline justify-between rounded-xl bg-[var(--muted)] px-3 py-2.5">
-        <span className="text-sm text-[var(--muted-foreground)]">Total</span>
-        <span className="text-lg font-bold text-brand-700">{formatPrice(total)}</span>
-      </div>
-
-      {capped ? (
-        <p className="text-sm text-amber-700">
-          Il ne reste que {formatStock(stock, unit)} : la quantité a été ramenée au maximum.
-        </p>
-      ) : null}
-    </div>
-  );
-
-  if (reference) {
-    const location = PICKUP_LOCATIONS.find((item) => item.id === pickupLocation);
-    return (
-      <div className="space-y-2 rounded-2xl border border-[var(--border)] bg-[var(--muted)] p-4">
-        <p className="font-semibold text-[var(--foreground)]">Réservation enregistrée</p>
-        <p className="text-sm text-[var(--muted-foreground)]">
-          Référence <span className="font-mono font-semibold text-[var(--foreground)]">{reference}</span>.
-          {location ? ` Retrait à ${location.name}, ${location.address}.` : ""} Le règlement se
-          fait sur place ; un email de confirmation vous a été envoyé.
-        </p>
-      </div>
-    );
-  }
-
-  if (!open) {
-    return (
-      <div className="space-y-3">
-        {quantityPicker}
-        <Button variant="outline" className="w-full" onClick={() => { if (cart.hasOtherVendor(vendor)) { setCartNotice(`Votre panier contient déjà des articles vendus par ${vendor === "recyclerie" ? "Déchet’Lab / MatériauSol" : "la Recyclerie"}. Cet article est vendu par ${vendorName} et doit être payé séparément : finalisez ce panier avant d’en commencer un autre.`); return; } cart.add(materialId, quantity, vendor); setCartNotice(`Article ajouté au panier ${vendorName}.`); }} disabled={stock <= 0 || quantity <= 0 || quantity > stock}>
-          Ajouter au panier
-        </Button>
-        {cartNotice ? <p className={`rounded-xl px-3 py-2 text-sm ${cartNotice.startsWith("Votre") ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-800"}`}>{cartNotice}</p> : null}
-        {isSignedIn && donorProfile?.customerType && donorProfile.customerType !== "particulier" && <Button
-          className="w-full"
-          onClick={() => setOpen(true)}
-          disabled={stock <= 0 || quantity <= 0 || quantity > stock}
-        >
-          {stock > 0 ? "Réserver · espèces au retrait" : upcoming ? "Bientôt disponible" : "Épuisé"}
-        </Button>}
-        <a href="tel:+33375150475" className="flex items-center justify-center gap-2 text-sm font-semibold text-brand-700 hover:text-brand-900">
-          <Phone className="h-4 w-4" /> Une question ? 03 75 15 04 75
-        </a>
-      </div>
-    );
+    cart.add(materialId, quantity, vendor);
+    setCartNotice(null);
+    // L'aperçu du panier de l'en-tête s'ouvre : le client voit l'ajout et peut commander.
+    openCartPreview();
   }
 
   return (
     <div className="space-y-3">
-      {quantityPicker}
-      <div className="grid gap-3">
-        <Field label="Prénom" required>
-          <Input value={form.firstName} onChange={(e) => set("firstName")(e.target.value)} />
-        </Field>
-        <Field label="Nom" required>
-          <Input value={form.lastName} onChange={(e) => set("lastName")(e.target.value)} />
-        </Field>
-        <Field label="Email" required>
-          <Input type="email" value={form.email} onChange={(e) => set("email")(e.target.value)} />
-        </Field>
-        <Field label="Téléphone">
-          <PhoneInput value={form.phone} onValueChange={set("phone")} />
-        </Field>
-        <Field label="Entreprise">
-          <Input value={form.company} onChange={(e) => set("company")(e.target.value)} />
-        </Field>
-      </div>
+      <div className="space-y-2">
+        <p className="text-sm font-medium text-[var(--foreground)]">Quantité</p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setQuantity(String(Math.max(step, round(quantity - step))))}
+            disabled={quantity <= step}
+            className="h-11 w-11 shrink-0 rounded-xl border border-[var(--border)] text-lg font-bold transition hover:bg-[var(--muted)] disabled:opacity-40"
+            aria-label="Diminuer la quantité"
+          >
+            −
+          </button>
+          {/* L'unité vit dans le champ, à droite du nombre : on lit « 10 tonnes »
+              et non un 10 dont il faudrait deviner ce qu'il compte. */}
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3.5 py-2.5 text-sm transition focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20">
+            <input
+              inputMode="decimal"
+              value={quantityText}
+              onChange={(event) => setQuantity(event.target.value)}
+              aria-label="Quantité"
+              className="w-full min-w-0 flex-1 bg-transparent text-right font-semibold text-[var(--foreground)] outline-none"
+            />
+            <span className="shrink-0 text-[var(--muted-foreground)]">{unitLabel(quantity, unit)}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setQuantity(String(round(Math.min(stock, quantity + step))))}
+            disabled={quantity >= stock}
+            className="h-11 w-11 shrink-0 rounded-xl border border-[var(--border)] text-lg font-bold transition hover:bg-[var(--muted)] disabled:opacity-40"
+            aria-label="Augmenter la quantité"
+          >
+            +
+          </button>
+        </div>
+        <p className="text-xs text-[var(--muted-foreground)]">{formatStock(stock, unit)} en stock</p>
 
-      <div className="space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--muted)] p-4">
-        <div>
-          <h3 className="font-semibold text-[var(--foreground)]">
-            Où souhaitez-vous récupérer ce produit ?
-          </h3>
-          <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-            Indiquez votre adresse pour comparer les distances.
+        <div className="flex items-baseline justify-between rounded-xl bg-[var(--muted)] px-3 py-2.5">
+          <span className="text-sm text-[var(--muted-foreground)]">Total</span>
+          <span className="text-lg font-bold text-brand-700">{formatPrice(total)}</span>
+        </div>
+
+        {capped ? (
+          <p className="text-sm text-amber-700">
+            Il ne reste que {formatStock(stock, unit)} : la quantité a été ramenée au maximum.
           </p>
-        </div>
-        <Field label="Votre adresse" required>
-          <AddressAutocomplete
-            value={form.address}
-            onValueChange={(value) => {
-              set("address")(value);
-              setCustomerCoordinates(null);
-            }}
-            onSelect={(address) => {
-              setForm((current) => ({
-                ...current,
-                address: address.address,
-                postalCode: address.postalCode,
-                city: address.city,
-              }));
-              setCustomerCoordinates({ latitude: address.latitude, longitude: address.longitude });
-            }}
-            placeholder="12 rue des Ateliers, Beauvais"
-          />
-        </Field>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {PICKUP_LOCATIONS.map((location) => {
-            const distance = customerCoordinates
-              ? distanceInKm(customerCoordinates, location)
-              : null;
-            const selected = pickupLocation === location.id;
-            return (
-              <button
-                key={location.id}
-                type="button"
-                onClick={() => setPickupLocation(location.id)}
-                aria-pressed={selected}
-                className={cn(
-                  "rounded-xl border bg-[var(--card)] p-3 text-left transition hover:border-brand-400",
-                  selected ? "border-brand-600 ring-2 ring-brand-600/20" : "border-[var(--border)]",
-                )}
-              >
-                <p className="font-semibold text-[var(--foreground)]">{location.name}</p>
-                <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{location.address}</p>
-                <p className="mt-2 text-xs font-medium text-brand-700">
-                  {distance === null
-                    ? "Saisissez votre adresse pour voir la distance"
-                    : `${distance.toFixed(1).replace(".", ",")} km de votre adresse`}
-                </p>
-              </button>
-            );
-          })}
-        </div>
+        ) : null}
       </div>
-
-      {pickupLocation && <p className="rounded-xl bg-[var(--muted)] p-3 text-sm">{!storageLocationId(depot) ? "Le dépôt de stockage doit être confirmé par l’équipe." : storageLocationId(depot) === pickupLocation ? "Matériau déjà sur place : retrait gratuit." : "Transfert nécessaire : supplément de 35 € pour cette réservation."}</p>}
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
-
-      <div className="flex justify-end gap-2">
-        <Button variant="ghost" onClick={() => setOpen(false)}>
-          Annuler
-        </Button>
-        <Button
-          onClick={() => void reserve()}
-          disabled={
-            saving ||
-            !form.firstName ||
-            !form.lastName ||
-            !form.email ||
-            !form.address ||
-            !customerCoordinates ||
-            !pickupLocation ||
-            !storageLocationId(depot) ||
-            quantity <= 0 ||
-            quantity > stock
-          }
-        >
-          {saving ? "Réservation…" : "Réserver"}
-        </Button>
-      </div>
+      <Button className="w-full" onClick={addToCart} disabled={stock <= 0 || quantity <= 0 || quantity > stock}>
+        {stock > 0 ? "Ajouter au panier" : upcoming ? "Bientôt disponible" : "Épuisé"}
+      </Button>
+      {cartNotice ? <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">{cartNotice}</p> : null}
+      <a href="tel:+33375150475" className="flex items-center justify-center gap-2 text-sm font-semibold text-brand-700 hover:text-brand-900">
+        <Phone className="h-4 w-4" /> Une question ? 03 75 15 04 75
+      </a>
     </div>
   );
 }

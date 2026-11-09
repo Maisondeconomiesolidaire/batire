@@ -46,3 +46,9 @@ export function useCart() {
   const setPickupLocation = useCallback((materialId: Id<"btMaterials">, pickupLocation: PickupLocationId) => write(read().map(item => item.materialId === materialId ? { ...item, pickupLocation } : item)), []);
   return { items, activeVendor, add, hasOtherVendor, remove, update, clear, setPickupLocation };
 }
+
+/** Demande à l'aperçu du panier de l'en-tête de s'ouvrir (après un ajout). */
+export const OPEN_CART_EVENT = "batire:open-cart";
+export function openCartPreview() {
+  window.dispatchEvent(new Event(OPEN_CART_EVENT));
+}
