@@ -22,40 +22,23 @@ const STAGES: { key: Exclude<Stage, "retire">; label: string; color: string }[] 
   { key: "disponible", label: "Disponible pour retrait", color: "#10b981" },
 ];
 
-/** Noms courts des lieux, comme sur les cartes de Meslogistic. */
-const SHORT_LOCATION: Record<PickupLocationId, string> = {
-  comptoir_c: "Comptoir C",
-  recyclerie_pays_de_bray: "Solidarium",
-  esspace_150: "ESSpace 150",
-};
-
-function locationId(value?: string): PickupLocationId | undefined {
-  if (value === "usine_agile") return "recyclerie_pays_de_bray";
-  return PICKUP_LOCATIONS.some(location => location.id === value) ? (value as PickupLocationId) : storageLocationId(value);
-}
-
-function shortLocation(value?: string) {
-  const id = locationId(value);
-  return id ? SHORT_LOCATION[id] : value || "À préciser";
-}
-
-function locationName(value?: string) {
-  const id = locationId(value);
-  return PICKUP_LOCATIONS.find(location => location.id === id)?.name ?? value ?? "À préciser";
-}
+/** Bâtire n'affiche pas les emplacements : seulement le mode de retrait demandé. */
+const WAREHOUSE = "Retrait entrepôt";
+const RELAY = "Point relais demandé";
+type Mode = "" | "warehouse" | "relay";
 
 function stageOf(order: Order): Stage {
   if (order.collectedAt) return "retire";
-  if (order.readyAt) return "disponible";
+  // Un transit déclaré « Disponible à destination » dans Meslogistic est prêt pour le retrait.
+  if (order.readyAt || order.transfer?.status === "receptionnee") return "disponible";
   if (order.transfer && ["en_transit", "receptionnee"].includes(order.transfer.status)) return "transit";
   return "nouveau";
 }
 
 const hasTransit = (order: Order) => Boolean(order.transfer && order.transfer.status !== "annulee");
 const customerName = (order: Order) => `${order.customer.firstName} ${order.customer.lastName}`.trim();
-const route = (order: Order) => hasTransit(order)
-  ? { origin: order.transfer!.origin, destination: order.transfer!.destination }
-  : { origin: order.logisticsSourceDepot ?? order.pickupLocation, destination: order.pickupLocation };
+const modeLabel = (order: Order) => hasTransit(order) ? RELAY : WAREHOUSE;
+const orderNumber = (order: Order) => order.pickupReference ?? order.purchaseReference ?? order.reference;
 
 export function Demandes() {
   const data = useQuery(api.batire.pickupOperations, {});
@@ -63,14 +46,14 @@ export function Demandes() {
   const canUpdate = canAccess(access, "batire:demandes", "update");
   const [tab, setTab] = useState<Tab>("open");
   const [search, setSearch] = useState("");
-  const [site, setSite] = useState("");
+  const [mode, setMode] = useState<Mode>("");
   const [sort, setSort] = useState<"desc" | "asc">("desc");
   const [openId, setOpenId] = useState<string | null>(null);
 
   const orders = data?.orders ?? [];
   const query = search.trim().toLocaleLowerCase("fr-FR");
   const rows = orders
-    .filter(order => !site || locationId(order.pickupLocation) === site)
+    .filter(order => !mode || (mode === "relay") === hasTransit(order))
     .filter(order => !query || [order.pickupReference, order.reference, order.purchaseReference, order.materialTitle, order.customer.firstName, order.customer.lastName, order.customer.email, order.customer.company].join(" ").toLocaleLowerCase("fr-FR").includes(query))
     .sort((a, b) => sort === "desc" ? b.createdAt - a.createdAt : a.createdAt - b.createdAt);
   const current = orders.find(order => order._id === openId);
@@ -79,7 +62,7 @@ export function Demandes() {
   return <div className="flex min-h-[70vh] flex-col">
     <header className="border-b border-[var(--border)] pb-4">
       <h1 className="text-xl font-bold tracking-tight">Demandes</h1>
-      <p className="mt-1 text-sm text-[var(--muted-foreground)]">Orange : transit vers un autre lieu · Bleu : retrait sur le lieu de stockage.</p>
+      <p className="mt-1 text-sm text-[var(--muted-foreground)]">Orange : {RELAY.toLocaleLowerCase("fr-FR")} · Bleu : {WAREHOUSE.toLocaleLowerCase("fr-FR")}.</p>
     </header>
     <UnderlineTabs className="mt-4" value={tab} onChange={setTab} items={[{ key: "open", label: "Demandes en cours" }, { key: "collected", label: "Retirées" }, { key: "other", label: "Devis et questions" }]} counts={data ? { open: openCount, collected: orders.length - openCount } : undefined} />
     {tab === "other" ? <div className="pt-4"><OtherRequests /></div> : <>
@@ -87,13 +70,13 @@ export function Demandes() {
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <label><span className="sr-only">Ordre des demandes</span><select value={sort} onChange={event => setSort(event.target.value as "desc" | "asc")} className="h-9 rounded-xl border border-[var(--border)] bg-[var(--muted)] px-3 text-xs font-medium"><option value="desc">Plus récent</option><option value="asc">Plus ancien</option></select></label>
           <div className="h-4 w-px shrink-0 bg-[var(--border)]" />
-          <label><span className="sr-only">Lieu de retrait</span><select value={site} onChange={event => setSite(event.target.value)} className="h-9 rounded-xl border border-[var(--border)] bg-[var(--muted)] px-3 text-xs font-medium"><option value="">Tous les lieux de retrait</option>{PICKUP_LOCATIONS.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
+          <label><span className="sr-only">Mode de retrait</span><select value={mode} onChange={event => setMode(event.target.value as Mode)} className="h-9 rounded-xl border border-[var(--border)] bg-[var(--muted)] px-3 text-xs font-medium"><option value="">Tous les modes de retrait</option><option value="warehouse">{WAREHOUSE}</option><option value="relay">{RELAY}</option></select></label>
         </div>
         <div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" /><input type="search" aria-label="Rechercher une demande" value={search} onChange={event => setSearch(event.target.value)} placeholder="Rechercher par client, référence, email, matériau…" className="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--muted)] pl-10 pr-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" /></div>
       </div>
       <div className="flex-1 py-5">
         {data === undefined ? <FullSpinner label="Chargement des demandes…" /> : tab === "open" ? (
-          !rows.some(order => !order.collectedAt) ? <EmptyState icon={<Inbox className="h-10 w-10" />} title="Aucune demande en cours" description={search || site ? "Aucune demande ne correspond aux filtres." : "Les commandes et réservations Bâtire apparaîtront ici."} /> :
+          !rows.some(order => !order.collectedAt) ? <EmptyState icon={<Inbox className="h-10 w-10" />} title="Aucune demande en cours" description={search || mode ? "Aucune demande ne correspond aux filtres." : "Les commandes et réservations Bâtire apparaîtront ici."} /> :
           <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">{STAGES.map(stage => {
             const cards = rows.filter(order => stageOf(order) === stage.key);
             return <Column key={stage.key} title={stage.label} accent={stage.color} count={cards.length}>{cards.map(order => <OrderCard key={order._id} order={order} onOpen={() => setOpenId(order._id)} />)}</Column>;
@@ -116,16 +99,14 @@ function Column({ title, accent, count, children }: { title: string; accent: str
 }
 
 function OrderCard({ order, onOpen }: { order: Order; onOpen: () => void }) {
-  const { origin, destination } = route(order);
   const due = order.transfer?.dueDate;
   return <LogisticsCard
     source="BatiRE"
     date={shortDate(order.createdAt)}
     customer={customerName(order)}
     product={`${order.quantity} ${order.unit} · ${order.materialTitle}`}
-    origin={shortLocation(origin)}
-    destination={shortLocation(destination)}
-    footer={due ? shortDate(due) : order.readyAt ? "Prêt" : undefined}
+    detail={<><span className="min-w-0 truncate font-mono">#{orderNumber(order)}</span><span className="shrink-0 font-semibold">{modeLabel(order)}</span></>}
+    footer={order.readyAt ? "Prêt · client prévenu" : order.transfer?.status === "receptionnee" ? "Arrivé · client à prévenir" : due ? shortDate(due) : undefined}
     color={hasTransit(order) ? TRANSIT_COLOR : ON_SITE_COLOR}
     onOpen={onOpen}
   />;
@@ -137,13 +118,12 @@ function OrderDetail({ order, canUpdate, onClose }: { order: Order; canUpdate: b
   useEffect(() => { const element = dialog.current; element?.showModal(); return () => { if (element?.open) element.close(); }; }, []);
   const transit = hasTransit(order);
   const stage = stageOf(order);
-  const { origin, destination } = route(order);
   const statusLabel = stage === "retire" ? "Retirée" : STAGES.find(item => item.key === stage)?.label;
   return <dialog ref={dialog} aria-labelledby="order-title" onCancel={event => { event.preventDefault(); onClose(); }} className="m-auto flex h-[calc(100%-1.5rem)] max-h-none w-[calc(100%-1.5rem)] max-w-none flex-col overflow-hidden rounded-[30px] border-0 bg-[var(--card)] p-0 text-[var(--foreground)] shadow-[0_28px_90px_rgba(0,0,0,0.18)] backdrop:bg-black/70 sm:h-[calc(100%-2.5rem)] sm:w-[calc(100%-2.5rem)] lg:h-[calc(100%-3.5rem)] lg:w-[calc(100%-3.5rem)]">
     <header className="shrink-0 px-5 py-4 text-zinc-950" style={{ backgroundColor: transit ? TRANSIT_COLOR : ON_SITE_COLOR }}>
       <div className="flex items-center justify-between gap-3">
         <p className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
-          <span className="inline-flex items-center gap-1.5 rounded-md bg-white/45 px-2 py-0.5 font-bold">{transit ? <Truck className="h-3.5 w-3.5" /> : <MapPin className="h-3.5 w-3.5" />}{transit ? "Retrait avec transit" : "Retrait sur le lieu de stockage"}</span>
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-white/45 px-2 py-0.5 font-bold">{transit ? <Truck className="h-3.5 w-3.5" /> : <MapPin className="h-3.5 w-3.5" />}{modeLabel(order)}</span>
           <span className="font-medium">{statusLabel}</span>
           <span className="font-mono text-xs text-zinc-950/65">#{order.pickupReference ?? order.reference}</span>
           <span className="text-xs text-zinc-950/65">{new Date(order.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</span>
@@ -151,7 +131,7 @@ function OrderDetail({ order, canUpdate, onClose }: { order: Order; canUpdate: b
         <button type="button" onClick={onClose} aria-label="Fermer" className="rounded-lg p-1.5 hover:bg-black/10"><X className="h-5 w-5" /></button>
       </div>
       <h2 id="order-title" className="mt-3 text-xl font-bold">{customerName(order)}</h2>
-      <p className="mt-1 text-sm">{order.quantity} {order.unit} · {order.materialTitle} · {shortLocation(origin)} → {shortLocation(destination)}</p>
+      <p className="mt-1 text-sm">{order.quantity} {order.unit} · {order.materialTitle} · Commande {orderNumber(order)}</p>
     </header>
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="sticky top-0 z-20 border-b border-[var(--border)] bg-[var(--card)] px-6 pt-3 sm:px-7"><UnderlineTabs className="border-b-0" value={tab} onChange={setTab} items={[{ key: "demande", label: "Demande" }, { key: "gestion", label: "Gestion" }]} /></div>
@@ -169,7 +149,6 @@ function SectionTitle({ children }: { children: ReactNode }) {
 const euros = (cents: number) => (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 
 function DemandeTab({ order }: { order: Order }) {
-  const { origin, destination } = route(order);
   const transit = hasTransit(order);
   const payment = order.paymentMethod === "cash" ? "Espèces au retrait" : order.paymentMethod === "bank_transfer" ? "Virement bancaire" : "Carte bancaire";
   return <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
@@ -189,14 +168,10 @@ function DemandeTab({ order }: { order: Order }) {
         </div>
       </section>
       <section>
-        <SectionTitle>{transit ? "Trajet du lot" : "Lieu de retrait"}</SectionTitle>
+        <SectionTitle>Mode de retrait</SectionTitle>
         <div className="rounded-2xl border border-[var(--border)] p-4">
-          {transit ? <>
-            <p className="text-xs text-[var(--muted-foreground)]">Départ · lieu de stockage</p><p className="mt-1 flex items-center gap-2 font-semibold"><MapPin className="h-4 w-4" />{locationName(origin)}</p>
-            <div className="my-3 ml-2 h-6 border-l border-dashed border-[var(--muted-foreground)]" />
-            <p className="text-xs text-[var(--muted-foreground)]">Arrivée · retrait client</p><p className="mt-1 flex items-center gap-2 font-semibold"><MapPin className="h-4 w-4" />{locationName(destination)}</p>
-            {order.transfer?.dueDate && <p className="mt-4 text-sm">Échéance : <strong>{new Date(`${order.transfer.dueDate}T12:00:00`).toLocaleDateString("fr-FR")}</strong></p>}
-          </> : <p className="flex items-center gap-2 font-semibold"><MapPin className="h-4 w-4" />{locationName(destination)} <span className="font-normal text-[var(--muted-foreground)]">· aucun transit nécessaire</span></p>}
+          <p className="flex items-center gap-2 font-semibold">{transit ? <Truck className="h-4 w-4" /> : <MapPin className="h-4 w-4" />}{modeLabel(order)}</p>
+          {transit && order.transfer?.dueDate && <p className="mt-2 text-sm">Échéance : <strong>{new Date(`${order.transfer.dueDate}T12:00:00`).toLocaleDateString("fr-FR")}</strong></p>}
         </div>
       </section>
     </div>
@@ -230,7 +205,7 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [transferOpen, setTransferOpen] = useState(false);
-  const source = locationId(order.sourceLocation ?? order.logisticsSourceDepot);
+  const source = order.sourceLocation ?? storageLocationId(order.logisticsSourceDepot);
   const destinations = PICKUP_LOCATIONS.filter(location => location.id !== source);
   const [destination, setDestination] = useState<string>("");
   const [dueDate, setDueDate] = useState("");
@@ -261,12 +236,12 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
     {error && <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600">{error}</p>}
 
     {transit && <section>
-      <SectionTitle>Transit Meslogistic</SectionTitle>
+      <SectionTitle>Acheminement (Meslogistic)</SectionTitle>
       <div className="rounded-2xl border border-[var(--border)] p-4 text-sm">
-        <p><strong>{shortLocation(order.transfer!.origin)} → {shortLocation(order.transfer!.destination)}</strong> · {order.transfer!.status === "a_preparer" ? "Nouveau" : order.transfer!.status === "en_transit" ? "En transit" : order.transfer!.status === "receptionnee" ? "Disponible à destination" : "Annulé"}</p>
+        <p><strong>{RELAY}</strong> · {order.transfer!.status === "a_preparer" ? "Nouveau" : order.transfer!.status === "en_transit" ? "En transit" : order.transfer!.status === "receptionnee" ? "Disponible à destination" : "Annulé"}</p>
         {order.transfer!.dueDate && <p className="mt-1">Échéance : {new Date(`${order.transfer!.dueDate}T12:00:00`).toLocaleDateString("fr-FR")}</p>}
         {order.transfer!.scheduledDate && <p className="mt-1">Navette prévue le {new Date(`${order.transfer!.scheduledDate}T12:00:00`).toLocaleDateString("fr-FR")}</p>}
-        {!received && <p className="mt-2 text-xs text-[var(--muted-foreground)]">Le lot pourra être déclaré disponible une fois réceptionné à destination dans Meslogistic.</p>}
+        {!received && <p className="mt-2 text-xs text-[var(--muted-foreground)]">La carte passe en « Disponible pour retrait » dès que Meslogistic indique le lot disponible à destination.</p>}
       </div>
     </section>}
 
@@ -283,12 +258,12 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
     </section>
 
     {!transit && !order.readyAt && !order.collectedAt && canUpdate && <section>
-      <SectionTitle>Livraison vers un autre lieu</SectionTitle>
-      {!transferOpen ? <Button variant="outline" disabled={busy} onClick={() => { setError(""); setTransferOpen(true); }}><Truck className="h-4 w-4" />Faire une demande d’enlèvement pour livraison</Button> :
+      <SectionTitle>Point relais</SectionTitle>
+      {!transferOpen ? <Button variant="outline" disabled={busy} onClick={() => { setError(""); setTransferOpen(true); }}><Truck className="h-4 w-4" />Demander un point relais</Button> :
         <form onSubmit={submitTransfer} className="space-y-4 rounded-2xl border border-[var(--border)] p-4">
-          <label className="block text-sm font-medium">Destination<select required value={destination} onChange={event => setDestination(event.target.value)} className="mt-1 block w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5"><option value="" disabled>Choisir un lieu</option>{destinations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
+          <label className="block text-sm font-medium">Point relais demandé<select required value={destination} onChange={event => setDestination(event.target.value)} className="mt-1 block w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5"><option value="" disabled>Choisir un point relais</option>{destinations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
           <label className="block text-sm font-medium">Échéance · le produit doit être sur place le<input type="date" required value={dueDate} min={new Date().toISOString().slice(0, 10)} onChange={event => setDueDate(event.target.value)} className="mt-1 block w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5" /></label>
-          <p className="text-xs text-[var(--muted-foreground)]">La demande passe en transit (carte orange) et une carte est créée dans Meslogistic.</p>
+          <p className="text-xs text-[var(--muted-foreground)]">La demande passe en « Point relais demandé » (carte orange) et Meslogistic organise l’acheminement.</p>
           <div className="flex gap-2"><Button type="submit" disabled={busy || !destination || !dueDate}>{busy ? "Création…" : "Créer le transit"}</Button><Button type="button" variant="ghost" disabled={busy} onClick={() => setTransferOpen(false)}>Annuler</Button></div>
         </form>}
     </section>}

@@ -13,14 +13,17 @@ export function shortDate(value: number | string) {
 /**
  * Carte « source · client · produit · départ → arrivée · échéance ».
  * Même dessin dans Bâtire et Meslogistic pour qu'un lot se reconnaisse d'une app à l'autre.
+ * Bâtire n'affiche pas les lieux : `detail` (n° de commande, mode de retrait)
+ * remplace alors la ligne départ → arrivée.
  */
-export function LogisticsCard({ source, date, customer, product, origin, destination, footer, color, onOpen }: {
+export function LogisticsCard({ source, date, customer, product, origin, destination, detail, footer, color, onOpen }: {
   source: string;
   date: string;
   customer: string;
   product: string;
-  origin: string;
-  destination: string;
+  origin?: string;
+  destination?: string;
+  detail?: ReactNode;
   footer?: ReactNode;
   color: string;
   onOpen: () => void;
@@ -40,7 +43,7 @@ export function LogisticsCard({ source, date, customer, product, origin, destina
         <span className="min-w-0 truncate">{customer}</span>
         <span className="min-w-0 truncate text-right">{product}</span>
       </span>
-      <span className="mt-2.5 flex items-center gap-1.5 text-[13px] font-bold">
+      {detail ? <span className="mt-2.5 flex items-center justify-between gap-3 text-[13px] font-bold">{detail}</span> : <span className="mt-2.5 flex items-center gap-1.5 text-[13px] font-bold">
         <span className="max-w-[45%] truncate">{origin}</span>
         <span aria-hidden className="flex min-w-6 flex-1 items-center">
           <span className="h-px flex-1 bg-current" />
@@ -48,7 +51,7 @@ export function LogisticsCard({ source, date, customer, product, origin, destina
         </span>
         <span className="sr-only">vers</span>
         <span className="max-w-[45%] truncate">{destination}</span>
-      </span>
+      </span>}
       {footer && <span className="mt-1 block text-right text-[11px] tabular-nums">{footer}</span>}
     </button>
   );
