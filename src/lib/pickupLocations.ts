@@ -24,6 +24,21 @@ export const PICKUP_LOCATIONS = [
 
 export type PickupLocationId = (typeof PICKUP_LOCATIONS)[number]["id"];
 
+/**
+ * Horaires proposés par défaut dans l'avis « retrait disponible ». Seuls ceux
+ * de la Recyclerie du Pays de Bray sont connus : les autres se saisissent une
+ * fois, puis sont retenus par le navigateur.
+ */
+export const DEFAULT_OPENING_HOURS: Partial<Record<string, string>> = {
+  recyclerie_pays_de_bray: "Du mardi au samedi, de 14h00 à 17h00",
+  usine_agile: "Du mardi au samedi, de 14h00 à 17h00",
+};
+
+export function pickupLocationById(id?: string) {
+  const canonical = id === "usine_agile" ? "recyclerie_pays_de_bray" : id;
+  return PICKUP_LOCATIONS.find(location => location.id === canonical);
+}
+
 /** Même rapprochement que le backend, pour expliquer clairement les frais au client. */
 export function storageLocationId(depot?: string): PickupLocationId | undefined {
   const value = depot?.trim().toLocaleLowerCase("fr-FR") ?? "";
