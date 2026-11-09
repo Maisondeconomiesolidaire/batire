@@ -3,7 +3,6 @@ import { useMutation, useQuery } from "convex/react";
 import { Inbox, Mail, MapPin, PackageOpen, Phone, Search, X } from "lucide-react";
 import type { Doc } from "../../../convex/_generated/dataModel";
 import { api } from "../../../convex/_generated/api";
-import { PickupPreparation } from "../../components/crm/PickupPreparation";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { FullSpinner } from "../../components/ui/Spinner";
 import { UnderlineTabs } from "../../components/ui/UnderlineTabs";
@@ -11,7 +10,7 @@ import { canAccess, useAccess } from "../../lib/access";
 
 type Outcome = "nouveau" | "en_cours" | "gagnee" | "perdue";
 type Request = Doc<"btRequests">;
-type Tab = "open" | "closed" | "pickups";
+type Tab = "open" | "closed";
 const COLUMNS: { key: Outcome; label: string; color: string }[] = [
   { key: "nouveau", label: "Nouvelles", color: "#3b82f6" },
   { key: "en_cours", label: "En cours", color: "#f59e0b" },
@@ -20,7 +19,8 @@ const COLUMNS: { key: Outcome; label: string; color: string }[] = [
 ];
 const TYPE: Record<string, string> = { devis: "Demande de devis", reservation: "Réservation", reprise: "Proposition de reprise", question: "Question" };
 
-export function Demandes() {
+/** Devis, questions et propositions de reprise : suivi commercial, hors retraits. */
+export function OtherRequests() {
   const requests = useQuery(api.batire.listRequests, {});
   const access = useAccess();
   const [tab, setTab] = useState<Tab>("open");
@@ -31,13 +31,12 @@ export function Demandes() {
   const openCount = requests.filter(r => r.outcome === "nouveau" || r.outcome === "en_cours").length;
   const rows = requests.filter(request => [request.reference, request.customer.firstName, request.customer.lastName, request.customer.email, request.message, ...request.items.map(item => item.title)].join(" ").toLocaleLowerCase("fr-FR").includes(search.trim().toLocaleLowerCase("fr-FR"))).sort((a, b) => sort === "desc" ? b.createdAt - a.createdAt : a.createdAt - b.createdAt);
   const current = requests.find(request => request._id === selected);
-  return <div className="flex min-h-[70vh] flex-col">
-    <header className="border-b border-[var(--border)] pb-4"><h1 className="text-xl font-bold tracking-tight">Demandes</h1><p className="mt-1 text-sm text-[var(--muted-foreground)]">Suivez les demandes et les retraits de vos clients.</p></header>
-    <UnderlineTabs className="mt-4" value={tab} onChange={setTab} items={[{ key: "open", label: "Demandes en cours" }, { key: "closed", label: "Gagnées / Perdues" }, { key: "pickups", label: "Commandes et retraits" }]} counts={{ open: openCount, closed: requests.length - openCount }} />
-    {tab === "pickups" ? <div className="pt-5"><PickupPreparation /></div> : <>
+  return <div className="flex flex-col">
+    <UnderlineTabs value={tab} onChange={setTab} items={[{ key: "open", label: "En cours" }, { key: "closed", label: "Gagnées / Perdues" }]} counts={{ open: openCount, closed: requests.length - openCount }} />
+    <>
       <div className="border-b border-[var(--border)] py-3"><div className="mb-3 flex flex-wrap items-center gap-2"><label><span className="sr-only">Ordre des demandes</span><select value={sort} onChange={event => setSort(event.target.value)} className="h-9 rounded-xl border border-[var(--border)] bg-[var(--muted)] px-3 text-xs font-medium"><option value="desc">Plus récent</option><option value="asc">Plus ancien</option></select></label></div><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" /><input type="search" aria-label="Rechercher une demande" value={search} onChange={event => setSearch(event.target.value)} placeholder="Rechercher par nom, référence, email, matériau…" className="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--muted)] pl-10 pr-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" /></div></div>
       <div className="flex-1 py-5">{!rows.some(row => tab === "open" ? ["nouveau", "en_cours"].includes(row.outcome) : ["gagnee", "perdue"].includes(row.outcome)) ? <EmptyState icon={<Inbox className="h-10 w-10" />} title="Aucune demande" description={search ? "Aucune demande ne correspond à votre recherche." : "Les demandes apparaîtront ici."} /> : <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">{COLUMNS.filter(column => tab === "open" ? ["nouveau", "en_cours"].includes(column.key) : ["gagnee", "perdue"].includes(column.key)).map(column => { const entries = rows.filter(row => row.outcome === column.key); return <section key={column.key} className="min-w-0 flex-1"><header className="flex items-center gap-2 px-1 pb-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: column.color }} /><h2 className="text-sm font-semibold">{column.label}</h2><span className="rounded-full bg-[var(--muted)] px-2 py-0.5 text-xs text-[var(--muted-foreground)]">{entries.length}</span></header><div className="min-h-[120px] space-y-2.5 rounded-xl bg-[var(--muted)] p-2">{entries.map(request => <RequestCard key={request._id} request={request} onOpen={() => setSelected(request._id)} />)}</div></section>; })}</div>}</div>
-    </>}
+    </>
     {current && <RequestDetail key={current._id} request={current} canUpdate={canAccess(access, "batire:demandes", "update")} onClose={() => setSelected(null)} />}
   </div>;
 }
