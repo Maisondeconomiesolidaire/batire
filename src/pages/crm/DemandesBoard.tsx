@@ -206,7 +206,7 @@ function OrderDetail({ order, canUpdate, onClose }: { order: Order; canUpdate: b
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="sticky top-0 z-20 border-b border-[var(--border)] bg-[var(--card)] px-6 pt-3 sm:px-7"><UnderlineTabs className="border-b-0" value={tab} onChange={setTab} items={[{ key: "demande", label: "Demande" }, { key: "messagerie", label: "Messagerie" }, { key: "gestion", label: "Gestion" }]} /></div>
       <div className="px-6 pb-6 pt-6 sm:px-7">
-        {tab === "demande" ? <DemandeTab order={order} canUpdate={canUpdate} onManage={() => setTab("gestion")} /> : tab === "messagerie" ? <MessagerieTab order={order} canUpdate={canUpdate} /> : <GestionTab order={order} canUpdate={canUpdate} />}
+        {tab === "demande" ? <DemandeTab order={order} canUpdate={canUpdate} /> : tab === "messagerie" ? <MessagerieTab order={order} canUpdate={canUpdate} /> : <GestionTab order={order} canUpdate={canUpdate} />}
       </div>
     </div>
   </dialog>;
@@ -233,7 +233,34 @@ function Route({ from, to }: { from: string; to: string }) {
   </div>;
 }
 
-function DemandeTab({ order, canUpdate, onManage }: { order: Order; canUpdate: boolean; onManage: () => void }) {
+/** Transit demandé par le client : la navette part dans Meslogistic avec une échéance obligatoire. */
+function ShuttleRequest({ order }: { order: Order }) {
+  const requestTransfer = useMutation(api.batire.requestPickupTransfer);
+  const [open, setOpen] = useState(false);
+  const [dueDate, setDueDate] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true); setError("");
+    try { await requestTransfer({ orderId: order._id, dueDate }); setOpen(false); }
+    catch (caught) { setError(errorText(caught, "La navette n’a pas pu être demandée.")); }
+    finally { setBusy(false); }
+  }
+  if (!open) return <div className="border-t border-[var(--border)] pt-3">
+    <Button onClick={() => { setError(""); setOpen(true); }} disabled={!order.sourceLocation}><Truck className="h-4 w-4" />Demander une navette</Button>
+    {!order.sourceLocation && <p className="mt-2 text-xs text-red-600">Lieu de stockage non reconnu : corrigez le dépôt sur la fiche CRM.</p>}
+  </div>;
+  return <form onSubmit={submit} className="space-y-3 rounded-xl border border-[#ff914d]/60 bg-[#ff914d]/10 p-3">
+    <p className="font-semibold">Demander une navette · {sourceName(order)} → {pickupName(order)}</p>
+    <label className="block font-medium">Échéance · le lot doit être arrivé le (obligatoire)<input type="date" required autoFocus value={dueDate} min={todayIso()} disabled={busy} onChange={event => setDueDate(event.target.value)} className="mt-1 block w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5 text-base" /></label>
+    {error && <p role="alert" className="text-xs font-medium text-red-600">{error}</p>}
+    <p className="text-xs text-[var(--muted-foreground)]">Une nouvelle demande est créée dans Meslogistic avec ce trajet et cette échéance.</p>
+    <div className="flex gap-2"><Button type="submit" disabled={busy || !dueDate}>{busy ? "Envoi…" : "Envoyer à Meslogistic"}</Button><Button type="button" variant="ghost" disabled={busy} onClick={() => setOpen(false)}>Annuler</Button></div>
+  </form>;
+}
+
+function DemandeTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) {
   const relay = isRelay(order);
   const material = order.material;
   const [photo, setPhoto] = useState(0);
@@ -245,8 +272,7 @@ function DemandeTab({ order, canUpdate, onManage }: { order: Order; canUpdate: b
     <div className="space-y-6">
       {order.lostAt && <p className="flex items-start gap-2 rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-sm"><XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" /><span><strong>Demande perdue</strong> le {new Date(order.lostAt).toLocaleDateString("fr-FR")}{order.lostReason ? ` · ${order.lostReason}` : ""}</span></p>}
       {needsPickupRequest(order) && <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#ff914d]/60 bg-[#ff914d]/15 p-4 text-sm">
-        <p><strong>Enlèvement à organiser.</strong> Le client retire à {pickupName(order)} : créez la demande d’enlèvement avec son échéance pour l’envoyer à Meslogistic.</p>
-        {canUpdate && <Button size="sm" onClick={onManage}><Truck className="h-4 w-4" />Créer la demande d’enlèvement</Button>}
+        <p><strong>Navette à demander.</strong> Le client retire à {pickupName(order)} : utilisez « Demander une navette » dans le bloc Lieu de retrait pour envoyer la demande à Meslogistic.</p>
       </div>}
       <section>
         <SectionTitle>Article</SectionTitle>
@@ -301,6 +327,7 @@ function DemandeTab({ order, canUpdate, onManage }: { order: Order; canUpdate: b
           {relay && <div className="border-t border-[var(--border)] pt-3"><Route from={sourceName(order)} to={pickupName(order)} /></div>}
           {order.transfer?.dueDate && <p>Échéance : <strong>{longDate(order.transfer.dueDate)}</strong></p>}
           {order.availableFrom && <p>Disponible le <strong>{longDate(order.availableFrom)}</strong>{order.customerNotifiedAt ? " · client prévenu" : " · client à prévenir"}</p>}
+          {needsPickupRequest(order) && canUpdate && <ShuttleRequest order={order} />}
         </div>
       </section>
       <section>
