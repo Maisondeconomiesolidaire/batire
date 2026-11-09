@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { BellRing, CalendarClock, Check, ExternalLink, ImageOff, Inbox, Mail, MapPin, MessageSquare, Pencil, Phone, Search, Send, Truck, X } from "lucide-react";
+import { AlertTriangle, BellRing, CalendarClock, Check, CircleCheck, ExternalLink, ImageOff, Inbox, Mail, MapPin, MessageSquare, Pencil, Phone, Search, Send, Truck, X, XCircle } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { LogisticsCard, ON_SITE_COLOR, TRANSIT_COLOR, shortDate } from "../../components/crm/LogisticsCard";
 import { Button } from "../../components/ui/Button";
@@ -12,11 +12,10 @@ import { canAccess, useAccess } from "../../lib/access";
 import { cn } from "../../lib/cn";
 import { formatDimensions } from "../../lib/format";
 import { DEFAULT_OPENING_HOURS, PICKUP_LOCATIONS, pickupLocationById, storageLocationId, type PickupLocationId } from "../../lib/pickupLocations";
-import { OtherRequests } from "./OtherRequests";
 
 type Order = FunctionReturnType<typeof api.batire.pickupOperations>["orders"][number];
 type Stage = "nouveau" | "transit" | "disponible" | "retire";
-type Tab = "open" | "collected" | "other";
+type Tab = "open" | "closed";
 type Mode = "" | "warehouse" | "relay";
 
 /**
@@ -38,7 +37,7 @@ const MODE_FILTERS: { key: Mode; label: string; color?: string }[] = [
 ];
 
 function stageOf(order: Order): Stage {
-  if (order.collectedAt) return "retire";
+  if (order.collectedAt || order.lostAt) return "retire";
   // Un transit déclaré « Disponible à destination » dans Meslogistic est prêt pour le retrait.
   if (order.readyAt || order.transfer?.status === "receptionnee") return "disponible";
   if (order.transfer && order.transfer.status === "en_transit") return "transit";
@@ -48,7 +47,20 @@ function stageOf(order: Order): Stage {
 const hasTransit = (order: Order) => Boolean(order.transfer && order.transfer.status !== "annulee");
 /** Le client retire ailleurs que sur le lieu de stockage (transit créé ou encore à créer). */
 const isRelay = (order: Order) => hasTransit(order) || order.relayRequested;
-const needsPickupRequest = (order: Order) => order.relayRequested && !hasTransit(order) && !order.collectedAt;
+const isClosed = (order: Order) => Boolean(order.collectedAt || order.lostAt);
+const needsPickupRequest = (order: Order) => order.relayRequested && !hasTransit(order) && !isClosed(order);
+/** Réglé : payé en ligne, ou encaissé (espèces / virement) et confirmé par l'équipe. */
+const isPaid = (order: Order) => order.status === "payee";
+const paymentLabel = (order: Order) => order.paymentMethod === "cash" ? "Espèces" : order.paymentMethod === "bank_transfer" ? "Virement" : "Carte bancaire";
+
+function PaymentStatus({ order, compact }: { order: Order; compact?: boolean }) {
+  const paid = isPaid(order);
+  const text = paid ? `${paymentLabel(order)} · réglé` : order.paymentMethod === "cash" ? "Espèces · à encaisser au retrait" : order.paymentMethod === "bank_transfer" ? "Virement · en attente de réception" : `${paymentLabel(order)} · paiement à effectuer`;
+  return <span className={cn("inline-flex items-center gap-1.5 font-semibold", compact ? "rounded-md bg-white/60 px-2 py-0.5 text-zinc-950" : paid ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400")}>
+    {paid ? <CircleCheck className={cn("h-4 w-4 shrink-0", compact && "text-emerald-700")} aria-hidden /> : <AlertTriangle className={cn("h-4 w-4 shrink-0", compact && "text-orange-600")} aria-hidden />}
+    {text}
+  </span>;
+}
 const customerName = (order: Order) => `${order.customer.firstName} ${order.customer.lastName}`.trim();
 const pickupName = (order: Order) => order.pickupLocationName ?? "Lieu à confirmer";
 const sourceName = (order: Order) => order.sourceLocationName ?? "Lieu de stockage à confirmer";
@@ -73,13 +85,15 @@ export function Demandes() {
 
   const orders = data?.orders ?? [];
   const query = search.trim().toLocaleLowerCase("fr-FR");
-  const inTab = orders.filter(order => (tab === "collected") === Boolean(order.collectedAt));
+  const inTab = orders.filter(order => (tab === "closed") === isClosed(order));
   const rows = inTab
     .filter(order => !mode || (mode === "relay") === isRelay(order))
     .filter(order => !query || [order.pickupReference, order.reference, order.purchaseReference, order.materialTitle, order.customer.firstName, order.customer.lastName, order.customer.email, order.customer.company, order.pickupLocationName].join(" ").toLocaleLowerCase("fr-FR").includes(query))
     .sort((a, b) => sort === "desc" ? b.createdAt - a.createdAt : a.createdAt - b.createdAt);
   const current = orders.find(order => order._id === openId);
-  const openCount = orders.filter(order => !order.collectedAt).length;
+  const openCount = orders.filter(order => !isClosed(order)).length;
+  const won = rows.filter(order => order.collectedAt);
+  const lost = rows.filter(order => order.lostAt && !order.collectedAt);
   const modeCount = (key: Mode) => inTab.filter(order => !key || (key === "relay") === isRelay(order)).length;
 
   return <div className="flex min-h-[70vh] flex-col">
@@ -87,8 +101,8 @@ export function Demandes() {
       <h1 className="text-xl font-bold tracking-tight">Demandes</h1>
       <p className="mt-1 text-sm text-[var(--muted-foreground)]">Carte orange : retrait en point relais (enlèvement à organiser) · Carte bleue : retrait sur le lieu de stockage.</p>
     </header>
-    <UnderlineTabs className="mt-4" value={tab} onChange={setTab} items={[{ key: "open", label: "Demandes en cours" }, { key: "collected", label: "Retirées" }, { key: "other", label: "Devis et questions" }]} counts={data ? { open: openCount, collected: orders.length - openCount } : undefined} />
-    {tab === "other" ? <div className="pt-4"><OtherRequests /></div> : <>
+    <UnderlineTabs className="mt-4" value={tab} onChange={setTab} items={[{ key: "open", label: "Demandes en cours" }, { key: "closed", label: "Gagnées / Perdues" }]} counts={data ? { open: openCount, closed: orders.length - openCount } : undefined} />
+    <>
       <div className="border-b border-[var(--border)] py-3">
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <label><span className="sr-only">Ordre des demandes</span><select value={sort} onChange={event => setSort(event.target.value as "desc" | "asc")} className="h-9 rounded-xl border border-[var(--border)] bg-[var(--muted)] px-3 text-xs font-medium"><option value="desc">Plus récent</option><option value="asc">Plus ancien</option></select></label>
@@ -118,11 +132,14 @@ export function Demandes() {
             return <Column key={stage.key} title={stage.label} accent={stage.color} count={cards.length}>{cards.map(order => <OrderCard key={order._id} order={order} onOpen={() => setOpenId(order._id)} />)}</Column>;
           })}</div>
         ) : (
-          rows.length === 0 ? <EmptyState icon={<Inbox className="h-10 w-10" />} title="Aucun retrait terminé" description={search || mode ? "Aucune demande ne correspond aux filtres." : "Les lots remis aux clients apparaîtront ici."} /> :
-          <div className="flex flex-col gap-4 lg:flex-row"><Column title="Retirées" accent="#71717a" count={rows.length}>{rows.map(order => <OrderCard key={order._id} order={order} onOpen={() => setOpenId(order._id)} />)}</Column></div>
+          rows.length === 0 ? <EmptyState icon={<Inbox className="h-10 w-10" />} title="Aucune demande clôturée" description={search || mode ? "Aucune demande ne correspond aux filtres." : "Les lots remis aux clients (gagnées) et les demandes perdues apparaîtront ici."} /> :
+          <div className="flex flex-col gap-4 lg:flex-row">
+            <Column title="Gagnées" accent="#196b24" count={won.length}>{won.map(order => <OrderCard key={order._id} order={order} onOpen={() => setOpenId(order._id)} />)}</Column>
+            <Column title="Perdues" accent="#ef4444" count={lost.length}>{lost.map(order => <OrderCard key={order._id} order={order} onOpen={() => setOpenId(order._id)} />)}</Column>
+          </div>
         )}
       </div>
-    </>}
+    </>
     {current && <OrderDetail key={current._id} order={current} canUpdate={canUpdate} onClose={() => setOpenId(null)} />}
   </div>;
 }
@@ -136,6 +153,7 @@ function Column({ title, accent, count, children }: { title: string; accent: str
 
 function cardFooter(order: Order) {
   if (order.collectedAt) return `Remis le ${shortDate(order.collectedAt)}`;
+  if (order.lostAt) return `Perdue le ${shortDate(order.lostAt)}`;
   if (order.readyAt) return `${order.availableFrom ? `Dispo le ${shortDate(order.availableFrom)}` : "Disponible"} · ${order.customerNotifiedAt ? "client prévenu" : "client à prévenir"}`;
   if (order.transfer?.status === "receptionnee") return "Arrivé · date à fixer";
   if (needsPickupRequest(order)) return "Enlèvement à demander";
@@ -167,7 +185,7 @@ function OrderDetail({ order, canUpdate, onClose }: { order: Order; canUpdate: b
   useEffect(() => { const element = dialog.current; element?.showModal(); return () => { if (element?.open) element.close(); }; }, []);
   const relay = isRelay(order);
   const stage = stageOf(order);
-  const statusLabel = stage === "retire" ? "Retirée" : STAGES.find(item => item.key === stage)?.label;
+  const statusLabel = order.lostAt ? "Perdue" : order.collectedAt ? "Gagnée · remise au client" : STAGES.find(item => item.key === stage)?.label;
   return <dialog ref={dialog} aria-labelledby="order-title" onCancel={event => { event.preventDefault(); onClose(); }} className="m-auto flex h-[calc(100%-1.5rem)] max-h-none w-[calc(100%-1.5rem)] max-w-none flex-col overflow-hidden rounded-[30px] border-0 bg-[var(--card)] p-0 text-[var(--foreground)] shadow-[0_28px_90px_rgba(0,0,0,0.18)] backdrop:bg-black/70 sm:h-[calc(100%-2.5rem)] sm:w-[calc(100%-2.5rem)] lg:h-[calc(100%-3.5rem)] lg:w-[calc(100%-3.5rem)]">
     <header className="shrink-0 px-5 py-4 text-zinc-950" style={{ backgroundColor: relay ? TRANSIT_COLOR : ON_SITE_COLOR }}>
       <div className="flex items-start justify-between gap-3">
@@ -176,6 +194,7 @@ function OrderDetail({ order, canUpdate, onClose }: { order: Order; canUpdate: b
           <p className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-sm">
             <span className="inline-flex items-center gap-1.5 rounded-md bg-white/45 px-2 py-0.5 font-bold">{relay ? <Truck className="h-3.5 w-3.5" /> : <MapPin className="h-3.5 w-3.5" />}{relay ? `${RELAY} · ${pickupName(order)}` : pickupName(order)}</span>
             <span className="font-medium">{statusLabel}</span>
+            <PaymentStatus order={order} compact />
             <span className="text-xs text-zinc-950/65">Reçue le {new Date(order.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</span>
           </p>
         </div>
@@ -220,11 +239,11 @@ function DemandeTab({ order, canUpdate, onManage }: { order: Order; canUpdate: b
   const [photo, setPhoto] = useState(0);
   const photos = material?.photoUrls ?? [];
   const location = pickupLocationById(order.pickupLocation);
-  const payment = order.paymentMethod === "cash" ? "Espèces au retrait" : order.paymentMethod === "bank_transfer" ? "Virement bancaire" : "Carte bancaire";
   const dimensions = material ? formatDimensions(material) : "";
   const path = material ? [material.category, material.family, material.subcategory].filter(Boolean).join(" › ") : "";
   return <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
     <div className="space-y-6">
+      {order.lostAt && <p className="flex items-start gap-2 rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-sm"><XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" /><span><strong>Demande perdue</strong> le {new Date(order.lostAt).toLocaleDateString("fr-FR")}{order.lostReason ? ` · ${order.lostReason}` : ""}</span></p>}
       {needsPickupRequest(order) && <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#ff914d]/60 bg-[#ff914d]/15 p-4 text-sm">
         <p><strong>Enlèvement à organiser.</strong> Le client retire à {pickupName(order)} : créez la demande d’enlèvement avec son échéance pour l’envoyer à Meslogistic.</p>
         {canUpdate && <Button size="sm" onClick={onManage}><Truck className="h-4 w-4" />Créer la demande d’enlèvement</Button>}
@@ -268,7 +287,7 @@ function DemandeTab({ order, canUpdate, onManage }: { order: Order; canUpdate: b
           <Detail label="Quantité" value={`${order.quantity} ${order.unit}`} />
           <Detail label="Prix unitaire" value={euros(Math.round(order.unitPrice * 100))} />
           <Detail label="Montant" value={euros(order.amountCents)} />
-          <Detail label="Paiement" value={`${payment} · ${order.status === "payee" ? "réglé" : "en attente"}`} />
+          <Detail label="Paiement" value={<PaymentStatus order={order} />} />
         </dl>
       </section>
     </div>
@@ -360,6 +379,10 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
   const update = useMutation(api.batire.updatePickup);
   const confirmPayment = useMutation(api.batire.confirmOfflinePayment);
   const requestTransfer = useMutation(api.batire.requestPickupTransfer);
+  const markLost = useMutation(api.batire.markPickupLost);
+  const [lostOpen, setLostOpen] = useState(false);
+  const [lostReason, setLostReason] = useState("");
+  const [restock, setRestock] = useState(true);
   const [availableFrom, setAvailableFrom] = useState(order.availableFrom ?? todayIso());
   const [editingDate, setEditingDate] = useState(false);
   const [hours, setHours] = useState(() => order.pickupHours ?? savedHours(order.pickupLocation));
@@ -374,7 +397,7 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
   const transit = hasTransit(order);
   const received = order.transfer?.status === "receptionnee";
   const offline = order.paymentMethod === "cash" || order.paymentMethod === "bank_transfer";
-  const locked = !canUpdate || busy;
+  const locked = !canUpdate || busy || Boolean(order.lostAt);
   const location = pickupLocationById(order.pickupLocation);
   const waitingTransit = (transit && !received) || needsPickupRequest(order);
 
@@ -394,6 +417,10 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
   async function submitPickupRequest(event: FormEvent) {
     event.preventDefault();
     await run(() => requestTransfer({ orderId: order._id, dueDate }));
+  }
+  async function submitLost(event: FormEvent) {
+    event.preventDefault();
+    if (await run(() => markLost({ orderId: order._id, reason: lostReason, restock: isPaid(order) && restock }))) setLostOpen(false);
   }
   async function submitTransfer(event: FormEvent) {
     event.preventDefault();
@@ -466,6 +493,16 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
         </form>}
     </section>}
 
+    {order.lostAt && <p className="flex items-start gap-2 rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-sm"><XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" /><span><strong>Demande perdue</strong> le {new Date(order.lostAt).toLocaleString("fr-FR")}{order.lostReason ? ` · ${order.lostReason}` : ""}</span></p>}
+
+    <section>
+      <SectionTitle>Paiement</SectionTitle>
+      <div className={cn("flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4 text-sm", isPaid(order) ? "border-emerald-500/40 bg-emerald-500/10" : "border-amber-500/50 bg-amber-500/10")}>
+        <PaymentStatus order={order} />
+        <span className="font-semibold">{euros(order.amountCents)}</span>
+      </div>
+    </section>
+
     {(offline || order.readyAt) && <section>
       <SectionTitle>Remise au client</SectionTitle>
       <div className="flex flex-wrap gap-2">
@@ -473,6 +510,18 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
         {order.readyAt && !order.collectedAt && <Button disabled={locked || (offline && order.status !== "payee")} onClick={() => void run(() => update({ orderId: order._id, step: "collect" }))}>Confirmer la remise au client</Button>}
         {order.collectedAt && <p className="text-sm text-[var(--muted-foreground)]">Remis au client le {new Date(order.collectedAt).toLocaleString("fr-FR")}.</p>}
       </div>
+    </section>}
+
+    {!isClosed(order) && canUpdate && <section>
+      <SectionTitle>Clôturer sans retrait</SectionTitle>
+      {!lostOpen ? <Button variant="danger" disabled={busy} onClick={() => { setError(""); setLostOpen(true); }}><XCircle className="h-4 w-4" />Perdue</Button> :
+        <form onSubmit={submitLost} className="space-y-3 rounded-2xl border border-red-500/40 p-4 text-sm">
+          <label className="block font-medium">Raison (obligatoire)<input required maxLength={500} value={lostReason} onChange={event => setLostReason(event.target.value)} placeholder="Ex. client injoignable, désistement…" className="mt-1 block w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5" /></label>
+          {isPaid(order) && <label className="flex items-center gap-2"><input type="checkbox" checked={restock} onChange={event => setRestock(event.target.checked)} className="h-4 w-4" />Remettre {order.quantity} {order.unit} en stock</label>}
+          {hasTransit(order) && order.transfer?.status === "a_preparer" && <p className="text-xs text-[var(--muted-foreground)]">L’enlèvement Meslogistic pas encore parti sera annulé.</p>}
+          {isPaid(order) && <p className="text-xs text-[var(--muted-foreground)]">Commande déjà réglée : un éventuel remboursement se fait à part.</p>}
+          <div className="flex gap-2"><Button type="submit" variant="danger" disabled={busy || !lostReason.trim()}>{busy ? "Enregistrement…" : "Marquer comme perdue"}</Button><Button type="button" variant="ghost" disabled={busy} onClick={() => setLostOpen(false)}>Annuler</Button></div>
+        </form>}
     </section>}
 
     {confirmNotify && order.availableFrom && <ConfirmSend title="Notifier le client ?" to={order.customer.email} confirmLabel="Oui, notifier" busy={busy} onCancel={() => setConfirmNotify(false)} onConfirm={() => void notify()}>
