@@ -340,14 +340,18 @@ function DemandeTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
     <section>
       <SectionTitle>Article</SectionTitle>
       <div className="overflow-hidden rounded-2xl border border-[var(--border)]">
-        <div className="flex aspect-[4/3] items-center justify-center overflow-hidden bg-[var(--muted)]">
-          {photos[photo] ? <img src={photos[photo]} alt={order.materialTitle} className="h-full w-full object-cover" /> : <ImageOff className="h-8 w-8 text-[var(--muted-foreground)]" />}
-        </div>
-        {photos.length > 1 && <div className="flex gap-1.5 overflow-x-auto p-2">{photos.map((url, index) => <button key={url} type="button" onClick={() => setPhoto(index)} aria-label={`Photo ${index + 1}`} className={cn("h-12 w-12 shrink-0 overflow-hidden rounded-lg border-2", index === photo ? "border-brand-500" : "border-transparent opacity-70 hover:opacity-100")}><img src={url} alt="" className="h-full w-full object-cover" /></button>)}</div>}
         <div className="space-y-3 p-4">
-          <div>
-            <p className="text-lg font-semibold">{order.materialTitle}</p>
-            {path && <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{path}</p>}
+          <div className="flex gap-4">
+            <div className="shrink-0">
+              <a href={photos[photo]} target="_blank" rel="noreferrer" className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-xl bg-[var(--muted)]" aria-label="Agrandir la photo">
+                {photos[photo] ? <img src={photos[photo]} alt={order.materialTitle} className="h-full w-full object-cover" /> : <ImageOff className="h-6 w-6 text-[var(--muted-foreground)]" />}
+              </a>
+              {photos.length > 1 && <div className="mt-1.5 flex w-32 gap-1 overflow-x-auto">{photos.map((url, index) => <button key={url} type="button" onClick={() => setPhoto(index)} aria-label={`Photo ${index + 1}`} className={cn("h-8 w-8 shrink-0 overflow-hidden rounded-md border-2", index === photo ? "border-brand-500" : "border-transparent opacity-70 hover:opacity-100")}><img src={url} alt="" className="h-full w-full object-cover" /></button>)}</div>}
+            </div>
+            <div className="min-w-0">
+              <p className="text-lg font-semibold">{order.materialTitle}</p>
+              {path && <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{path}</p>}
+            </div>
           </div>
           <dl className="grid grid-cols-2 gap-3 text-sm">
             <Detail label="Quantité" value={`${order.quantity} ${order.unit}`} />
