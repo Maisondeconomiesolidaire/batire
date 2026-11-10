@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { AlertTriangle, BellRing, CalendarClock, Check, CircleCheck, ExternalLink, ImageOff, Inbox, Mail, MapPin, MessageSquare, Pencil, Phone, Search, Send, Truck, X, XCircle } from "lucide-react";
+import { AlertTriangle, BellRing, Check, CircleCheck, ExternalLink, ImageOff, Inbox, Lock, Mail, MapPin, MessageSquare, Pencil, Phone, RotateCcw, Search, Send, Truck, X, XCircle } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { LogisticsCard, ON_SITE_COLOR, TRANSIT_COLOR, shortDate } from "../../components/crm/LogisticsCard";
 import { Button } from "../../components/ui/Button";
 import { EmptyState } from "../../components/ui/EmptyState";
+import { Field, Input } from "../../components/ui/Field";
+import { PhoneInput } from "../../components/ui/PhoneInput";
 import { FullSpinner } from "../../components/ui/Spinner";
 import { UnderlineTabs } from "../../components/ui/UnderlineTabs";
 import { canAccess, useAccess } from "../../lib/access";
@@ -178,7 +180,15 @@ function OrderCard({ order, onOpen }: { order: Order; onOpen: () => void }) {
   />;
 }
 
-type DetailTab = "demande" | "messagerie" | "gestion";
+type DetailTab = "demande" | "gestion" | "client" | "messages";
+const DETAIL_TABS: { key: DetailTab; label: string }[] = [
+  { key: "demande", label: "Demande" },
+  { key: "gestion", label: "Gestion" },
+  { key: "client", label: "Client" },
+  { key: "messages", label: "Messages" },
+];
+
+const dateTime = (at: number) => new Date(at).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
 function OrderDetail({ order, canUpdate, onClose }: { order: Order; canUpdate: boolean; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -186,28 +196,31 @@ function OrderDetail({ order, canUpdate, onClose }: { order: Order; canUpdate: b
   useEffect(() => { const element = dialog.current; element?.showModal(); return () => { if (element?.open) element.close(); }; }, []);
   const relay = isRelay(order);
   const stage = stageOf(order);
-  const statusLabel = order.lostAt ? "Perdue" : order.collectedAt ? "Gagnée · remise au client" : STAGES.find(item => item.key === stage)?.label;
+  const statusLabel = order.lostAt ? (order.stripeRefundId ? "Perdue · remboursée" : "Perdue") : order.collectedAt ? "Gagnée · remise au client" : STAGES.find(item => item.key === stage)?.label;
   return <dialog ref={dialog} aria-labelledby="order-title" onCancel={event => { event.preventDefault(); onClose(); }} className="m-auto flex h-[calc(100%-1.5rem)] max-h-none w-[calc(100%-1.5rem)] max-w-none flex-col overflow-hidden rounded-[30px] border-0 bg-[var(--card)] p-0 text-[var(--foreground)] shadow-[0_28px_90px_rgba(0,0,0,0.18)] backdrop:bg-black/70 sm:h-[calc(100%-2.5rem)] sm:w-[calc(100%-2.5rem)] lg:h-[calc(100%-3.5rem)] lg:w-[calc(100%-3.5rem)]">
     <header className="shrink-0 px-5 py-4 text-zinc-950" style={{ backgroundColor: relay ? TRANSIT_COLOR : ON_SITE_COLOR }}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 id="order-title" className="font-mono text-2xl font-bold tracking-tight">#{orderNumber(order)}</h2>
-          <p className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-sm">
-            <span className="inline-flex items-center gap-1.5 rounded-md bg-white/45 px-2 py-0.5 font-bold">{relay ? <Truck className="h-3.5 w-3.5" /> : <MapPin className="h-3.5 w-3.5" />}{relay ? `${RELAY} · ${pickupName(order)}` : pickupName(order)}</span>
-            <span className="font-medium">{statusLabel}</span>
-            <PaymentStatus order={order} compact />
-            <span className="text-xs text-zinc-950/65">Reçue le {new Date(order.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</span>
-          </p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-white/45 px-2 py-0.5 font-bold">{relay ? <Truck className="h-3.5 w-3.5" /> : <MapPin className="h-3.5 w-3.5" />}{relay ? `${RELAY} · ${pickupName(order)}` : `${WAREHOUSE} · ${pickupName(order)}`}</span>
+          <span className="font-medium">{statusLabel}</span>
+          <h2 id="order-title" className="font-mono text-xs text-zinc-950/70">#{orderNumber(order)}</h2>
+          <span className="text-xs text-zinc-950/60">{new Date(order.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</span>
+          <PaymentStatus order={order} compact />
         </div>
         <button type="button" onClick={onClose} aria-label="Fermer" className="rounded-lg p-1.5 hover:bg-black/10"><X className="h-5 w-5" /></button>
       </div>
-      <p className="mt-3 text-lg font-semibold">{customerName(order)}</p>
-      <p className="mt-0.5 text-sm">{order.quantity} {order.unit} · {order.materialTitle}{order.purchaseReference && order.purchaseReference !== orderNumber(order) ? ` · Commande ${order.purchaseReference}` : ""}</p>
     </header>
+    {order.lostAt && <div className="shrink-0 border-b border-red-500/30 bg-red-500/10 px-6 py-4 sm:px-7">
+      <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-red-600 dark:text-red-300">Demande perdue · motif</p>
+      <p className="mt-1 text-xl font-black leading-tight">{order.lostReason || "Motif non précisé"}</p>
+    </div>}
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="sticky top-0 z-20 border-b border-[var(--border)] bg-[var(--card)] px-6 pt-3 sm:px-7"><UnderlineTabs className="border-b-0" value={tab} onChange={setTab} items={[{ key: "demande", label: "Demande" }, { key: "messagerie", label: "Messagerie" }, { key: "gestion", label: "Gestion" }]} /></div>
+      <div className="sticky top-0 z-20 border-b border-[var(--border)] bg-[var(--card)] px-6 pt-3 sm:px-7"><UnderlineTabs className="border-b-0" value={tab} onChange={setTab} items={DETAIL_TABS} /></div>
       <div className="px-6 pb-6 pt-6 sm:px-7">
-        {tab === "demande" ? <DemandeTab order={order} canUpdate={canUpdate} /> : tab === "messagerie" ? <MessagerieTab order={order} canUpdate={canUpdate} /> : <GestionTab order={order} canUpdate={canUpdate} />}
+        {tab === "demande" ? <DemandeTab order={order} canUpdate={canUpdate} />
+          : tab === "gestion" ? <GestionTab order={order} canUpdate={canUpdate} />
+          : tab === "client" ? <ClientTab key={order._id} order={order} canUpdate={canUpdate} />
+          : <MessagerieTab order={order} canUpdate={canUpdate} />}
       </div>
     </div>
   </dialog>;
@@ -224,6 +237,12 @@ function Detail({ label, value }: { label: string; value?: ReactNode }) {
   return <div><dt className="text-[var(--muted-foreground)]">{label}</dt><dd className="font-medium">{value}</dd></div>;
 }
 
+/** Ligne « libellé · valeur » du bloc Paiement, comme dans Recycapp. */
+function Row({ label, value, mono }: { label: string; value?: ReactNode; mono?: boolean }) {
+  if (value === undefined || value === null || value === "") return null;
+  return <div className="flex items-baseline justify-between gap-4"><span className="text-[var(--muted-foreground)]">{label}</span><span className={cn("min-w-0 truncate text-right font-medium", mono && "font-mono text-xs")}>{value}</span></div>;
+}
+
 /** Départ → arrivée sur une ligne, comme dans Meslogistic. */
 function Route({ from, to }: { from: string; to: string }) {
   return <div className="grid items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
@@ -234,33 +253,64 @@ function Route({ from, to }: { from: string; to: string }) {
   </div>;
 }
 
-/** Transit demandé par le client : la navette part dans Meslogistic avec une échéance obligatoire. */
-function ShuttleRequest({ order }: { order: Order }) {
-  const requestTransfer = useMutation(api.batire.requestPickupTransfer);
-  const [open, setOpen] = useState(false);
-  const [dueDate, setDueDate] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true); setError("");
-    try { await requestTransfer({ orderId: order._id, dueDate }); setOpen(false); }
-    catch (caught) { setError(errorText(caught, "La navette n’a pas pu être demandée.")); }
-    finally { setBusy(false); }
-  }
-  if (!open) return <div className="border-t border-[var(--border)] pt-3">
-    <Button onClick={() => { setError(""); setOpen(true); }} disabled={!order.sourceLocation}><Truck className="h-4 w-4" />Demander une navette</Button>
-    {!order.sourceLocation && <p className="mt-2 text-xs text-red-600">Lieu de stockage non reconnu : corrigez le dépôt sur la fiche CRM.</p>}
+/** Fenêtre de confirmation, affichée au-dessus de la fiche. */
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  return <div role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } }}>
+    <div className="w-full max-w-md rounded-3xl bg-[var(--card)] p-6 text-[var(--foreground)] shadow-2xl">
+      <div className="flex items-start justify-between gap-3"><h3 className="text-lg font-bold">{title}</h3><button type="button" onClick={onClose} aria-label="Fermer" className="rounded-lg p-1 hover:bg-[var(--accent)]"><X className="h-4 w-4" /></button></div>
+      <div className="mt-3">{children}</div>
+    </div>
   </div>;
-  return <form onSubmit={submit} className="space-y-3 rounded-xl border border-[#ff914d]/60 bg-[#ff914d]/10 p-3">
-    <p className="font-semibold">Demander une navette · {sourceName(order)} → {pickupName(order)}</p>
-    <label className="block font-medium">Échéance · le lot doit être arrivé le (obligatoire)<input type="date" required autoFocus value={dueDate} min={todayIso()} disabled={busy} onChange={event => setDueDate(event.target.value)} className="mt-1 block w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5 text-base" /></label>
-    {error && <p role="alert" className="text-xs font-medium text-red-600">{error}</p>}
-    <p className="text-xs text-[var(--muted-foreground)]">Une nouvelle demande est créée dans Meslogistic avec ce trajet et cette échéance.</p>
-    <div className="flex gap-2"><Button type="submit" disabled={busy || !dueDate}>{busy ? "Envoi…" : "Envoyer à Meslogistic"}</Button><Button type="button" variant="ghost" disabled={busy} onClick={() => setOpen(false)}>Annuler</Button></div>
-  </form>;
 }
 
+/** Paiement de la demande, avec remboursement Stripe pour un paiement par carte (comme la boutique Recycapp). */
+function PaymentSection({ order, canUpdate }: { order: Order; canUpdate: boolean }) {
+  const refund = useAction(api.batire.refundOrder);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const card = !order.paymentMethod || order.paymentMethod === "card";
+  const refunded = Boolean(order.stripeRefundId);
+  const canRefund = canUpdate && card && isPaid(order) && Boolean(order.stripePaymentIntentId) && !refunded && !order.collectedAt;
+  async function submit() {
+    setBusy(true); setError("");
+    try { await refund({ orderId: order._id }); setOpen(false); }
+    catch (caught) { setError(errorText(caught, "Remboursement impossible.")); }
+    finally { setBusy(false); }
+  }
+  return <section>
+    <SectionTitle>Paiement</SectionTitle>
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--muted)] p-4">
+      <div className="space-y-2 text-sm">
+        <Row label="Type de paiement" value={paymentLabel(order)} />
+        <Row label="Paiement validé" value={isPaid(order) ? "Validé" : "En attente"} />
+        <Row label="Montant" value={euros(order.amountCents)} />
+        {order.pickupFeeCents ? <Row label="Dont transfert vers le point relais" value={euros(order.pickupFeeCents)} /> : null}
+        <Row label="Date d'encaissement" value={order.paidAt ? dateTime(order.paidAt) : undefined} />
+        {card && <Row label="Prestataire" value={order.stripePaymentIntentId || order.stripeSessionId ? "Stripe" : undefined} />}
+        {card && <Row label="Payment Intent" value={order.stripePaymentIntentId} mono />}
+        {refunded && <>
+          <Row label="Remboursé le" value={order.refundedAt ? dateTime(order.refundedAt) : undefined} />
+          <Row label="Montant remboursé" value={order.refundedAmountCents !== undefined ? euros(order.refundedAmountCents) : undefined} />
+          <Row label="Remboursé par" value={order.refundedBy} />
+          <Row label="Remboursement Stripe" value={order.stripeRefundId} mono />
+        </>}
+      </div>
+      {canRefund && <div className="mt-4 border-t border-[var(--border)] pt-4">
+        <Button variant="outline" className="text-red-600 dark:text-red-400" onClick={() => { setError(""); setOpen(true); }}><RotateCcw className="h-4 w-4" />Effectuer un remboursement</Button>
+        <p className="mt-2 text-xs text-[var(--muted-foreground)]">Le montant de cette demande ({euros(order.amountCents)}) est rendu au client sur sa carte. La demande passe en « perdue » et le lot revient en stock.</p>
+        {error && !open && <p className="mt-2 text-xs text-red-600">{error}</p>}
+      </div>}
+    </div>
+    {open && <Modal title="Effectuer un remboursement" onClose={() => { if (!busy) setOpen(false); }}>
+      <p className="text-sm text-[var(--muted-foreground)]">Rembourser {euros(order.amountCents)} pour la demande #{orderNumber(order)} ? Le client sera recrédité sur sa carte via Stripe. Cette opération est définitive.</p>
+      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" disabled={busy} onClick={() => setOpen(false)}>Annuler</Button><Button variant="danger" disabled={busy} onClick={() => void submit()}><RotateCcw className="h-4 w-4" />{busy ? "Remboursement…" : "Rembourser"}</Button></div>
+    </Modal>}
+  </section>;
+}
+
+/** Onglet Demande, même disposition que les demandes Boutique de Recycapp : paiement à gauche, article à droite. */
 function DemandeTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) {
   const relay = isRelay(order);
   const material = order.material;
@@ -269,56 +319,10 @@ function DemandeTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
   const location = pickupLocationById(order.pickupLocation);
   const dimensions = material ? formatDimensions(material) : "";
   const path = material ? [material.category, material.family, material.subcategory].filter(Boolean).join(" › ") : "";
-  return <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
+  return <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)]">
     <div className="space-y-6">
-      {order.lostAt && <p className="flex items-start gap-2 rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-sm"><XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" /><span><strong>Demande perdue</strong> le {new Date(order.lostAt).toLocaleDateString("fr-FR")}{order.lostReason ? ` · ${order.lostReason}` : ""}</span></p>}
-      {needsPickupRequest(order) && <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#ff914d]/60 bg-[#ff914d]/15 p-4 text-sm">
-        <p><strong>Navette à demander.</strong> Le client retire à {pickupName(order)} : utilisez « Demander une navette » dans le bloc Lieu de retrait pour envoyer la demande à Meslogistic.</p>
-      </div>}
-      <section>
-        <SectionTitle>Article</SectionTitle>
-        <div className="overflow-hidden rounded-2xl border border-[var(--border)]">
-          <div className="grid gap-4 p-4 sm:grid-cols-[220px_minmax(0,1fr)]">
-            <div>
-              <div className="flex aspect-square items-center justify-center overflow-hidden rounded-xl bg-[var(--muted)]">
-                {photos[photo] ? <img src={photos[photo]} alt={order.materialTitle} className="h-full w-full object-cover" /> : <ImageOff className="h-8 w-8 text-[var(--muted-foreground)]" />}
-              </div>
-              {photos.length > 1 && <div className="mt-2 flex gap-1.5 overflow-x-auto">{photos.map((url, index) => <button key={url} type="button" onClick={() => setPhoto(index)} aria-label={`Photo ${index + 1}`} className={cn("h-12 w-12 shrink-0 overflow-hidden rounded-lg border-2", index === photo ? "border-brand-500" : "border-transparent opacity-70 hover:opacity-100")}><img src={url} alt="" className="h-full w-full object-cover" /></button>)}</div>}
-            </div>
-            <div className="min-w-0">
-              <p className="text-lg font-semibold">{order.materialTitle}</p>
-              {path && <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{path}</p>}
-              <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                <Detail label="État" value={material?.condition.replace(/_/g, " ")} />
-                <Detail label="Marque" value={[material?.brand, material?.modelReference].filter(Boolean).join(" · ")} />
-                <Detail label="Dimensions" value={dimensions} />
-                <Detail label="Poids" value={material?.weightKg ? `${material.weightKg} kg` : undefined} />
-                <Detail label="Matière" value={[material?.material, material?.color].filter(Boolean).join(" · ")} />
-                <Detail label="Conditionnement" value={material?.packaging} />
-                <Detail label="Stockage" value={[material?.depot, material?.location].filter(Boolean).join(" · ")} />
-              </dl>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <a href={`/materiau/${order.materialId}`} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-[var(--border)] px-3 text-sm font-medium hover:bg-[var(--accent)]"><ExternalLink className="h-4 w-4" />Fiche produit</a>
-                <a href={`/crm/materiaux/${order.materialId}`} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-[var(--border)] px-3 text-sm font-medium hover:bg-[var(--accent)]"><Pencil className="h-4 w-4" />Fiche CRM</a>
-              </div>
-            </div>
-          </div>
-          {material?.description && <p className="whitespace-pre-line border-t border-[var(--border)] p-4 text-sm text-[var(--muted-foreground)]">{material.description}</p>}
-        </div>
-      </section>
-      <section>
-        <SectionTitle>Commande</SectionTitle>
-        <dl className="grid grid-cols-2 gap-3 rounded-2xl border border-[var(--border)] p-4 text-sm sm:grid-cols-3">
-          <Detail label="Référence" value={orderNumber(order)} />
-          <Detail label="Commande" value={order.purchaseReference ?? order.reference} />
-          <Detail label="Quantité" value={`${order.quantity} ${order.unit}`} />
-          <Detail label="Prix unitaire" value={euros(Math.round(order.unitPrice * 100))} />
-          <Detail label="Montant" value={euros(order.amountCents)} />
-          <Detail label="Paiement" value={<PaymentStatus order={order} />} />
-        </dl>
-      </section>
-    </div>
-    <div className="space-y-6">
+      {needsPickupRequest(order) && <p className="rounded-2xl border border-[#ff914d]/60 bg-[#ff914d]/15 p-4 text-sm"><strong>Enlèvement à demander.</strong> Le client retire à {pickupName(order)} : cochez « Enlèvement demandé » dans l’onglet Gestion.</p>}
+      <PaymentSection order={order} canUpdate={canUpdate} />
       <section>
         <SectionTitle>Lieu de retrait</SectionTitle>
         <div className="space-y-3 rounded-2xl border border-[var(--border)] p-4 text-sm">
@@ -328,21 +332,82 @@ function DemandeTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
           {relay && <div className="border-t border-[var(--border)] pt-3"><Route from={sourceName(order)} to={pickupName(order)} /></div>}
           {order.transfer?.dueDate && <p>Échéance : <strong>{longDate(order.transfer.dueDate)}</strong></p>}
           {order.availableFrom && <p>Disponible le <strong>{longDate(order.availableFrom)}</strong>{order.customerNotifiedAt ? " · client prévenu" : " · client à prévenir"}</p>}
-          {needsPickupRequest(order) && canUpdate && <ShuttleRequest order={order} />}
         </div>
       </section>
-      <section>
-        <SectionTitle>Client</SectionTitle>
-        <div className="space-y-3 rounded-2xl border border-[var(--border)] p-4 text-sm">
-          <p className="text-lg font-semibold">{customerName(order)}</p>
-          {order.customer.company && <p className="text-[var(--muted-foreground)]">{order.customer.company}</p>}
-          <a href={`mailto:${order.customer.email}`} className="flex items-center gap-2 hover:underline"><Mail className="h-4 w-4" />{order.customer.email}</a>
-          {order.customer.phone && <a href={`tel:${order.customer.phone}`} className="flex items-center gap-2 hover:underline"><Phone className="h-4 w-4" />{order.customer.phone}</a>}
-        </div>
-        <p className="mt-4 text-xs text-[var(--muted-foreground)]">Reçue le {new Date(order.createdAt).toLocaleString("fr-FR")}</p>
-      </section>
+      <p className="text-xs text-[var(--muted-foreground)]">Reçue le {dateTime(order.createdAt)}</p>
     </div>
+    <section>
+      <SectionTitle>Article</SectionTitle>
+      <div className="overflow-hidden rounded-2xl border border-[var(--border)]">
+        <div className="flex aspect-[4/3] items-center justify-center overflow-hidden bg-[var(--muted)]">
+          {photos[photo] ? <img src={photos[photo]} alt={order.materialTitle} className="h-full w-full object-cover" /> : <ImageOff className="h-8 w-8 text-[var(--muted-foreground)]" />}
+        </div>
+        {photos.length > 1 && <div className="flex gap-1.5 overflow-x-auto p-2">{photos.map((url, index) => <button key={url} type="button" onClick={() => setPhoto(index)} aria-label={`Photo ${index + 1}`} className={cn("h-12 w-12 shrink-0 overflow-hidden rounded-lg border-2", index === photo ? "border-brand-500" : "border-transparent opacity-70 hover:opacity-100")}><img src={url} alt="" className="h-full w-full object-cover" /></button>)}</div>}
+        <div className="space-y-3 p-4">
+          <div>
+            <p className="text-lg font-semibold">{order.materialTitle}</p>
+            {path && <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{path}</p>}
+          </div>
+          <dl className="grid grid-cols-2 gap-3 text-sm">
+            <Detail label="Quantité" value={`${order.quantity} ${order.unit}`} />
+            <Detail label="Prix unitaire" value={euros(Math.round(order.unitPrice * 100))} />
+            <Detail label="Référence" value={orderNumber(order)} />
+            <Detail label="Commande" value={order.purchaseReference ?? order.reference} />
+            <Detail label="État" value={material?.condition.replace(/_/g, " ")} />
+            <Detail label="Marque" value={[material?.brand, material?.modelReference].filter(Boolean).join(" · ")} />
+            <Detail label="Dimensions" value={dimensions} />
+            <Detail label="Poids" value={material?.weightKg ? `${material.weightKg} kg` : undefined} />
+            <Detail label="Matière" value={[material?.material, material?.color].filter(Boolean).join(" · ")} />
+            <Detail label="Conditionnement" value={material?.packaging} />
+            <Detail label="Stockage" value={[material?.depot, material?.location].filter(Boolean).join(" · ")} />
+          </dl>
+          {material?.description && <p className="whitespace-pre-line border-t border-[var(--border)] pt-3 text-sm text-[var(--muted-foreground)]">{material.description}</p>}
+          <div className="flex flex-wrap gap-2 border-t border-[var(--border)] pt-3">
+            <a href={`/materiau/${order.materialId}`} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-[var(--border)] px-3 text-sm font-medium hover:bg-[var(--accent)]"><ExternalLink className="h-4 w-4" />Fiche produit</a>
+            <a href={`/crm/materiaux/${order.materialId}`} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-[var(--border)] px-3 text-sm font-medium hover:bg-[var(--accent)]"><Pencil className="h-4 w-4" />Fiche CRM</a>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>;
+}
+
+/** Onglet Client : coordonnées modifiables, comme dans Recycapp. */
+function ClientTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) {
+  const update = useMutation(api.batire.updateOrderCustomer);
+  const [form, setForm] = useState({ firstName: order.customer.firstName, lastName: order.customer.lastName, email: order.customer.email, phone: order.customer.phone ?? "", company: order.customer.company ?? "" });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+  const set = (key: keyof typeof form, value: string) => { setForm(previous => ({ ...previous, [key]: value })); setSaved(false); };
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true); setError("");
+    try { await update({ orderId: order._id, customer: { ...form, phone: form.phone || undefined, company: form.company || undefined } }); setSaved(true); }
+    catch (caught) { setError(errorText(caught, "Enregistrement impossible.")); }
+    finally { setSaving(false); }
+  }
+  return <form onSubmit={save} className="max-w-3xl">
+    <fieldset disabled={!canUpdate || saving} className="space-y-5 border-0 p-0">
+      {!canUpdate && <p className="rounded-xl border border-[var(--border)] bg-[var(--muted)] px-3 py-2 text-xs text-[var(--muted-foreground)]">Lecture seule — vous n'avez pas la permission de modifier le client.</p>}
+      <section>
+        <SectionTitle>Coordonnées</SectionTitle>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Prénom"><Input value={form.firstName} onChange={event => set("firstName", event.target.value)} /></Field>
+          <Field label="Nom"><Input value={form.lastName} onChange={event => set("lastName", event.target.value)} /></Field>
+          <Field label="Email"><Input type="email" required value={form.email} onChange={event => set("email", event.target.value)} /></Field>
+          <Field label="Téléphone"><PhoneInput value={form.phone} onValueChange={value => set("phone", value)} /></Field>
+          <Field label="Société"><Input value={form.company} onChange={event => set("company", event.target.value)} /></Field>
+        </div>
+      </section>
+      <div className="flex flex-wrap gap-4 text-sm">
+        <a href={`mailto:${order.customer.email}`} className="flex items-center gap-2 hover:underline"><Mail className="h-4 w-4" />{order.customer.email}</a>
+        {order.customer.phone && <a href={`tel:${order.customer.phone}`} className="flex items-center gap-2 hover:underline"><Phone className="h-4 w-4" />{order.customer.phone}</a>}
+      </div>
+      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+      {canUpdate && <div className="flex items-center gap-3"><Button type="submit">{saving ? "Enregistrement…" : "Enregistrer"}</Button>{saved && <span className="inline-flex items-center gap-1 text-sm text-brand-600"><Check className="h-4 w-4" />Enregistré</span>}</div>}
+    </fieldset>
+  </form>;
 }
 
 /** Confirmation avant tout envoi d'email au client. */
@@ -403,6 +468,101 @@ function savedHours(location?: string) {
   try { return localStorage.getItem(hoursKey(location)) ?? DEFAULT_OPENING_HOURS[location ?? ""] ?? ""; } catch { return DEFAULT_OPENING_HOURS[location ?? ""] ?? ""; }
 }
 
+type ProcessStep = {
+  key: "requested" | "assigned" | "transit" | "ready" | "paid";
+  label: string;
+  done: boolean;
+  at?: number;
+  by?: string;
+  detail?: string;
+  /** Cliquable depuis Bâtire. */
+  actionable: boolean;
+  /** Pourquoi l'étape ne se coche pas ici. */
+  hint?: string;
+};
+
+/**
+ * Étapes du process, comme dans Recycapp. Point relais : enlèvement demandé →
+ * navette assignée → en transit (ces deux-là cochées par Meslogistic) →
+ * disponible (après l'arrivée dans Meslogistic) → payé. Retrait sur le lieu
+ * de stockage : disponible → payé. Payé est indépendant des autres étapes.
+ */
+function processSteps(order: Order, canUpdate: boolean): ProcessStep[] {
+  const closed = isClosed(order);
+  const editable = canUpdate && !closed;
+  const steps = order.transitSteps;
+  const transit = hasTransit(order);
+  const arrived = order.transfer?.status === "receptionnee";
+  const offline = order.paymentMethod === "cash" || order.paymentMethod === "bank_transfer";
+  const ready: ProcessStep = {
+    key: "ready", label: "Disponible", done: Boolean(order.readyAt), at: order.readyAt,
+    detail: order.availableFrom ? `Retrait dès le ${shortDate(order.availableFrom)}` : undefined,
+    actionable: editable && (!isRelay(order) || arrived),
+    hint: isRelay(order) && !arrived ? "Se coche quand le lot est indiqué arrivé dans Meslogistic." : undefined,
+  };
+  const paid: ProcessStep = {
+    key: "paid", label: "Payé", done: isPaid(order), at: order.paidAt,
+    detail: paymentLabel(order),
+    actionable: canUpdate && !order.lostAt && offline && !isPaid(order),
+    hint: !offline && !isPaid(order) ? "Le paiement par carte se valide en ligne." : undefined,
+  };
+  if (!isRelay(order)) return [ready, paid];
+  return [
+    { key: "requested", label: "Enlèvement demandé", done: transit, at: steps?.requested.at, by: steps?.requested.by, detail: order.transfer?.dueDate ? `Échéance ${shortDate(order.transfer.dueDate)}` : undefined, actionable: editable && !transit },
+    { key: "assigned", label: "Navette assignée", done: Boolean(steps?.assigned), at: steps?.assigned?.at, by: steps?.assigned?.by, detail: steps?.shuttleName, actionable: false, hint: "Coché par Meslogistic quand la demande est mise dans une navette." },
+    { key: "transit", label: "En transit", done: Boolean(steps?.transit), at: steps?.transit?.at, by: steps?.transit?.by, actionable: false, hint: "Coché par Meslogistic au départ de la navette." },
+    ready,
+    paid,
+  ];
+}
+
+function ProcessChecklist({ steps, onStep }: { steps: ProcessStep[]; onStep: (step: ProcessStep) => void }) {
+  const [hint, setHint] = useState<string | null>(null);
+  const done = steps.filter(step => step.done).length;
+  const percent = Math.round((done / steps.length) * 100);
+  const next = steps.find(step => !step.done);
+  return <div className="space-y-4">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--muted)] p-3">
+      <div className="mb-2 flex items-center justify-between text-xs font-medium uppercase tracking-[0.14em] text-[var(--muted-foreground)]"><span>Complétude</span><span className="text-brand-600 dark:text-brand-300">{percent}%</span></div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--card)]"><div className="h-full rounded-full bg-brand-500 transition-all" style={{ width: `${percent}%` }} /></div>
+    </div>
+    <ol className="grid gap-2" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}>
+      {steps.map(step => {
+        const isNext = step === next;
+        const clickable = step.actionable;
+        return <li key={step.key}>
+          <button type="button" onClick={() => clickable ? onStep(step) : step.hint ? setHint(step.hint) : undefined}
+            className={cn("flex min-h-[152px] w-full flex-col items-center justify-between rounded-[24px] border px-3 py-3 text-center text-sm transition-all",
+              step.done ? "border-brand-500/40 bg-brand-500/10"
+                : clickable ? "border-[var(--border)] bg-[var(--card)] shadow-[0_12px_24px_rgba(0,0,0,0.08)] hover:border-brand-500"
+                  : "border-[var(--border)] bg-[var(--muted)] text-[var(--muted-foreground)]",
+              clickable || step.hint ? "cursor-pointer" : "cursor-default")}>
+            <span className={cn("mb-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2",
+              step.done ? "border-brand-500 bg-brand-500 text-white" : clickable ? "border-brand-500 bg-brand-500/10" : "border-[var(--border)] bg-[var(--card)]")}>
+              {step.done ? <Check className="h-4 w-4" strokeWidth={3} /> : !clickable && step.hint ? <Lock className="h-3.5 w-3.5 text-[var(--muted-foreground)]" /> : null}
+            </span>
+            <span className="flex flex-1 flex-col items-center justify-center">
+              <span className="block font-semibold leading-5">{step.label}</span>
+              {step.done && (step.at || step.by) && <span className="mt-2 flex flex-col items-center text-[11px] text-[var(--muted-foreground)]">
+                {step.by && <span className="max-w-full truncate">par {step.by}</span>}
+                {step.at && <span>{dateTime(step.at)}</span>}
+              </span>}
+              {step.detail && (step.done || step.key === "paid") && <span className="mt-1 text-[11px] font-medium text-[var(--muted-foreground)]">{step.detail}</span>}
+            </span>
+            {!step.done && (clickable ? <span className={cn("text-[11px] font-semibold uppercase tracking-[0.12em]", isNext ? "text-brand-600 dark:text-brand-300" : "text-[var(--muted-foreground)]")}>{isNext ? "Prochaine étape" : "À cocher"}</span>
+              : step.hint ? <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">{step.key === "assigned" || step.key === "transit" ? "Meslogistic" : "En attente"}</span> : null)}
+            {step.done && step.key === "ready" && clickable && <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Modifier la date</span>}
+          </button>
+        </li>;
+      })}
+    </ol>
+    {hint && <Modal title="Étape non modifiable ici" onClose={() => setHint(null)}>
+      <p className="text-sm text-[var(--muted-foreground)]">{hint}</p>
+      <div className="mt-5 flex justify-end"><Button onClick={() => setHint(null)}>Compris</Button></div>
+    </Modal>}
+  </div>;
+}
+
 function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) {
   const update = useMutation(api.batire.updatePickup);
   const confirmPayment = useMutation(api.batire.confirmOfflinePayment);
@@ -412,9 +572,9 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
   const [lostReason, setLostReason] = useState("");
   const [restock, setRestock] = useState(true);
   const [availableFrom, setAvailableFrom] = useState(order.availableFrom ?? todayIso());
-  const [editingDate, setEditingDate] = useState(false);
   const [hours, setHours] = useState(() => order.pickupHours ?? savedHours(order.pickupLocation));
   const [confirmNotify, setConfirmNotify] = useState(false);
+  const [stepOpen, setStepOpen] = useState<ProcessStep["key"] | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
   const source = order.sourceLocation ?? storageLocationId(order.logisticsSourceDepot);
   const destinations = PICKUP_LOCATIONS.filter(location => location.id !== source);
@@ -423,28 +583,27 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const transit = hasTransit(order);
-  const received = order.transfer?.status === "receptionnee";
   const offline = order.paymentMethod === "cash" || order.paymentMethod === "bank_transfer";
   const locked = !canUpdate || busy || Boolean(order.lostAt);
   const location = pickupLocationById(order.pickupLocation);
-  const waitingTransit = (transit && !received) || needsPickupRequest(order);
+  const steps = processSteps(order, canUpdate);
 
   async function run(action: () => Promise<unknown>) {
     setBusy(true); setError("");
     try { await action(); return true; } catch (caught) { setError(errorText(caught, "Enregistrement impossible.")); return false; } finally { setBusy(false); }
   }
-  async function saveAvailability(event: FormEvent) {
-    event.preventDefault();
-    if (await run(() => update({ orderId: order._id, step: "ready", availableFrom }))) setEditingDate(false);
-  }
   async function notify() {
     try { localStorage.setItem(hoursKey(order.pickupLocation), hours.trim()); } catch { /* préférence locale facultative */ }
-    if (await run(() => update({ orderId: order._id, step: "notify", pickupHours: hours.trim() }))) setConfirmNotify(false);
-    else setConfirmNotify(false);
+    await run(() => update({ orderId: order._id, step: "notify", pickupHours: hours.trim() }));
+    setConfirmNotify(false);
   }
-  async function submitPickupRequest(event: FormEvent) {
+  async function submitStep(event: FormEvent) {
     event.preventDefault();
-    await run(() => requestTransfer({ orderId: order._id, dueDate }));
+    const ok = stepOpen === "requested" ? await run(() => requestTransfer({ orderId: order._id, dueDate }))
+      : stepOpen === "ready" ? await run(() => update({ orderId: order._id, step: "ready", availableFrom }))
+        : stepOpen === "paid" ? await run(() => confirmPayment({ orderId: order._id }))
+          : false;
+    if (ok) setStepOpen(null);
   }
   async function submitLost(event: FormEvent) {
     event.preventDefault();
@@ -455,89 +614,54 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
     if (await run(() => requestTransfer({ orderId: order._id, destination: destination as PickupLocationId, dueDate }))) setTransferOpen(false);
   }
 
-  return <div className="max-w-3xl space-y-6">
+  return <div className="space-y-6">
     {!canUpdate && <p className="rounded-xl border border-[var(--border)] bg-[var(--muted)] px-3 py-2 text-xs text-[var(--muted-foreground)]">Lecture seule — vous n'avez pas la permission de modifier cette demande.</p>}
-    {error && <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600">{error}</p>}
+    {error && !stepOpen && <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-sm text-red-600">{error}</p>}
 
-    {needsPickupRequest(order) && <section>
-      <SectionTitle>Demande d’enlèvement (Meslogistic)</SectionTitle>
-      <form onSubmit={submitPickupRequest} className="space-y-4 rounded-2xl border border-[#ff914d]/60 bg-[#ff914d]/10 p-4">
-        <p className="text-sm">Le client a demandé un retrait à <strong>{pickupName(order)}</strong>. Renseignez l’échéance : la demande part dans Meslogistic avec ce trajet.</p>
-        <div className="rounded-xl bg-[var(--card)] p-4"><Route from={sourceName(order)} to={pickupName(order)} /></div>
-        <label className="block text-sm font-semibold">Échéance · le lot doit être arrivé le (obligatoire)<input type="date" required value={dueDate} min={todayIso()} disabled={locked} onChange={event => setDueDate(event.target.value)} className="mt-1 block w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5 text-base" /></label>
-        {!order.sourceLocation && <p className="text-xs text-red-600">Le lieu de stockage du matériau n’est pas reconnu : corrigez le dépôt sur la fiche CRM avant de créer l’enlèvement.</p>}
-        <Button type="submit" disabled={locked || !dueDate || !order.sourceLocation}><Truck className="h-4 w-4" />{busy ? "Création…" : "Créer la demande d’enlèvement"}</Button>
-      </form>
-    </section>}
+    <section>
+      <SectionTitle>Process · {isRelay(order) ? `${RELAY} (${pickupName(order)})` : WAREHOUSE}</SectionTitle>
+      <ProcessChecklist steps={steps} onStep={step => { setError(""); setDueDate(""); setAvailableFrom(order.availableFrom ?? todayIso()); setStepOpen(step.key); }} />
+    </section>
 
     {transit && <section>
       <SectionTitle>Acheminement (Meslogistic)</SectionTitle>
       <div className="space-y-3 rounded-2xl border border-[var(--border)] p-4 text-sm">
-        <p><strong>{RELAY}</strong> · {order.transfer!.status === "a_preparer" ? "Nouveau" : order.transfer!.status === "en_transit" ? "En transit" : order.transfer!.status === "receptionnee" ? "Disponible à destination" : "Annulé"}</p>
         <Route from={order.transfer!.origin} to={order.transfer!.destination} />
-        {order.transfer!.dueDate && <p>Échéance : <strong>{longDate(order.transfer!.dueDate)}</strong></p>}
-        {order.transfer!.scheduledDate && <p>Navette prévue le {longDate(order.transfer!.scheduledDate)}</p>}
-        {!received && <p className="text-xs text-[var(--muted-foreground)]">La carte passe en « Disponible pour retrait » dès que Meslogistic indique le lot disponible à destination.</p>}
+        <p className="flex flex-wrap gap-x-4 gap-y-1">
+          {order.transfer!.dueDate && <span>Échéance : <strong>{longDate(order.transfer!.dueDate)}</strong></span>}
+          {order.transfer!.scheduledDate && <span>Navette {order.transitSteps?.shuttleName ? `« ${order.transitSteps.shuttleName} » ` : ""}prévue le {longDate(order.transfer!.scheduledDate)}</span>}
+        </p>
       </div>
     </section>}
 
-    <section>
-      <SectionTitle>Disponibilité</SectionTitle>
-      <div className={cn("rounded-3xl border p-4", order.readyAt ? "border-brand-500/35 bg-brand-500/10" : "border-[var(--border)] bg-[var(--muted)]")}>
-        {order.readyAt && order.availableFrom && !editingDate ? <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="flex items-center gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-500 text-white"><Check className="h-4 w-4" /></span><span className="text-base font-semibold">Disponible le {shortDate(order.availableFrom)}</span></p>
-          {canUpdate && !order.collectedAt && <Button size="sm" variant="ghost" disabled={busy} onClick={() => setEditingDate(true)}><Pencil className="h-4 w-4" />Modifier la date</Button>}
-        </div> : <form onSubmit={saveAvailability} className="space-y-3">
-          <p className="flex items-center gap-2 text-base font-semibold"><CalendarClock className="h-5 w-5" />Disponible le</p>
-          {waitingTransit && <p className="text-sm text-[var(--muted-foreground)]">{needsPickupRequest(order) ? "Créez d’abord la demande d’enlèvement." : "Le lot doit d’abord être disponible à destination dans Meslogistic."}</p>}
-          <div className="flex flex-wrap items-end gap-2">
-            <input type="date" required value={availableFrom} disabled={locked || waitingTransit || Boolean(order.collectedAt)} onChange={event => setAvailableFrom(event.target.value)} className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5 disabled:opacity-60" aria-label="Date de disponibilité" />
-            <Button type="submit" disabled={locked || waitingTransit || !availableFrom || Boolean(order.collectedAt)}>Enregistrer</Button>
-            {editingDate && <Button type="button" variant="ghost" disabled={busy} onClick={() => { setEditingDate(false); setAvailableFrom(order.availableFrom ?? todayIso()); }}>Annuler</Button>}
-          </div>
-          <p className="text-xs text-[var(--muted-foreground)]">Aucun email n’est envoyé : prévenez le client avec le bouton « Notifier le client ».</p>
-        </form>}
-      </div>
-    </section>
-
-    {order.readyAt && order.availableFrom && !order.collectedAt && <section>
+    {order.readyAt && order.availableFrom && !order.collectedAt && !order.lostAt && <section>
       <SectionTitle>Notifier le client</SectionTitle>
       <div className="space-y-3 rounded-2xl border border-[var(--border)] p-4 text-sm">
-        {order.customerNotifiedAt && <p className="flex items-center gap-2 text-[var(--muted-foreground)]"><BellRing className="h-4 w-4" />Client notifié le {new Date(order.customerNotifiedAt).toLocaleString("fr-FR")}</p>}
+        {order.customerNotifiedAt && <p className="flex items-center gap-2 text-[var(--muted-foreground)]"><BellRing className="h-4 w-4" />Client notifié le {dateTime(order.customerNotifiedAt)}</p>}
         <p>Le client reçoit : la date de disponibilité, le lieu ({pickupName(order)}{location ? `, ${location.address}` : ""}), les horaires d’ouverture et sa référence.</p>
         <label className="block font-medium">Horaires d’ouverture de {pickupName(order)}<textarea rows={2} maxLength={500} value={hours} disabled={locked} onChange={event => setHours(event.target.value)} placeholder="Ex. du mardi au samedi, de 14h00 à 17h00" className="mt-1 block w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5" /></label>
         {canUpdate && <Button disabled={locked || !hours.trim()} onClick={() => { setError(""); setConfirmNotify(true); }}><BellRing className="h-4 w-4" />{order.customerNotifiedAt ? "Notifier à nouveau" : "Notifier le client"}</Button>}
       </div>
     </section>}
 
-    {!transit && !order.relayRequested && !order.readyAt && !order.collectedAt && canUpdate && <section>
+    {order.readyAt && !order.lostAt && <section>
+      <SectionTitle>Remise au client</SectionTitle>
+      {order.collectedAt ? <p className="text-sm text-[var(--muted-foreground)]">Remis au client le {dateTime(order.collectedAt)}.</p> :
+        <div className="space-y-2">
+          <Button disabled={locked || (offline && !isPaid(order))} onClick={() => void run(() => update({ orderId: order._id, step: "collect" }))}><CircleCheck className="h-4 w-4" />Confirmer la remise au client</Button>
+          {offline && !isPaid(order) && <p className="text-xs text-[var(--muted-foreground)]">Cochez d’abord « Payé ».</p>}
+        </div>}
+    </section>}
+
+    {!transit && !order.relayRequested && !order.readyAt && !order.collectedAt && !order.lostAt && canUpdate && <section>
       <SectionTitle>Point relais</SectionTitle>
-      {!transferOpen ? <Button variant="outline" disabled={busy} onClick={() => { setError(""); setTransferOpen(true); }}><Truck className="h-4 w-4" />Demander un point relais</Button> :
+      {!transferOpen ? <Button variant="outline" disabled={busy} onClick={() => { setError(""); setDueDate(""); setTransferOpen(true); }}><Truck className="h-4 w-4" />Demander un point relais</Button> :
         <form onSubmit={submitTransfer} className="space-y-4 rounded-2xl border border-[var(--border)] p-4">
           <label className="block text-sm font-medium">Point relais demandé<select required value={destination} onChange={event => setDestination(event.target.value)} className="mt-1 block w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5"><option value="" disabled>Choisir un point relais</option>{destinations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
           <label className="block text-sm font-semibold">Échéance · le lot doit être arrivé le (obligatoire)<input type="date" required value={dueDate} min={todayIso()} onChange={event => setDueDate(event.target.value)} className="mt-1 block w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5" /></label>
           <p className="text-xs text-[var(--muted-foreground)]">La demande passe en « Point relais » (carte orange) et Meslogistic organise l’acheminement.</p>
           <div className="flex gap-2"><Button type="submit" disabled={busy || !destination || !dueDate}>{busy ? "Création…" : "Créer la demande d’enlèvement"}</Button><Button type="button" variant="ghost" disabled={busy} onClick={() => setTransferOpen(false)}>Annuler</Button></div>
         </form>}
-    </section>}
-
-    {order.lostAt && <p className="flex items-start gap-2 rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-sm"><XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" /><span><strong>Demande perdue</strong> le {new Date(order.lostAt).toLocaleString("fr-FR")}{order.lostReason ? ` · ${order.lostReason}` : ""}</span></p>}
-
-    <section>
-      <SectionTitle>Paiement</SectionTitle>
-      <div className={cn("flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4 text-sm", isPaid(order) ? "border-emerald-500/40 bg-emerald-500/10" : "border-amber-500/50 bg-amber-500/10")}>
-        <PaymentStatus order={order} />
-        <span className="font-semibold">{euros(order.amountCents)}</span>
-      </div>
-    </section>
-
-    {(offline || order.readyAt) && <section>
-      <SectionTitle>Remise au client</SectionTitle>
-      <div className="flex flex-wrap gap-2">
-        {offline && order.status !== "payee" && <Button variant="outline" disabled={locked} onClick={() => void run(() => confirmPayment({ orderId: order._id }))}>Enregistrer le paiement ({order.paymentMethod === "cash" ? "espèces" : "virement"})</Button>}
-        {order.readyAt && !order.collectedAt && <Button disabled={locked || (offline && order.status !== "payee")} onClick={() => void run(() => update({ orderId: order._id, step: "collect" }))}>Confirmer la remise au client</Button>}
-        {order.collectedAt && <p className="text-sm text-[var(--muted-foreground)]">Remis au client le {new Date(order.collectedAt).toLocaleString("fr-FR")}.</p>}
-      </div>
     </section>}
 
     {!isClosed(order) && canUpdate && <section>
@@ -547,10 +671,30 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
           <label className="block font-medium">Raison (obligatoire)<input required maxLength={500} value={lostReason} onChange={event => setLostReason(event.target.value)} placeholder="Ex. client injoignable, désistement…" className="mt-1 block w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5" /></label>
           {isPaid(order) && <label className="flex items-center gap-2"><input type="checkbox" checked={restock} onChange={event => setRestock(event.target.checked)} className="h-4 w-4" />Remettre {order.quantity} {order.unit} en stock</label>}
           {hasTransit(order) && order.transfer?.status === "a_preparer" && <p className="text-xs text-[var(--muted-foreground)]">L’enlèvement Meslogistic pas encore parti sera annulé.</p>}
-          {isPaid(order) && <p className="text-xs text-[var(--muted-foreground)]">Commande déjà réglée : un éventuel remboursement se fait à part.</p>}
+          {isPaid(order) && <p className="text-xs text-[var(--muted-foreground)]">Commande déjà réglée : pour rendre l’argent d’un paiement par carte, utilisez plutôt « Effectuer un remboursement » (onglet Demande).</p>}
           <div className="flex gap-2"><Button type="submit" variant="danger" disabled={busy || !lostReason.trim()}>{busy ? "Enregistrement…" : "Marquer comme perdue"}</Button><Button type="button" variant="ghost" disabled={busy} onClick={() => setLostOpen(false)}>Annuler</Button></div>
         </form>}
     </section>}
+
+    {stepOpen && <Modal title={stepOpen === "requested" ? "Enlèvement demandé" : stepOpen === "ready" ? "Disponible" : "Payé"} onClose={() => { if (!busy) setStepOpen(null); }}>
+      <form onSubmit={submitStep} className="space-y-4 text-sm">
+        {stepOpen === "requested" && <>
+          <p>Une demande d’enlèvement part dans Meslogistic : <strong>{sourceName(order)}</strong> → <strong>{pickupName(order)}</strong>.</p>
+          <label className="block font-semibold">Échéance · le lot doit être arrivé le (obligatoire)<input type="date" required autoFocus value={dueDate} min={todayIso()} onChange={event => setDueDate(event.target.value)} className="mt-1 block w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5" /></label>
+          {!order.sourceLocation && <p className="text-xs text-red-600">Le lieu de stockage du matériau n’est pas reconnu : corrigez le dépôt sur la fiche CRM.</p>}
+        </>}
+        {stepOpen === "ready" && <>
+          <p>Le lot est prêt à être retiré à <strong>{pickupName(order)}</strong>. Aucun email n’est envoyé : prévenez ensuite le client avec « Notifier le client ».</p>
+          <label className="block font-semibold">Disponible à partir du<input type="date" required autoFocus value={availableFrom} onChange={event => setAvailableFrom(event.target.value)} className="mt-1 block w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5" /></label>
+        </>}
+        {stepOpen === "paid" && <p>Confirmez avoir reçu le paiement de <strong>{euros(order.amountCents)}</strong> ({order.paymentMethod === "cash" ? "espèces" : "virement"}).</p>}
+        {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" disabled={busy} onClick={() => setStepOpen(null)}>Annuler</Button>
+          <Button type="submit" disabled={busy || (stepOpen === "requested" && (!dueDate || !order.sourceLocation)) || (stepOpen === "ready" && !availableFrom)}><Check className="h-4 w-4" />{busy ? "Enregistrement…" : stepOpen === "requested" ? "Envoyer à Meslogistic" : "Cocher l’étape"}</Button>
+        </div>
+      </form>
+    </Modal>}
 
     {confirmNotify && order.availableFrom && <ConfirmSend title="Notifier le client ?" to={order.customer.email} confirmLabel="Oui, notifier" busy={busy} onCancel={() => setConfirmNotify(false)} onConfirm={() => void notify()}>
       {`Votre retrait ${orderNumber(order)} est disponible à partir du ${longDate(order.availableFrom)}.\n\n${order.quantity} ${order.unit} · ${order.materialTitle}\n\n${pickupName(order)}${location ? `\n${location.address}` : ""}\nHoraires d’ouverture : ${hours.trim()}\nPrésentez la référence ${orderNumber(order)} à l’équipe.`}
