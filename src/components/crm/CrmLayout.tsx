@@ -7,7 +7,6 @@ import {
   MessageSquare,
   Moon,
   QrCode,
-  Receipt,
   ClipboardList,
   ShieldAlert,
   Store,
@@ -25,7 +24,6 @@ const NAV = [
   { to: "/crm", label: "Matériaux", icon: Boxes, page: "batire:materiaux", end: true },
   { to: "/crm/dons", label: "Dons", icon: HeartHandshake, page: "batire:dons", badge: true },
   { to: "/crm/demandes", label: "Demandes", icon: ClipboardList, page: "batire:demandes" },
-  { to: "/crm/ventes", label: "Ventes", icon: Receipt, page: "batire:demandes" },
   { to: "/crm/messagerie", label: "Messagerie", icon: MessageSquare, page: "batire:demandes" },
   { to: "/crm/qr", label: "QR codes", icon: QrCode, page: "batire:materiaux" },
 ];

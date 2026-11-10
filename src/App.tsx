@@ -16,7 +16,6 @@ import { UpdateAvailableBanner } from "./components/UpdateAvailableBanner";
 import { CrmLayout } from "./components/crm/CrmLayout";
 import { Materiaux } from "./pages/crm/Materiaux";
 import { MaterialForm } from "./components/crm/MaterialForm";
-import { Ventes } from "./pages/crm/Ventes";
 import { MessagerieCrm } from "./pages/crm/Messagerie";
 import { Messagerie } from "./pages/public/Messagerie";
 import { QrCodes } from "./pages/crm/QrCodes";
@@ -68,7 +67,7 @@ export default function App() {
         <Route path="materiaux/:id" element={<MaterialForm />} />
         <Route path="dons" element={<Dons />} />
         <Route path="demandes" element={<Demandes />} />
-        <Route path="ventes" element={<Ventes />} />
+        <Route path="ventes" element={<Navigate to="/crm/demandes" replace />} />
         <Route path="messagerie" element={<MessagerieCrm />} />
         <Route path="qr" element={<QrCodes />} />
       </Route>
