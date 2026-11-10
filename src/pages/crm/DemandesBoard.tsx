@@ -164,6 +164,7 @@ function cardFooter(order: Order) {
 function OrderCard({ order, onOpen }: { order: Order; onOpen: () => void }) {
   const relay = isRelay(order);
   return <LogisticsCard
+    photo={order.material?.photoUrls[0] ?? null}
     source={`#${orderNumber(order)}`}
     date={shortDate(order.createdAt)}
     customer={customerName(order)}

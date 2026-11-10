@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Package } from "lucide-react";
 
 /** Orange : le lot doit être déplacé vers un autre lieu. Bleu : retrait sur le lieu de stockage. */
 export const TRANSIT_COLOR = "#ff914d";
@@ -16,7 +17,14 @@ export function shortDate(value: number | string) {
  * Bâtire n'affiche pas les lieux : `detail` (n° de commande, mode de retrait)
  * remplace alors la ligne départ → arrivée.
  */
-export function LogisticsCard({ source, date, customer, product, origin, destination, detail, footer, color, onOpen }: {
+/** Miniature de l'objet (icône si l'article n'a pas de photo). */
+function Thumb({ src }: { src?: string | null }) {
+  return <span className="flex h-[52px] w-[52px] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-black/10">
+    {src ? <img src={src} alt="" loading="lazy" className="h-full w-full object-cover" /> : <Package className="h-5 w-5 opacity-50" />}
+  </span>;
+}
+
+export function LogisticsCard({ source, date, customer, product, origin, destination, detail, footer, color, onOpen, photo }: {
   source: string;
   date: string;
   customer: string;
@@ -27,7 +35,10 @@ export function LogisticsCard({ source, date, customer, product, origin, destina
   footer?: ReactNode;
   color: string;
   onOpen: () => void;
+  /** Photo de l'article : `undefined` = pas de miniature, `null` = icône. */
+  photo?: string | null;
 }) {
+  const withPhoto = photo !== undefined;
   return (
     <button
       type="button"
@@ -39,7 +50,10 @@ export function LogisticsCard({ source, date, customer, product, origin, destina
         <span className="truncate text-[13px] font-bold">{source}</span>
         <span className="shrink-0 text-[11px] tabular-nums">{date}</span>
       </span>
-      <span className="mt-2 flex items-baseline justify-between gap-3 text-[13px]">
+      <span className={withPhoto ? "mt-2 flex items-center gap-3" : "contents"}>
+      {withPhoto && <Thumb src={photo} />}
+      <span className={withPhoto ? "min-w-0 flex-1" : "contents"}>
+      <span className={`${withPhoto ? "" : "mt-2 "}flex items-baseline justify-between gap-3 text-[13px]`}>
         <span className="min-w-0 truncate">{customer}</span>
         <span className="min-w-0 truncate text-right">{product}</span>
       </span>
@@ -52,6 +66,8 @@ export function LogisticsCard({ source, date, customer, product, origin, destina
         <span className="sr-only">vers</span>
         <span className="max-w-[45%] truncate">{destination}</span>
       </span>}
+      </span>
+      </span>
       {footer && <span className="mt-1 block text-right text-[11px] tabular-nums">{footer}</span>}
     </button>
   );
