@@ -284,8 +284,9 @@ function PaymentSection({ order, canUpdate }: { order: Order; canUpdate: boolean
       <div className="space-y-2 text-sm">
         <Row label="Type de paiement" value={paymentLabel(order)} />
         <Row label="Paiement validé" value={isPaid(order) ? "Validé" : "En attente"} />
-        <Row label="Montant" value={euros(order.amountCents)} />
-        {order.pickupFeeCents ? <Row label="Dont transfert vers le point relais" value={euros(order.pickupFeeCents)} /> : null}
+        <Row label="Montant" value={`${euros(order.amountCents - (order.pickupFeeCents ?? 0))} · ${order.quantity} ${order.unit} × ${euros(Math.round(order.unitPrice * 100))}`} />
+        {order.pickupFeeCents ? <Row label="Frais de transfert" value={euros(order.pickupFeeCents)} /> : null}
+        <div className="flex items-baseline justify-between gap-4 border-t border-[var(--border)] pt-2 text-base"><span className="font-semibold">Total</span><span className="font-bold">{euros(order.amountCents)}</span></div>
         <Row label="Date d'encaissement" value={order.paidAt ? dateTime(order.paidAt) : undefined} />
         {card && <Row label="Prestataire" value={order.stripePaymentIntentId || order.stripeSessionId ? "Stripe" : undefined} />}
         {card && <Row label="Payment Intent" value={order.stripePaymentIntentId} mono />}
