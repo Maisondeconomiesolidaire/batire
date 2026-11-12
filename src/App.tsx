@@ -19,6 +19,7 @@ import { MaterialForm } from "./components/crm/MaterialForm";
 import { MessagerieCrm } from "./pages/crm/Messagerie";
 import { Messagerie } from "./pages/public/Messagerie";
 import { QrCodes } from "./pages/crm/QrCodes";
+import { Emplacements } from "./pages/crm/Emplacements";
 import { Dons } from "./pages/crm/Dons";
 import { Demandes } from "./pages/crm/Demandes";
 import { ProfileSync } from "./components/ProfileSync";
@@ -70,6 +71,7 @@ export default function App() {
         <Route path="ventes" element={<Navigate to="/crm/demandes" replace />} />
         <Route path="messagerie" element={<MessagerieCrm />} />
         <Route path="qr" element={<QrCodes />} />
+        <Route path="emplacements" element={<Emplacements />} />
       </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
