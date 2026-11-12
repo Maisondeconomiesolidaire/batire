@@ -184,7 +184,8 @@ type DetailTab = "demande" | "gestion" | "devis" | "client" | "messages";
 const DETAIL_TABS: { key: DetailTab; label: string }[] = [
   { key: "demande", label: "Demande" },
   { key: "gestion", label: "Gestion" },
-  { key: "devis", label: "Devis" },
+  // Onglet Devis masqué : les devis Stripe exigent l’offre Invoicing Plus.
+  // { key: "devis", label: "Devis" },
   { key: "client", label: "Client" },
   { key: "messages", label: "Messages" },
 ];
