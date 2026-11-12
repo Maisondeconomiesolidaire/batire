@@ -30,6 +30,7 @@ import {
 } from "../../lib/constants";
 import { CATEGORIES, familiesOf, subFamiliesOf } from "../../lib/taxonomy";
 import { PICKUP_LOCATIONS, storageLocationId } from "../../lib/pickupLocations";
+import { slotKindLabel } from "../../lib/storageSlots";
 
 type FormState = {
   title: string;
@@ -314,7 +315,7 @@ export function MaterialForm() {
   // cette liste reste affichée, pour ne rien perdre en rouvrant une fiche.
   const storageSlots = useQuery(api.batire.listStorageSlots, {});
   const depotId = storageLocationId(form.depot);
-  const slotOptions = (storageSlots ?? []).filter((slot) => slot.location === depotId).map((slot) => ({ value: slot.label, label: slot.label }));
+  const slotOptions = (storageSlots ?? []).filter((slot) => slot.location === depotId).map((slot) => ({ value: slot.label, label: `${slot.label} · ${slotKindLabel(slot.kind)}` }));
   if (form.location && !slotOptions.some((option) => option.value === form.location)) slotOptions.unshift({ value: form.location, label: `${form.location} (hors liste)` });
 
   async function addPhotos(files: FileList | null) {

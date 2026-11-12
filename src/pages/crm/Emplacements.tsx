@@ -9,6 +9,8 @@ import { Dropdown } from "../../components/ui/Dropdown";
 import { FullSpinner } from "../../components/ui/Spinner";
 import { useAccess, canAccess } from "../../lib/access";
 import { PICKUP_LOCATIONS, type PickupLocationId } from "../../lib/pickupLocations";
+import { SLOT_KINDS, slotKindOf, type SlotKind } from "../../lib/storageSlots";
+import { cn } from "../../lib/cn";
 
 type Slot = Doc<"btStorageSlots">;
 
@@ -29,6 +31,7 @@ export function Emplacements() {
   const canEdit = canAccess(access, "batire:materiaux", "update");
   const [location, setLocation] = useState<PickupLocationId | "">("");
   const [label, setLabel] = useState("");
+  const [kind, setKind] = useState<SlotKind>("stockage");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -36,7 +39,7 @@ export function Emplacements() {
     event.preventDefault();
     if (!location || !label.trim()) return;
     setBusy(true); setError("");
-    try { await create({ location, label }); setLabel(""); }
+    try { await create({ location, label, kind }); setLabel(""); }
     catch (caught) { setError(errorText(caught, "Création impossible.")); }
     finally { setBusy(false); }
   }
@@ -48,6 +51,7 @@ export function Emplacements() {
     </div>
 
     {canEdit && <form onSubmit={submit} className="grid gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:grid-cols-[16rem_1fr_auto] sm:items-end">
+      <div className="sm:col-span-3"><p className="mb-1.5 text-sm font-medium">Type d’emplacement</p><KindPicker value={kind} onChange={setKind} /></div>
       <Field label="Lieu" required>
         <Dropdown value={location} onChange={value => setLocation(value as PickupLocationId)} placeholder="Choisir le lieu" options={PICKUP_LOCATIONS.map(item => ({ value: item.id, label: item.name }))} />
       </Field>
@@ -60,7 +64,8 @@ export function Emplacements() {
 
     {slots === undefined ? <FullSpinner label="Chargement des emplacements…" /> : <div className="grid gap-4 lg:grid-cols-3">
       {PICKUP_LOCATIONS.map(place => {
-        const own = slots.filter(slot => slot.location === place.id);
+        const order = (slot: Slot) => SLOT_KINDS.findIndex(item => item.key === slotKindOf(slot));
+        const own = slots.filter(slot => slot.location === place.id).sort((a, b) => order(a) - order(b) || a.label.localeCompare(b.label, "fr", { numeric: true }));
         return <section key={place.id} className="rounded-2xl border border-[var(--border)] bg-[var(--card)]">
           <header className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-3">
             <h2 className="flex min-w-0 items-center gap-2 font-semibold"><MapPin className="h-4 w-4 shrink-0 text-brand-600" /><span className="truncate">{place.name}</span></h2>
@@ -80,6 +85,7 @@ function SlotRow({ slot, canEdit }: { slot: Slot; canEdit: boolean }) {
   const [editing, setEditing] = useState(false);
   const [location, setLocation] = useState(slot.location);
   const [label, setLabel] = useState(slot.label);
+  const [kind, setKind] = useState<SlotKind>(slotKindOf(slot));
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -94,7 +100,7 @@ function SlotRow({ slot, canEdit }: { slot: Slot; canEdit: boolean }) {
   async function save(event: FormEvent) {
     event.preventDefault();
     let moved = 0;
-    if (await run(async () => { moved = await update({ slotId: slot._id as Id<"btStorageSlots">, location, label }); })) {
+    if (await run(async () => { moved = await update({ slotId: slot._id as Id<"btStorageSlots">, location, label, kind }); })) {
       setEditing(false);
       setNotice(moved ? `${moved} matériau${moved > 1 ? "x" : ""} mis à jour.` : "");
     }
@@ -103,16 +109,17 @@ function SlotRow({ slot, canEdit }: { slot: Slot; canEdit: boolean }) {
   if (editing) return <li className="px-4 py-3">
     <form onSubmit={save} className="space-y-2">
       <Dropdown value={location} onChange={setLocation} options={PICKUP_LOCATIONS.map(item => ({ value: item.id, label: item.name }))} />
+      <KindPicker value={kind} onChange={setKind} />
       <Input autoFocus value={label} maxLength={80} onChange={event => setLabel(event.target.value)} aria-label="Emplacement" />
       <p className="text-xs text-[var(--muted-foreground)]">Les matériaux rangés à cet emplacement suivent la modification.</p>
       {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
-      <div className="flex gap-2"><Button type="submit" size="sm" disabled={busy || !label.trim()}><Check className="h-4 w-4" />Enregistrer</Button><Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => { setEditing(false); setLocation(slot.location); setLabel(slot.label); setError(""); }}>Annuler</Button></div>
+      <div className="flex gap-2"><Button type="submit" size="sm" disabled={busy || !label.trim()}><Check className="h-4 w-4" />Enregistrer</Button><Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => { setEditing(false); setLocation(slot.location); setLabel(slot.label); setKind(slotKindOf(slot)); setError(""); }}>Annuler</Button></div>
     </form>
   </li>;
 
   return <li className="px-4 py-2.5">
     <div className="flex items-center justify-between gap-2">
-      <span className="min-w-0 truncate text-sm font-medium">{slot.label}</span>
+      <span className="flex min-w-0 items-center gap-2"><span className="min-w-0 truncate text-sm font-medium">{slot.label}</span><KindBadge kind={slotKindOf(slot)} /></span>
       {canEdit && (confirmDelete ? <span className="flex shrink-0 items-center gap-1 text-xs">
         <span className="text-[var(--muted-foreground)]">Supprimer ?</span>
         <Button size="sm" variant="danger" disabled={busy} onClick={() => void run(() => remove({ slotId: slot._id }))}>Oui</Button>
@@ -125,4 +132,17 @@ function SlotRow({ slot, canEdit }: { slot: Slot; canEdit: boolean }) {
     {notice && <p className="mt-1 text-xs text-brand-600">{notice}</p>}
     {error && <p role="alert" className="mt-1 text-xs text-red-600">{error}</p>}
   </li>;
+}
+
+function KindPicker({ value, onChange }: { value: SlotKind; onChange: (kind: SlotKind) => void }) {
+  return <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Type d’emplacement">
+    {SLOT_KINDS.map(item => <button key={item.key} type="button" role="radio" aria-checked={value === item.key} onClick={() => onChange(item.key)}
+      className={cn("rounded-xl border px-3 py-1.5 text-sm font-semibold transition-colors", value === item.key ? "border-transparent text-white" : "border-[var(--border)] bg-[var(--card)] hover:bg-[var(--accent)]")}
+      style={value === item.key ? { backgroundColor: item.color } : undefined}>{item.label}</button>)}
+  </div>;
+}
+
+function KindBadge({ kind }: { kind: SlotKind }) {
+  const item = SLOT_KINDS.find(entry => entry.key === kind)!;
+  return <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: `${item.color}22`, color: item.color }}>{item.label}</span>;
 }
