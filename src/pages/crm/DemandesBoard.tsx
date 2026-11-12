@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { AlertTriangle, BellRing, Check, CircleCheck, Download, ExternalLink, FilePlus2, FileText, ImageOff, Inbox, Lock, Mail, MapPin, MessageSquare, Pencil, Phone, Plus, Receipt, RefreshCw, RotateCcw, Search, Send, Trash2, Truck, X, XCircle } from "lucide-react";
+import { AlertTriangle, BellRing, Check, CircleCheck, Download, ExternalLink, FilePlus2, FileText, ImageOff, Inbox, Lock, Mail, MapPin, MessageSquare, Pencil, Phone, Plus, Receipt, RefreshCw, RotateCcw, Search, Send, Tag, Trash2, Truck, X, XCircle, Copy } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { LogisticsCard, ON_SITE_COLOR, TRANSIT_COLOR, shortDate } from "../../components/crm/LogisticsCard";
 import { Button } from "../../components/ui/Button";
@@ -180,12 +180,13 @@ function OrderCard({ order, onOpen }: { order: Order; onOpen: () => void }) {
   />;
 }
 
-type DetailTab = "demande" | "gestion" | "devis" | "client" | "messages";
+type DetailTab = "demande" | "gestion" | "devis" | "promo" | "client" | "messages";
 const DETAIL_TABS: { key: DetailTab; label: string }[] = [
   { key: "demande", label: "Demande" },
   { key: "gestion", label: "Gestion" },
   // Onglet Devis masqué : les devis Stripe exigent l’offre Invoicing Plus.
   // { key: "devis", label: "Devis" },
+  { key: "promo", label: "Code promo" },
   { key: "client", label: "Client" },
   { key: "messages", label: "Messages" },
 ];
@@ -222,6 +223,7 @@ function OrderDetail({ order, canUpdate, onClose }: { order: Order; canUpdate: b
         {tab === "demande" ? <DemandeTab order={order} canUpdate={canUpdate} />
           : tab === "gestion" ? <GestionTab order={order} canUpdate={canUpdate} />
           : tab === "devis" ? <DevisTab key={order._id} order={order} canUpdate={canUpdate} />
+          : tab === "promo" ? <PromoTab key={order._id} order={order} canUpdate={canUpdate} />
           : tab === "client" ? <ClientTab key={order._id} order={order} canUpdate={canUpdate} />
           : <MessagerieTab order={order} canUpdate={canUpdate} />}
       </div>
@@ -287,7 +289,8 @@ function PaymentSection({ order, canUpdate }: { order: Order; canUpdate: boolean
       <div className="space-y-2 text-sm">
         <Row label="Type de paiement" value={paymentLabel(order)} />
         <Row label="Paiement validé" value={isPaid(order) ? "Validé" : "En attente"} />
-        <Row label="Montant" value={`${euros(order.amountCents - (order.pickupFeeCents ?? 0))} · ${order.quantity} ${order.unit} × ${euros(Math.round(order.unitPrice * 100))}`} />
+        <Row label="Montant" value={`${euros(order.amountCents - (order.pickupFeeCents ?? 0) + (order.discountCents ?? 0))} · ${order.quantity} ${order.unit} × ${euros(Math.round(order.unitPrice * 100))}`} />
+        {order.discountCents ? <Row label={`Remise · code ${order.promoCode ?? ""}`} value={`− ${euros(order.discountCents)}`} /> : null}
         {order.pickupFeeCents ? <Row label="Frais de transfert" value={euros(order.pickupFeeCents)} /> : null}
         <div className="flex items-baseline justify-between gap-4 border-t border-[var(--border)] pt-2 text-base"><span className="font-semibold">Total</span><span className="font-bold">{euros(order.amountCents)}</span></div>
         <Row label="Date d'encaissement" value={order.paidAt ? dateTime(order.paidAt) : undefined} />
@@ -477,7 +480,7 @@ function savedHours(location?: string) {
 }
 
 type ProcessStep = {
-  key: "requested" | "assigned" | "transit" | "ready" | "paid";
+  key: "requested" | "assigned" | "transit" | "ready" | "paid" | "collected";
   label: string;
   done: boolean;
   at?: number;
@@ -494,6 +497,8 @@ type ProcessStep = {
  * navette assignée → en transit (ces deux-là cochées par Meslogistic) →
  * disponible (après l'arrivée dans Meslogistic) → payé. Retrait sur le lieu
  * de stockage : disponible → payé. Payé est indépendant des autres étapes.
+ * Dans les deux cas, la dernière étape est « Retiré » : l'équipe confirme que
+ * le client est venu chercher sa commande.
  */
 function processSteps(order: Order, canUpdate: boolean): ProcessStep[] {
   const closed = isClosed(order);
@@ -514,13 +519,19 @@ function processSteps(order: Order, canUpdate: boolean): ProcessStep[] {
     actionable: canUpdate && !order.lostAt && offline && !isPaid(order),
     hint: !offline && !isPaid(order) ? "Le paiement par carte se valide en ligne." : undefined,
   };
-  if (!isRelay(order)) return [ready, paid];
+  const collected: ProcessStep = {
+    key: "collected", label: "Retiré", done: Boolean(order.collectedAt), at: order.collectedAt,
+    actionable: canUpdate && !order.collectedAt && !order.lostAt && Boolean(order.readyAt) && isPaid(order),
+    hint: order.collectedAt || order.lostAt ? undefined : !order.readyAt ? "Se coche une fois le lot disponible." : !isPaid(order) ? "Cochez d’abord « Payé »." : undefined,
+  };
+  if (!isRelay(order)) return [ready, paid, collected];
   return [
     { key: "requested", label: "Enlèvement demandé", done: transit, at: steps?.requested.at, by: steps?.requested.by, detail: order.transfer?.dueDate ? `Échéance ${shortDate(order.transfer.dueDate)}` : undefined, actionable: editable && !transit },
     { key: "assigned", label: "Navette assignée", done: Boolean(steps?.assigned), at: steps?.assigned?.at, by: steps?.assigned?.by, detail: steps?.shuttleName, actionable: false, hint: "Coché par Meslogistic quand la demande est mise dans une navette." },
     { key: "transit", label: "En transit", done: Boolean(steps?.transit), at: steps?.transit?.at, by: steps?.transit?.by, actionable: false, hint: "Coché par Meslogistic au départ de la navette." },
     ready,
     paid,
+    collected,
   ];
 }
 
@@ -591,7 +602,6 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const transit = hasTransit(order);
-  const offline = order.paymentMethod === "cash" || order.paymentMethod === "bank_transfer";
   const locked = !canUpdate || busy || Boolean(order.lostAt);
   const location = pickupLocationById(order.pickupLocation);
   const steps = processSteps(order, canUpdate);
@@ -610,6 +620,7 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
     const ok = stepOpen === "requested" ? await run(() => requestTransfer({ orderId: order._id, dueDate }))
       : stepOpen === "ready" ? await run(() => update({ orderId: order._id, step: "ready", availableFrom }))
         : stepOpen === "paid" ? await run(() => confirmPayment({ orderId: order._id }))
+        : stepOpen === "collected" ? await run(() => update({ orderId: order._id, step: "collect" }))
           : false;
     if (ok) setStepOpen(null);
   }
@@ -652,14 +663,6 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
       </div>
     </section>}
 
-    {order.readyAt && !order.lostAt && <section>
-      <SectionTitle>Remise au client</SectionTitle>
-      {order.collectedAt ? <p className="text-sm text-[var(--muted-foreground)]">Remis au client le {dateTime(order.collectedAt)}.</p> :
-        <div className="space-y-2">
-          <Button disabled={locked || (offline && !isPaid(order))} onClick={() => void run(() => update({ orderId: order._id, step: "collect" }))}><CircleCheck className="h-4 w-4" />Confirmer la remise au client</Button>
-          {offline && !isPaid(order) && <p className="text-xs text-[var(--muted-foreground)]">Cochez d’abord « Payé ».</p>}
-        </div>}
-    </section>}
 
     {!transit && !order.relayRequested && !order.readyAt && !order.collectedAt && !order.lostAt && canUpdate && <section>
       <SectionTitle>Point relais</SectionTitle>
@@ -684,7 +687,7 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
         </form>}
     </section>}
 
-    {stepOpen && <Modal title={stepOpen === "requested" ? "Enlèvement demandé" : stepOpen === "ready" ? "Disponible" : "Payé"} onClose={() => { if (!busy) setStepOpen(null); }}>
+    {stepOpen && <Modal title={stepOpen === "requested" ? "Enlèvement demandé" : stepOpen === "ready" ? "Disponible" : stepOpen === "collected" ? "Retiré" : "Payé"} onClose={() => { if (!busy) setStepOpen(null); }}>
       <form onSubmit={submitStep} className="space-y-4 text-sm">
         {stepOpen === "requested" && <>
           <p>Une demande d’enlèvement part dans Meslogistic : <strong>{sourceName(order)}</strong> → <strong>{pickupName(order)}</strong>.</p>
@@ -695,6 +698,7 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
           <p>Le lot est prêt à être retiré à <strong>{pickupName(order)}</strong>. Aucun email n’est envoyé : prévenez ensuite le client avec « Notifier le client ».</p>
           <label className="block font-semibold">Disponible à partir du<input type="date" required autoFocus value={availableFrom} onChange={event => setAvailableFrom(event.target.value)} className="mt-1 block w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5" /></label>
         </>}
+        {stepOpen === "collected" && <p>Confirmez que le client a bien retiré <strong>{order.quantity} {order.unit} · {order.materialTitle}</strong> à {pickupName(order)}. La demande passe dans « Gagnées ».</p>}
         {stepOpen === "paid" && <p>Confirmez avoir reçu le paiement de <strong>{euros(order.amountCents)}</strong> ({order.paymentMethod === "cash" ? "espèces" : "virement"}).</p>}
         {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
         <div className="flex justify-end gap-2">
@@ -887,6 +891,120 @@ function QuoteCard({ quote, order, canUpdate }: { quote: Quote; order: Order; ca
       <p className="text-sm text-[var(--muted-foreground)]">À utiliser quand le client a réglé hors Stripe (espèces, virement, chèque). La facture {quote.invoiceNumber} passera « Payée » chez Stripe.</p>
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
       <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" disabled={busy} onClick={() => setConfirm("")}>Non</Button><Button disabled={busy} onClick={() => void run(() => invoiceAction({ quoteId: quote._id, action: "markPaid" }), "Opération impossible.")}><Check className="h-4 w-4" />{busy ? "Enregistrement…" : "Marquer payée"}</Button></div>
+    </Modal>}
+  </article>;
+}
+
+/* ------------------------------------------------------------------ */
+/* Onglet Code promo : geste commercial depuis la demande               */
+/* ------------------------------------------------------------------ */
+
+type Promo = FunctionReturnType<typeof api.batire.orderPromoCodes>[number];
+const promoValue = (promo: Pick<Promo, "kind" | "value">) => promo.kind === "percent" ? `${promo.value} %` : euros(promo.value);
+
+function PromoTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) {
+  const codes = useQuery(api.batire.orderPromoCodes, { orderId: order._id });
+  const create = useMutation(api.batire.createPromoCode);
+  const [kind, setKind] = useState<"amount" | "percent">("amount");
+  const [value, setValue] = useState("");
+  const [reason, setReason] = useState("");
+  const [validity, setValidity] = useState("180");
+  const [sendEmail, setSendEmail] = useState(true);
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const number = Number(value.replace(",", "."));
+  const parsed = kind === "percent" ? Math.round(number) : Math.round(number * 100);
+  const valid = Number.isFinite(number) && (kind === "percent" ? parsed >= 1 && parsed <= 100 : parsed >= 1);
+  const label = kind === "percent" ? `${parsed} %` : euros(parsed);
+  async function submit() {
+    setBusy(true); setError("");
+    try {
+      await create({ orderId: order._id, kind, value: parsed, reason: reason.trim() || undefined, validityDays: validity ? Number(validity) : undefined, sendEmail });
+      setValue(""); setReason(""); setConfirm(false);
+    } catch (caught) { setError(errorText(caught, "Création du code impossible.")); setConfirm(false); }
+    finally { setBusy(false); }
+  }
+  return <div className="max-w-4xl space-y-6">
+    {canUpdate && <section>
+      <SectionTitle>Nouveau code promo</SectionTitle>
+      <form onSubmit={event => { event.preventDefault(); if (valid) { setError(""); setConfirm(true); } }} className="space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--muted)] p-4">
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Type de remise">
+          {([["amount", "Montant (€)"], ["percent", "Pourcentage (%)"]] as const).map(([key, text]) => <button key={key} type="button" role="radio" aria-checked={kind === key} onClick={() => setKind(key)} className={cn("rounded-xl border px-3 py-1.5 text-sm font-semibold", kind === key ? "border-brand-500 bg-brand-500/10 text-brand-700 dark:text-brand-300" : "border-[var(--border)] bg-[var(--card)]")}>{text}</button>)}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-[10rem_1fr_9rem]">
+          <Field label={kind === "percent" ? "Remise (%)" : "Remise (€)"} required><Input inputMode="decimal" required value={value} onChange={event => setValue(event.target.value.replace(/[^\d.,]/g, ""))} placeholder={kind === "percent" ? "10" : "15,00"} /></Field>
+          <Field label="Motif"><Input maxLength={300} value={reason} onChange={event => setReason(event.target.value)} placeholder="Ex. article défectueux" /></Field>
+          <Field label="Validité (jours)"><Input inputMode="numeric" value={validity} onChange={event => setValidity(event.target.value.replace(/[^\d]/g, ""))} placeholder="Illimitée" /></Field>
+        </div>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={sendEmail} onChange={event => setSendEmail(event.target.checked)} className="h-4 w-4 accent-brand-600" />Envoyer le code par email à {order.customer.email}</label>
+        <p className="text-xs text-[var(--muted-foreground)]">Code à usage unique, valable sur un panier de la boutique (hors frais de transfert). Il s’affiche ci-dessous : le client peut aussi le noter sur place.</p>
+        {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+        <Button type="submit" disabled={busy || !valid}><Tag className="h-4 w-4" />Générer le code</Button>
+      </form>
+    </section>}
+    <section>
+      <SectionTitle>Codes émis pour cette demande</SectionTitle>
+      {codes === undefined ? <FullSpinner label="Chargement…" /> : codes.length === 0 ? <p className="text-sm text-[var(--muted-foreground)]">Aucun code promo pour cette demande.</p>
+        : <div className="space-y-3">{codes.map(promo => <PromoCard key={promo._id} promo={promo} order={order} canUpdate={canUpdate} />)}</div>}
+    </section>
+    {confirm && !sendEmail && <Modal title="Générer le code promo ?" onClose={() => { if (!busy) setConfirm(false); }}>
+      <p className="text-sm text-[var(--muted-foreground)]">Remise de {label}{reason.trim() ? ` · ${reason.trim()}` : ""}, {validity ? `valable ${validity} jours` : "sans date d’expiration"}, usage unique. Aucun email n’est envoyé : communiquez le code au client sur place.</p>
+      <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" disabled={busy} onClick={() => setConfirm(false)}>Annuler</Button><Button disabled={busy} onClick={() => void submit()}><Tag className="h-4 w-4" />{busy ? "Génération…" : "Générer"}</Button></div>
+    </Modal>}
+    {confirm && sendEmail && <ConfirmSend title="Générer et envoyer le code promo ?" to={order.customer.email} confirmLabel="Oui, générer" busy={busy} onCancel={() => setConfirm(false)} onConfirm={() => void submit()}>
+      {`Remise de ${label}${reason.trim() ? ` · ${reason.trim()}` : ""}\n${validity ? `Valable ${validity} jours` : "Sans date d’expiration"} · usage unique\n${sendEmail ? "Le code est envoyé au client par email." : "Aucun email : communiquez le code au client sur place."}`}
+    </ConfirmSend>}
+  </div>;
+}
+
+function PromoCard({ promo, order, canUpdate }: { promo: Promo; order: Order; canUpdate: boolean }) {
+  const act = useMutation(api.batire.promoCodeAction);
+  const [confirm, setConfirm] = useState<"" | "email" | "cancel" | "release">("");
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState("");
+  const expired = !promo.usedAt && !promo.canceledAt && promo.expiresAt !== undefined && promo.expiresAt < Date.now();
+  const status = promo.canceledAt ? { label: "Annulé", className: "bg-zinc-500/15 text-[var(--muted-foreground)]" }
+    : promo.usedAt ? { label: `Utilisé${promo.usedReference ? ` · ${promo.usedReference}` : ""}`, className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" }
+      : expired ? { label: "Expiré", className: "bg-red-500/15 text-red-700 dark:text-red-300" }
+        : { label: "Actif", className: "bg-amber-500/15 text-amber-700 dark:text-amber-300" };
+  const active = !promo.canceledAt && !promo.usedAt && !expired;
+  async function run() {
+    if (!confirm) return;
+    setBusy(true); setError("");
+    try { await act({ promoId: promo._id, action: confirm }); setConfirm(""); }
+    catch (caught) { setError(errorText(caught, "Opération impossible.")); setConfirm(""); }
+    finally { setBusy(false); }
+  }
+  async function copy() { try { await navigator.clipboard.writeText(promo.code); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* presse-papiers indisponible */ } }
+  return <article className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className={cn("rounded-xl border-2 border-dashed px-3 py-1.5 font-mono text-lg font-black tracking-wider", active ? "border-brand-500 text-brand-700 dark:text-brand-300" : "border-[var(--border)] text-[var(--muted-foreground)] line-through")}>{promo.code}</span>
+        <button type="button" onClick={() => void copy()} aria-label="Copier le code" className="rounded-lg p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--accent)]">{copied ? <Check className="h-4 w-4 text-brand-600" /> : <Copy className="h-4 w-4" />}</button>
+        <span className="text-lg font-bold">{promoValue(promo)}</span>
+        <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", status.className)}>{status.label}</span>
+      </div>
+      {canUpdate && <div className="flex flex-wrap gap-2">
+        {active && <Button size="sm" variant="outline" onClick={() => setConfirm("email")}><Mail className="h-4 w-4" />{promo.emailedAt ? "Renvoyer" : "Envoyer"} par email</Button>}
+        {active && <Button size="sm" variant="ghost" className="text-red-600 dark:text-red-400" onClick={() => setConfirm("cancel")}><XCircle className="h-4 w-4" />Annuler</Button>}
+        {promo.releasable && <Button size="sm" variant="outline" onClick={() => setConfirm("release")}><RotateCcw className="h-4 w-4" />Réactiver</Button>}
+      </div>}
+    </div>
+    <div className="mt-2 space-y-0.5 text-xs text-[var(--muted-foreground)]">
+      {promo.reason && <p>Motif : {promo.reason}</p>}
+      <p>Créé le {dateTime(promo.createdAt)}{promo.createdBy ? ` par ${promo.createdBy}` : ""} · {promo.expiresAt ? `valable jusqu’au ${new Date(promo.expiresAt).toLocaleDateString("fr-FR")}` : "sans date d’expiration"}</p>
+      {promo.emailedAt && <p>Envoyé par email le {dateTime(promo.emailedAt)}</p>}
+      {promo.usedAt && <p>Utilisé le {dateTime(promo.usedAt)}{promo.usedDiscountCents !== undefined ? ` · remise de ${euros(promo.usedDiscountCents)}` : ""}{promo.releasable ? " · commande non réglée (panier abandonné ?)" : ""}</p>}
+    </div>
+    {error && <p role="alert" className="mt-2 text-sm text-red-600">{error}</p>}
+    {confirm === "email" && <ConfirmSend title="Envoyer le code promo ?" to={order.customer.email} confirmLabel="Oui, envoyer" busy={busy} onCancel={() => setConfirm("")} onConfirm={() => void run()}>
+      {`Code promo ${promo.code} : ${promoValue(promo)} de remise${promo.reason ? ` (${promo.reason})` : ""}.\n${promo.expiresAt ? `Valable jusqu’au ${new Date(promo.expiresAt).toLocaleDateString("fr-FR")}, ` : ""}utilisable une fois dans le panier BâtiRe.`}
+    </ConfirmSend>}
+    {(confirm === "cancel" || confirm === "release") && <Modal title={confirm === "cancel" ? "Annuler le code promo ?" : "Réactiver le code promo ?"} onClose={() => { if (!busy) setConfirm(""); }}>
+      <p className="text-sm text-[var(--muted-foreground)]">{confirm === "cancel" ? `Le code ${promo.code} ne pourra plus être utilisé.` : `Le code ${promo.code} a servi à une commande jamais réglée. Il redevient utilisable par le client.`}</p>
+      <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" disabled={busy} onClick={() => setConfirm("")}>Non</Button><Button variant={confirm === "cancel" ? "danger" : "primary"} disabled={busy} onClick={() => void run()}>{busy ? "…" : confirm === "cancel" ? "Annuler le code" : "Réactiver"}</Button></div>
     </Modal>}
   </article>;
 }

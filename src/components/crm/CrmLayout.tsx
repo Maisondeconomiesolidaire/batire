@@ -4,6 +4,7 @@ import {
   Boxes,
   HeartHandshake,
   LogOut,
+  MapPinned,
   MessageSquare,
   Moon,
   QrCode,
@@ -25,6 +26,7 @@ const NAV = [
   { to: "/crm/dons", label: "Dons", icon: HeartHandshake, page: "batire:dons", badge: true },
   { to: "/crm/demandes", label: "Demandes", icon: ClipboardList, page: "batire:demandes" },
   { to: "/crm/messagerie", label: "Messagerie", icon: MessageSquare, page: "batire:demandes" },
+  { to: "/crm/emplacements", label: "Emplacements", icon: MapPinned, page: "batire:materiaux" },
   { to: "/crm/qr", label: "QR codes", icon: QrCode, page: "batire:materiaux" },
 ];
 

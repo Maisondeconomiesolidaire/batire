@@ -29,7 +29,7 @@ import {
   type Unit,
 } from "../../lib/constants";
 import { CATEGORIES, familiesOf, subFamiliesOf } from "../../lib/taxonomy";
-import { PICKUP_LOCATIONS } from "../../lib/pickupLocations";
+import { PICKUP_LOCATIONS, storageLocationId } from "../../lib/pickupLocations";
 
 type FormState = {
   title: string;
@@ -309,6 +309,13 @@ export function MaterialForm() {
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
+
+  // Emplacements du lieu choisi (onglet Emplacements). Une valeur saisie avant
+  // cette liste reste affichée, pour ne rien perdre en rouvrant une fiche.
+  const storageSlots = useQuery(api.batire.listStorageSlots, {});
+  const depotId = storageLocationId(form.depot);
+  const slotOptions = (storageSlots ?? []).filter((slot) => slot.location === depotId).map((slot) => ({ value: slot.label, label: slot.label }));
+  if (form.location && !slotOptions.some((option) => option.value === form.location)) slotOptions.unshift({ value: form.location, label: `${form.location} (hors liste)` });
 
   async function addPhotos(files: FileList | null) {
     if (!files?.length) return;
@@ -607,13 +614,24 @@ export function MaterialForm() {
             <Field label="Lieu de stockage" required>
               <Dropdown
                 value={form.depot}
-                onChange={(value) => set("depot", value)}
+                onChange={(value) => {
+                  set("depot", value);
+                  // Un emplacement appartient à un lieu : il ne suit pas un changement de lieu.
+                  if (form.location && !(storageSlots ?? []).some((slot) => slot.location === storageLocationId(value) && slot.label === form.location)) set("location", "");
+                }}
                 placeholder="Choisir le lieu"
                 options={PICKUP_LOCATIONS.map((location) => ({ value: location.name, label: location.name }))}
               />
             </Field>
-            <Field label="Emplacement">
-              <Input value={form.location} onChange={(e) => set("location", e.target.value)} />
+            <Field label="Emplacement" hint={form.depot && slotOptions.length === 0 ? "aucun pour ce lieu — voir Emplacements" : undefined}>
+              <Dropdown
+                value={form.location}
+                onChange={(value) => set("location", value)}
+                disabled={!form.depot}
+                searchable={slotOptions.length > 8}
+                placeholder={form.depot ? "Choisir l'emplacement" : "Choisissez d'abord le lieu"}
+                options={[{ value: "", label: "Aucun emplacement" }, ...slotOptions]}
+              />
             </Field>
             <Field label="QR code">
               <div className="flex gap-2">

@@ -53,7 +53,7 @@ export function PickupOrderDetail({ lines, onBack }: { lines: PickupLine[]; onBa
     <p className="font-semibold">Total : {(lines.reduce((sum, line) => sum + line.amountCents, 0) / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</p>
     {lines[0].paymentMethod && lines[0].paymentMethod !== "card" && <p className="text-sm text-[var(--muted-foreground)]">Paiement {lines[0].paymentMethod === "cash" ? "en espèces au retrait" : "par virement bancaire"} · {lines.every(line => line.status === "payee") ? "Paiement confirmé" : "En attente de paiement"}</p>}
     {lines[0].paymentMethod === "bank_transfer" && !lines.every(line => line.status === "payee") && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950">Titulaire : [À RENSEIGNER] · IBAN : [À RENSEIGNER] · BIC : [À RENSEIGNER]. Ne faites pas de virement avant réception des coordonnées définitives.</p>}
-    {lines.some(line => line.pickupFeeCents) && <p className="text-sm text-[var(--muted-foreground)]">Dont 35 € de transfert, facturés une seule fois pour la commande.</p>}
+    {lines.some(line => line.pickupFeeCents) && <p className="text-sm text-[var(--muted-foreground)]">Dont 9,90 € de transfert, facturés une seule fois pour la commande.</p>}
     <p className="text-sm text-[var(--muted-foreground)]">Attendez la notification « Prêt à retirer » avant de vous déplacer. Chaque retrait peut être récupéré indépendamment.</p>
   </section>;
 }
