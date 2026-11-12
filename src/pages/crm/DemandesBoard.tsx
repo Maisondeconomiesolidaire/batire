@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { AlertTriangle, BellRing, Check, CircleCheck, ExternalLink, ImageOff, Inbox, Lock, Mail, MapPin, MessageSquare, Pencil, Phone, RotateCcw, Search, Send, Truck, X, XCircle } from "lucide-react";
+import { AlertTriangle, BellRing, Check, CircleCheck, Download, ExternalLink, FilePlus2, FileText, ImageOff, Inbox, Lock, Mail, MapPin, MessageSquare, Pencil, Phone, Plus, Receipt, RefreshCw, RotateCcw, Search, Send, Trash2, Truck, X, XCircle } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { LogisticsCard, ON_SITE_COLOR, TRANSIT_COLOR, shortDate } from "../../components/crm/LogisticsCard";
 import { Button } from "../../components/ui/Button";
@@ -180,10 +180,11 @@ function OrderCard({ order, onOpen }: { order: Order; onOpen: () => void }) {
   />;
 }
 
-type DetailTab = "demande" | "gestion" | "client" | "messages";
+type DetailTab = "demande" | "gestion" | "devis" | "client" | "messages";
 const DETAIL_TABS: { key: DetailTab; label: string }[] = [
   { key: "demande", label: "Demande" },
   { key: "gestion", label: "Gestion" },
+  { key: "devis", label: "Devis" },
   { key: "client", label: "Client" },
   { key: "messages", label: "Messages" },
 ];
@@ -219,6 +220,7 @@ function OrderDetail({ order, canUpdate, onClose }: { order: Order; canUpdate: b
       <div className="px-6 pb-6 pt-6 sm:px-7">
         {tab === "demande" ? <DemandeTab order={order} canUpdate={canUpdate} />
           : tab === "gestion" ? <GestionTab order={order} canUpdate={canUpdate} />
+          : tab === "devis" ? <DevisTab key={order._id} order={order} canUpdate={canUpdate} />
           : tab === "client" ? <ClientTab key={order._id} order={order} canUpdate={canUpdate} />
           : <MessagerieTab order={order} canUpdate={canUpdate} />}
       </div>
@@ -705,4 +707,185 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
       {`Votre retrait ${orderNumber(order)} est disponible à partir du ${longDate(order.availableFrom)}.\n\n${order.quantity} ${order.unit} · ${order.materialTitle}\n\n${pickupName(order)}${location ? `\n${location.address}` : ""}\nHoraires d’ouverture : ${hours.trim()}\nPrésentez la référence ${orderNumber(order)} à l’équipe.`}
     </ConfirmSend>}
   </div>;
+}
+
+/* ------------------------------------------------------------------ */
+/* Onglet Devis : devis Stripe, convertis en facture une fois acceptés  */
+/* ------------------------------------------------------------------ */
+
+type Quote = FunctionReturnType<typeof api.batire.orderQuotes>[number];
+type DraftLine = { label: string; quantity: string; price: string };
+
+const parseEuros = (value: string) => { const number = Number(value.replace(/\s/g, "").replace(",", ".")); return Number.isFinite(number) ? Math.round(number * 100) : NaN; };
+const centsInput = (cents: number) => (cents / 100).toFixed(2).replace(".", ",");
+
+/** Lignes proposées par défaut : le lot (au prix de la demande) et les frais de transfert. */
+function defaultLines(order: Order): DraftLine[] {
+  const goodsCents = order.amountCents - (order.pickupFeeCents ?? 0);
+  const whole = Number.isInteger(order.quantity);
+  const lines: DraftLine[] = [whole
+    ? { label: order.materialTitle, quantity: String(order.quantity), price: centsInput(Math.round(order.unitPrice * 100)) }
+    : { label: `${order.materialTitle} — ${order.quantity.toLocaleString("fr-FR")} ${order.unit}`, quantity: "1", price: centsInput(goodsCents) }];
+  if (order.pickupFeeCents) lines.push({ label: `Transfert vers ${pickupName(order)}`, quantity: "1", price: centsInput(order.pickupFeeCents) });
+  return lines;
+}
+
+const QUOTE_STATUS: Record<Quote["status"], { label: string; className: string }> = {
+  ouvert: { label: "Envoyé · en attente", className: "bg-amber-500/15 text-amber-700 dark:text-amber-300" },
+  accepte: { label: "Accepté · facturé", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" },
+  annule: { label: "Annulé", className: "bg-zinc-500/15 text-[var(--muted-foreground)]" },
+};
+const INVOICE_STATUS: Record<string, string> = { draft: "Brouillon", open: "À régler", paid: "Payée", void: "Annulée", uncollectible: "Irrécouvrable" };
+
+function DevisTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) {
+  const quotes = useQuery(api.batire.orderQuotes, { orderId: order._id });
+  const [creating, setCreating] = useState(false);
+  if (quotes === undefined) return <FullSpinner label="Chargement des devis…" />;
+  const hasOpen = quotes.some(quote => quote.status === "ouvert");
+  return <div className="max-w-4xl space-y-6">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <SectionTitle>Devis</SectionTitle>
+        <p className="-mt-2 text-sm text-[var(--muted-foreground)]">Devis Stripe numérotés, avec PDF officiel. Une fois accepté, le devis devient une facture Stripe.</p>
+      </div>
+      {canUpdate && !creating && <Button onClick={() => setCreating(true)}><FilePlus2 className="h-4 w-4" />Nouveau devis</Button>}
+    </div>
+    {creating && <QuoteForm order={order} warnOpen={hasOpen} onDone={() => setCreating(false)} />}
+    {quotes.length === 0 && !creating ? <EmptyState icon={<FileText className="h-6 w-6" />} title="Aucun devis" description={canUpdate ? "Générez un devis à partir de la demande : les lignes sont pré-remplies, modifiables avant envoi." : "Aucun devis n'a été établi pour cette demande."} />
+      : <div className="space-y-4">{quotes.map(quote => <QuoteCard key={quote._id} quote={quote} order={order} canUpdate={canUpdate} />)}</div>}
+  </div>;
+}
+
+function QuoteForm({ order, warnOpen, onDone }: { order: Order; warnOpen: boolean; onDone: () => void }) {
+  const create = useAction(api.batire.createQuote);
+  const [lines, setLines] = useState<DraftLine[]>(() => defaultLines(order));
+  const [note, setNote] = useState("");
+  const [validity, setValidity] = useState("30");
+  const [due, setDue] = useState("30");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const parsed = lines.map(line => ({ label: line.label.trim(), quantity: Number(line.quantity), unitAmountCents: parseEuros(line.price) }));
+  const valid = parsed.every(line => line.label && Number.isInteger(line.quantity) && line.quantity >= 1 && Number.isFinite(line.unitAmountCents) && line.unitAmountCents >= 0);
+  const total = valid ? parsed.reduce((sum, line) => sum + line.quantity * line.unitAmountCents, 0) : NaN;
+  const setLine = (index: number, key: keyof DraftLine, value: string) => setLines(current => current.map((line, at) => at === index ? { ...line, [key]: value } : line));
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!valid) { setError("Vérifiez les lignes : libellé, quantité entière ≥ 1 et prix valides."); return; }
+    if (!(total > 0)) { setError("Le total du devis doit être supérieur à 0 €."); return; }
+    setBusy(true); setError("");
+    try { await create({ orderId: order._id, lines: parsed, note: note.trim() || undefined, validityDays: Number(validity) || 30, daysUntilDue: Number(due) || 0 }); onDone(); }
+    catch (caught) { setError(errorText(caught, "Création du devis impossible.")); }
+    finally { setBusy(false); }
+  }
+  return <form onSubmit={submit} className="rounded-2xl border border-[var(--border)] bg-[var(--muted)] p-4">
+    <fieldset disabled={busy} className="space-y-4 border-0 p-0">
+      <div className="flex items-center justify-between gap-3"><h4 className="font-semibold">Nouveau devis · {order.customer.company || `${order.customer.firstName} ${order.customer.lastName}`.trim()} <span className="font-normal text-[var(--muted-foreground)]">({order.customer.email})</span></h4></div>
+      {warnOpen && <p className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />Un devis est déjà en attente pour cette demande. Pensez à l'annuler si celui-ci le remplace.</p>}
+      <div className="space-y-2">
+        <div className="hidden grid-cols-[minmax(0,1fr)_5rem_7rem_7rem_2rem] gap-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)] sm:grid"><span>Désignation</span><span>Qté</span><span>Prix unit. (€)</span><span className="text-right">Total</span><span /></div>
+        {lines.map((line, index) => {
+          const amount = Number(line.quantity) * parseEuros(line.price);
+          return <div key={index} className="grid grid-cols-[1fr_auto] gap-2 sm:grid-cols-[minmax(0,1fr)_5rem_7rem_7rem_2rem] sm:items-center">
+            <Input aria-label="Désignation" className="col-span-2 sm:col-span-1" required maxLength={250} value={line.label} onChange={event => setLine(index, "label", event.target.value)} placeholder="Désignation" />
+            <div className="col-span-2 grid grid-cols-[5rem_7rem_1fr_2rem] items-center gap-2 sm:contents">
+              <Input aria-label="Quantité" inputMode="numeric" required value={line.quantity} onChange={event => setLine(index, "quantity", event.target.value.replace(/[^\d]/g, ""))} />
+              <Input aria-label="Prix unitaire en euros" inputMode="decimal" required value={line.price} onChange={event => setLine(index, "price", event.target.value.replace(/[^\d.,]/g, ""))} />
+              <span className="text-right text-sm font-semibold tabular-nums">{Number.isFinite(amount) ? euros(amount) : "—"}</span>
+              <button type="button" disabled={lines.length === 1} onClick={() => setLines(current => current.filter((_, at) => at !== index))} aria-label="Supprimer la ligne" className="rounded-lg p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-red-600 disabled:opacity-30"><Trash2 className="h-4 w-4" /></button>
+            </div>
+          </div>;
+        })}
+        {lines.length < 20 && <Button type="button" variant="ghost" size="sm" onClick={() => setLines(current => [...current, { label: "", quantity: "1", price: "" }])}><Plus className="h-4 w-4" />Ajouter une ligne</Button>}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-[1fr_9rem_9rem]">
+        <Field label="Note en pied de devis"><Input maxLength={500} value={note} onChange={event => setNote(event.target.value)} placeholder="Conditions, délai de retrait…" /></Field>
+        <Field label="Validité (jours)"><Input inputMode="numeric" value={validity} onChange={event => setValidity(event.target.value.replace(/[^\d]/g, ""))} /></Field>
+        <Field label="Échéance facture (j)"><Input inputMode="numeric" value={due} onChange={event => setDue(event.target.value.replace(/[^\d]/g, ""))} /></Field>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] pt-3">
+        <p className="text-base"><span className="text-[var(--muted-foreground)]">Total </span><strong className="tabular-nums">{Number.isFinite(total) ? euros(total) : "—"}</strong></p>
+        <div className="flex gap-2"><Button type="button" variant="ghost" onClick={onDone}>Annuler</Button><Button type="submit"><FileText className="h-4 w-4" />{busy ? "Génération…" : "Générer le devis"}</Button></div>
+      </div>
+      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+    </fieldset>
+  </form>;
+}
+
+function QuoteCard({ quote, order, canUpdate }: { quote: Quote; order: Order; canUpdate: boolean }) {
+  const accept = useAction(api.batire.acceptQuote);
+  const cancel = useAction(api.batire.cancelQuote);
+  const invoiceAction = useAction(api.batire.quoteInvoiceAction);
+  const [confirm, setConfirm] = useState<"" | "accept" | "cancel" | "send" | "markPaid">("");
+  const [sendInvoice, setSendInvoice] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const expired = quote.status === "ouvert" && quote.expiresAt < Date.now();
+  const status = expired ? { label: "Expiré", className: "bg-red-500/15 text-red-700 dark:text-red-300" } : QUOTE_STATUS[quote.status];
+  async function run(task: () => Promise<unknown>, fallback: string) {
+    setBusy(true); setError("");
+    try { await task(); setConfirm(""); }
+    catch (caught) { setError(errorText(caught, fallback)); }
+    finally { setBusy(false); }
+  }
+  const invoicePaid = quote.invoiceStatus === "paid";
+  return <article className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="flex flex-wrap items-center gap-2"><span className="font-mono text-sm font-semibold">{quote.quoteNumber ?? "Devis"}</span><span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", status.className)}>{status.label}</span></p>
+        <p className="mt-1 text-xs text-[var(--muted-foreground)]">Créé le {dateTime(quote.createdAt)}{quote.createdBy ? ` par ${quote.createdBy}` : ""} · valable jusqu'au {new Date(quote.expiresAt).toLocaleDateString("fr-FR")}</p>
+      </div>
+      <p className="text-lg font-bold tabular-nums">{euros(quote.totalCents)}</p>
+    </div>
+    <ul className="mt-3 divide-y divide-[var(--border)] rounded-xl border border-[var(--border)] text-sm">
+      {quote.lines.map((line, index) => <li key={index} className="flex items-baseline justify-between gap-3 px-3 py-2"><span className="min-w-0">{line.label} <span className="text-[var(--muted-foreground)]">· {line.quantity} × {euros(line.unitAmountCents)}</span></span><span className="shrink-0 font-medium tabular-nums">{euros(line.quantity * line.unitAmountCents)}</span></li>)}
+    </ul>
+    {quote.note && <p className="mt-2 text-xs text-[var(--muted-foreground)]">Note : {quote.note}</p>}
+    <div className="mt-3 flex flex-wrap gap-2">
+      {quote.pdfUrl && <a href={quote.pdfUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] px-3 py-1.5 text-sm font-medium hover:bg-[var(--accent)]"><Download className="h-4 w-4" />PDF du devis</a>}
+      {quote.pdfUrl && quote.status === "ouvert" && !expired && <a href={`mailto:${order.customer.email}?subject=${encodeURIComponent(`Votre devis ${quote.quoteNumber ?? ""} — Bâtire`)}&body=${encodeURIComponent(`Bonjour,\n\nVeuillez trouver votre devis (${euros(quote.totalCents)}) ici : ${quote.pdfUrl}\n\nIl est valable jusqu'au ${new Date(quote.expiresAt).toLocaleDateString("fr-FR")}.\n\nCordialement,`)}`} className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] px-3 py-1.5 text-sm font-medium hover:bg-[var(--accent)]"><Mail className="h-4 w-4" />Envoyer par email</a>}
+      {canUpdate && quote.status === "ouvert" && !expired && <Button size="sm" onClick={() => { setError(""); setConfirm("accept"); }}><CircleCheck className="h-4 w-4" />Accepté → facturer</Button>}
+      {canUpdate && quote.status === "ouvert" && <Button size="sm" variant="ghost" className="text-red-600 dark:text-red-400" onClick={() => { setError(""); setConfirm("cancel"); }}><XCircle className="h-4 w-4" />Annuler le devis</Button>}
+    </div>
+    {quote.stripeInvoiceId && <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--muted)] p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-2 text-sm font-semibold"><Receipt className="h-4 w-4" />Facture {quote.invoiceNumber ?? ""}<span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", invoicePaid ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : "bg-amber-500/15 text-amber-700 dark:text-amber-300")}>{INVOICE_STATUS[quote.invoiceStatus ?? ""] ?? quote.invoiceStatus ?? "—"}</span></p>
+        {canUpdate && <button type="button" disabled={busy} onClick={() => void run(() => invoiceAction({ quoteId: quote._id, action: "refresh" }), "Actualisation impossible.")} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-[var(--muted-foreground)] hover:bg-[var(--accent)]"><RefreshCw className={cn("h-3.5 w-3.5", busy && "animate-spin")} />Actualiser</button>}
+      </div>
+      <div className="mt-2 space-y-1 text-xs text-[var(--muted-foreground)]">
+        {quote.acceptedAt && <p>Devis accepté le {dateTime(quote.acceptedAt)}</p>}
+        {quote.invoiceSentAt && <p>Facture envoyée au client le {dateTime(quote.invoiceSentAt)}</p>}
+        {quote.invoicePaidAt && <p>Payée le {dateTime(quote.invoicePaidAt)}</p>}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {quote.invoicePdfUrl && <a href={quote.invoicePdfUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm font-medium hover:bg-[var(--accent)]"><Download className="h-4 w-4" />PDF de la facture</a>}
+        {quote.invoiceUrl && <a href={quote.invoiceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm font-medium hover:bg-[var(--accent)]"><ExternalLink className="h-4 w-4" />Page de paiement</a>}
+        {canUpdate && !invoicePaid && quote.invoiceStatus === "open" && <>
+          <Button size="sm" variant="outline" onClick={() => { setError(""); setConfirm("send"); }}><Send className="h-4 w-4" />{quote.invoiceSentAt ? "Renvoyer" : "Envoyer"} la facture</Button>
+          <Button size="sm" variant="outline" onClick={() => { setError(""); setConfirm("markPaid"); }}><Check className="h-4 w-4" />Marquer payée (hors Stripe)</Button>
+        </>}
+      </div>
+    </div>}
+    {error && !confirm && <p role="alert" className="mt-2 text-sm text-red-600">{error}</p>}
+    {confirm === "accept" && <Modal title="Devis accepté par le client ?" onClose={() => { if (!busy) setConfirm(""); }}>
+      <p className="text-sm text-[var(--muted-foreground)]">Le devis {quote.quoteNumber} ({euros(quote.totalCents)}) sera marqué accepté chez Stripe et converti en facture, à régler sous l'échéance prévue. Cette opération est définitive.</p>
+      <label className="mt-4 flex items-center gap-2 text-sm"><input type="checkbox" checked={sendInvoice} onChange={event => setSendInvoice(event.target.checked)} className="h-4 w-4 accent-brand-600" />Envoyer la facture par email à {order.customer.email} (via Stripe)</label>
+      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" disabled={busy} onClick={() => setConfirm("")}>Annuler</Button><Button disabled={busy} onClick={() => void run(() => accept({ quoteId: quote._id, sendInvoice }), "Conversion en facture impossible.")}><Receipt className="h-4 w-4" />{busy ? "Facturation…" : "Convertir en facture"}</Button></div>
+    </Modal>}
+    {confirm === "cancel" && <Modal title="Annuler le devis ?" onClose={() => { if (!busy) setConfirm(""); }}>
+      <p className="text-sm text-[var(--muted-foreground)]">Le devis {quote.quoteNumber} sera annulé chez Stripe et ne pourra plus être accepté.</p>
+      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" disabled={busy} onClick={() => setConfirm("")}>Non</Button><Button variant="danger" disabled={busy} onClick={() => void run(() => cancel({ quoteId: quote._id }), "Annulation impossible.")}><XCircle className="h-4 w-4" />{busy ? "Annulation…" : "Annuler le devis"}</Button></div>
+    </Modal>}
+    {confirm === "send" && <Modal title="Envoyer la facture ?" onClose={() => { if (!busy) setConfirm(""); }}>
+      <p className="text-sm text-[var(--muted-foreground)]">Stripe enverra la facture {quote.invoiceNumber} ({euros(quote.totalCents)}) par email à <strong className="text-[var(--foreground)]">{order.customer.email}</strong>, avec un lien de paiement.</p>
+      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" disabled={busy} onClick={() => setConfirm("")}>Non</Button><Button disabled={busy} onClick={() => void run(() => invoiceAction({ quoteId: quote._id, action: "send" }), "Envoi impossible.")}><Send className="h-4 w-4" />{busy ? "Envoi…" : "Envoyer"}</Button></div>
+    </Modal>}
+    {confirm === "markPaid" && <Modal title="Marquer la facture payée ?" onClose={() => { if (!busy) setConfirm(""); }}>
+      <p className="text-sm text-[var(--muted-foreground)]">À utiliser quand le client a réglé hors Stripe (espèces, virement, chèque). La facture {quote.invoiceNumber} passera « Payée » chez Stripe.</p>
+      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" disabled={busy} onClick={() => setConfirm("")}>Non</Button><Button disabled={busy} onClick={() => void run(() => invoiceAction({ quoteId: quote._id, action: "markPaid" }), "Opération impossible.")}><Check className="h-4 w-4" />{busy ? "Enregistrement…" : "Marquer payée"}</Button></div>
+    </Modal>}
+  </article>;
 }
