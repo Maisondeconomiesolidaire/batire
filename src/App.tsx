@@ -6,6 +6,7 @@ import { MaterialDetail } from "./pages/public/MaterialDetail";
 import { Kiosk } from "./pages/public/Kiosk";
 import { KioskUniverseNav } from "./components/KioskUniverseNav";
 import { QrLanding } from "./pages/public/QrLanding";
+import { PromoLanding } from "./pages/public/PromoLanding";
 import { MonCompte } from "./pages/public/MonCompte";
 import { NouveauDon } from "./pages/public/NouveauDon";
 import { JeRecherche } from "./pages/public/JeRecherche";
@@ -50,6 +51,7 @@ export default function App() {
         <Route path="/contact" element={<Contact />} />
         <Route path="/materiau/:id" element={<MaterialDetail />} />
         <Route path="/qr/:reference" element={<QrLanding />} />
+        <Route path="/code-promo/:code" element={<PromoLanding />} />
         <Route path="/messagerie" element={<Messagerie />} />
         <Route path="/mon-compte" element={<MonCompte />} />
         <Route path="/don/nouveau" element={<NouveauDon />} />
