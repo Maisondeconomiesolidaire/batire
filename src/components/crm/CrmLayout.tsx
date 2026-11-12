@@ -12,6 +12,7 @@ import {
   ShieldAlert,
   Store,
   Sun,
+  Tag,
 } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -26,6 +27,7 @@ const NAV = [
   { to: "/crm/dons", label: "Dons", icon: HeartHandshake, page: "batire:dons", badge: true },
   { to: "/crm/demandes", label: "Demandes", icon: ClipboardList, page: "batire:demandes" },
   { to: "/crm/messagerie", label: "Messagerie", icon: MessageSquare, page: "batire:demandes" },
+  { to: "/crm/codes-promo", label: "Codes promo", icon: Tag, page: "batire:demandes" },
   { to: "/crm/emplacements", label: "Emplacements", icon: MapPinned, page: "batire:materiaux" },
   { to: "/crm/qr", label: "QR codes", icon: QrCode, page: "batire:materiaux" },
 ];

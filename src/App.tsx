@@ -20,6 +20,7 @@ import { MessagerieCrm } from "./pages/crm/Messagerie";
 import { Messagerie } from "./pages/public/Messagerie";
 import { QrCodes } from "./pages/crm/QrCodes";
 import { Emplacements } from "./pages/crm/Emplacements";
+import { CodesPromo } from "./pages/crm/CodesPromo";
 import { Dons } from "./pages/crm/Dons";
 import { Demandes } from "./pages/crm/Demandes";
 import { ProfileSync } from "./components/ProfileSync";
@@ -72,6 +73,7 @@ export default function App() {
         <Route path="messagerie" element={<MessagerieCrm />} />
         <Route path="qr" element={<QrCodes />} />
         <Route path="emplacements" element={<Emplacements />} />
+        <Route path="codes-promo" element={<CodesPromo />} />
       </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
