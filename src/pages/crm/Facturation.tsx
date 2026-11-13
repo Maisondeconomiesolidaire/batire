@@ -419,5 +419,14 @@ export function PdfPreview({ doc, canUpdate, onClose, startSending }: { doc: Pre
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" disabled={busy} onClick={() => setSending(false)}>Annuler</Button><Button type="submit" disabled={busy || !to.trim()}><Send className="h-4 w-4" />{busy ? "Envoi…" : "Envoyer"}</Button></div>
       </form>
     </Dialog>}
-  </div>, document.body);
+  </div>, overlayRoot());
+}
+
+/**
+ * Un <dialog> modal (popup d'une demande) passe au-dessus de tout le reste de
+ * la page : l'aperçu doit s'afficher DANS ce dialog pour rester visible.
+ */
+function overlayRoot(): Element {
+  const open = document.querySelectorAll("dialog[open]");
+  return open[open.length - 1] ?? document.body;
 }

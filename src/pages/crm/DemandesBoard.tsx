@@ -504,6 +504,8 @@ type ProcessStep = {
   actionable: boolean;
   /** Pourquoi l'étape ne se coche pas ici. */
   hint?: string;
+  /** Ligne mise en avant dans la carte (ex. facture envoyée). */
+  note?: string;
 };
 
 /**
@@ -581,6 +583,7 @@ function ProcessChecklist({ steps, onStep, below }: { steps: ProcessStep[]; onSt
                 {step.at && <span>{dateTime(step.at)}</span>}
               </span>}
               {step.detail && (step.done || step.key === "paid") && <span className="mt-1 text-[11px] font-medium text-[var(--muted-foreground)]">{step.detail}</span>}
+              {step.note && <span className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-brand-500/15 px-1.5 py-0.5 text-[11px] font-semibold text-brand-700 dark:text-brand-300"><Send className="h-3 w-3" />{step.note}</span>}
             </span>
             {!step.done && (clickable ? <span className={cn("text-[11px] font-semibold uppercase tracking-[0.12em]", isNext ? "text-brand-600 dark:text-brand-300" : "text-[var(--muted-foreground)]")}>{isNext ? "Prochaine étape" : "À cocher"}</span>
               : step.hint ? <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">{step.key === "assigned" || step.key === "transit" ? "Meslogistic" : "En attente"}</span> : null)}
@@ -618,9 +621,11 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
   const [error, setError] = useState("");
   const transit = hasTransit(order);
   const location = pickupLocationById(order.pickupLocation);
-  const steps = processSteps(order, canUpdate);
   const billingDocs = useQuery(api.batire.orderBillingDocs, { orderId: order._id });
   const invoice = billingDocs?.find(doc => doc.type === "facture");
+  const sentLabel = (at: number) => { const date = new Date(at); return `${date.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })} à ${date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`; };
+  const steps = processSteps(order, canUpdate).map(step => step.key === "paid" && invoice?.sentAt ? { ...step, note: `Facture envoyée le ${sentLabel(invoice.sentAt)}` } : step);
+  const [confirmResend, setConfirmResend] = useState(false);
   const generateInvoice = useMutation(api.batire.generateOrderInvoice);
   const [invoicePreview, setInvoicePreview] = useState<string | null>(null);
   const previewDoc = invoicePreview ? billingDocs?.find(doc => doc._id === invoicePreview) : undefined;
@@ -660,8 +665,8 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
       <ProcessChecklist steps={steps} onStep={step => { setError(""); setDueDate(""); setAvailableFrom(order.availableFrom ?? todayIso()); setStepOpen(step.key); }}
         below={step => step.key === "paid" && step.done ? <div className="mt-2 space-y-1 text-center">
           {invoice ? <>
-            {canUpdate && <Button size="sm" variant={invoice.sentAt ? "outline" : "primary"} className="w-full justify-center" onClick={() => setInvoicePreview(invoice._id)}><Send className="h-4 w-4" />{invoice.sentAt ? "Renvoyer la facture" : "Envoyer la facture"}</Button>}
-            <p className="text-[11px] text-[var(--muted-foreground)]">Facture {invoice.number}{invoice.sentAt ? ` · envoyée le ${new Date(invoice.sentAt).toLocaleDateString("fr-FR")}` : ""}</p>
+            {canUpdate && <Button size="sm" variant={invoice.sentAt ? "outline" : "primary"} className="w-full justify-center" onClick={() => invoice.sentAt ? setConfirmResend(true) : setInvoicePreview(invoice._id)}><Send className="h-4 w-4" />{invoice.sentAt ? "Renvoyer la facture" : "Envoyer la facture"}</Button>}
+            <p className="text-[11px] text-[var(--muted-foreground)]">Facture {invoice.number}</p>
           </> : billingDocs !== undefined && canUpdate ? <Button size="sm" className="w-full justify-center" disabled={busy} onClick={() => void run(async () => { const id = await generateInvoice({ orderId: order._id }); setInvoicePreview(id); })}><Receipt className="h-4 w-4" />Générer la facture</Button> : null}
         </div> : step.key === "ready" && step.done && order.availableFrom && !order.collectedAt && !order.lostAt ? <div className="mt-2 space-y-1 text-center">
           {canUpdate && <Button size="sm" variant={order.customerNotifiedAt ? "outline" : "primary"} className="w-full justify-center" disabled={busy} onClick={() => { setError(""); setConfirmNotify(true); }}><BellRing className="h-4 w-4" />{order.customerNotifiedAt ? "Notifier à nouveau" : "Notifier le client"}</Button>}
@@ -726,6 +731,10 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
       </form>
     </Modal>}
 
+    {confirmResend && invoice?.sentAt && <Modal title="Facture déjà envoyée" onClose={() => setConfirmResend(false)}>
+      <p className="text-sm text-[var(--muted-foreground)]">La facture {invoice.number} a déjà été envoyée le {sentLabel(invoice.sentAt)}{invoice.sentTo ? ` à ${invoice.sentTo}` : ""}. Êtes-vous sûr(e) de vouloir la renvoyer ?</p>
+      <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" onClick={() => setConfirmResend(false)}>Non</Button><Button autoFocus onClick={() => { setConfirmResend(false); setInvoicePreview(invoice._id); }}><Send className="h-4 w-4" />Oui, renvoyer</Button></div>
+    </Modal>}
     {previewDoc && <PdfPreview doc={previewDoc} canUpdate={canUpdate} startSending onClose={() => setInvoicePreview(null)} />}
     {confirmNotify && order.availableFrom && <div role="dialog" aria-modal="true" aria-labelledby="notify-title" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onKeyDown={event => { if (event.key === "Escape" && !busy) { event.stopPropagation(); setConfirmNotify(false); } }}>
       <div className="w-full max-w-lg rounded-3xl bg-[var(--card)] p-6 text-[var(--foreground)] shadow-2xl">
