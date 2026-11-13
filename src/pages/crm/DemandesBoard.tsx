@@ -535,7 +535,7 @@ function processSteps(order: Order, canUpdate: boolean): ProcessStep[] {
   ];
 }
 
-function ProcessChecklist({ steps, onStep }: { steps: ProcessStep[]; onStep: (step: ProcessStep) => void }) {
+function ProcessChecklist({ steps, onStep, below }: { steps: ProcessStep[]; onStep: (step: ProcessStep) => void; below?: (step: ProcessStep) => ReactNode }) {
   const [hint, setHint] = useState<string | null>(null);
   const done = steps.filter(step => step.done).length;
   const percent = Math.round((done / steps.length) * 100);
@@ -572,6 +572,7 @@ function ProcessChecklist({ steps, onStep }: { steps: ProcessStep[]; onStep: (st
               : step.hint ? <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">{step.key === "assigned" || step.key === "transit" ? "Meslogistic" : "En attente"}</span> : null)}
             {step.done && step.key === "ready" && clickable && <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Modifier la date</span>}
           </button>
+          {below?.(step)}
         </li>;
       })}
     </ol>
@@ -602,7 +603,6 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const transit = hasTransit(order);
-  const locked = !canUpdate || busy || Boolean(order.lostAt);
   const location = pickupLocationById(order.pickupLocation);
   const steps = processSteps(order, canUpdate);
 
@@ -612,8 +612,7 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
   }
   async function notify() {
     try { localStorage.setItem(hoursKey(order.pickupLocation), hours.trim()); } catch { /* préférence locale facultative */ }
-    await run(() => update({ orderId: order._id, step: "notify", pickupHours: hours.trim() }));
-    setConfirmNotify(false);
+    if (await run(() => update({ orderId: order._id, step: "notify", pickupHours: hours.trim() }))) setConfirmNotify(false);
   }
   async function submitStep(event: FormEvent) {
     event.preventDefault();
@@ -639,7 +638,11 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
 
     <section>
       <SectionTitle>Process · {isRelay(order) ? `${RELAY} (${pickupName(order)})` : WAREHOUSE}</SectionTitle>
-      <ProcessChecklist steps={steps} onStep={step => { setError(""); setDueDate(""); setAvailableFrom(order.availableFrom ?? todayIso()); setStepOpen(step.key); }} />
+      <ProcessChecklist steps={steps} onStep={step => { setError(""); setDueDate(""); setAvailableFrom(order.availableFrom ?? todayIso()); setStepOpen(step.key); }}
+        below={step => step.key === "ready" && step.done && order.availableFrom && !order.collectedAt && !order.lostAt ? <div className="mt-2 space-y-1 text-center">
+          {canUpdate && <Button size="sm" variant={order.customerNotifiedAt ? "outline" : "primary"} className="w-full justify-center" disabled={busy} onClick={() => { setError(""); setConfirmNotify(true); }}><BellRing className="h-4 w-4" />{order.customerNotifiedAt ? "Notifier à nouveau" : "Notifier le client"}</Button>}
+          {order.customerNotifiedAt && <p className="text-[11px] text-[var(--muted-foreground)]">Notifié le {dateTime(order.customerNotifiedAt)}</p>}
+        </div> : null} />
     </section>
 
     {transit && <section>
@@ -653,15 +656,6 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
       </div>
     </section>}
 
-    {order.readyAt && order.availableFrom && !order.collectedAt && !order.lostAt && <section>
-      <SectionTitle>Notifier le client</SectionTitle>
-      <div className="space-y-3 rounded-2xl border border-[var(--border)] p-4 text-sm">
-        {order.customerNotifiedAt && <p className="flex items-center gap-2 text-[var(--muted-foreground)]"><BellRing className="h-4 w-4" />Client notifié le {dateTime(order.customerNotifiedAt)}</p>}
-        <p>Le client reçoit : la date de disponibilité, le lieu ({pickupName(order)}{location ? `, ${location.address}` : ""}), les horaires d’ouverture et sa référence.</p>
-        <label className="block font-medium">Horaires d’ouverture de {pickupName(order)}<textarea rows={2} maxLength={500} value={hours} disabled={locked} onChange={event => setHours(event.target.value)} placeholder="Ex. du mardi au samedi, de 14h00 à 17h00" className="mt-1 block w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5" /></label>
-        {canUpdate && <Button disabled={locked || !hours.trim()} onClick={() => { setError(""); setConfirmNotify(true); }}><BellRing className="h-4 w-4" />{order.customerNotifiedAt ? "Notifier à nouveau" : "Notifier le client"}</Button>}
-      </div>
-    </section>}
 
 
     {!transit && !order.relayRequested && !order.readyAt && !order.collectedAt && !order.lostAt && canUpdate && <section>
@@ -695,7 +689,7 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
           {!order.sourceLocation && <p className="text-xs text-red-600">Le lieu de stockage du matériau n’est pas reconnu : corrigez le dépôt sur la fiche CRM.</p>}
         </>}
         {stepOpen === "ready" && <>
-          <p>Le lot est prêt à être retiré à <strong>{pickupName(order)}</strong>. Aucun email n’est envoyé : prévenez ensuite le client avec « Notifier le client ».</p>
+          <p>Le lot est prêt à être retiré à <strong>{pickupName(order)}</strong>. Aucun email n’est envoyé : prévenez ensuite le client avec le bouton « Notifier le client » qui apparaît sous l’étape.</p>
           <label className="block font-semibold">Disponible à partir du<input type="date" required autoFocus value={availableFrom} onChange={event => setAvailableFrom(event.target.value)} className="mt-1 block w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5" /></label>
         </>}
         {stepOpen === "collected" && <p>Confirmez que le client a bien retiré <strong>{order.quantity} {order.unit} · {order.materialTitle}</strong> à {pickupName(order)}. La demande passe dans « Gagnées ».</p>}
@@ -708,9 +702,19 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
       </form>
     </Modal>}
 
-    {confirmNotify && order.availableFrom && <ConfirmSend title="Notifier le client ?" to={order.customer.email} confirmLabel="Oui, notifier" busy={busy} onCancel={() => setConfirmNotify(false)} onConfirm={() => void notify()}>
-      {`Votre retrait ${orderNumber(order)} est disponible à partir du ${longDate(order.availableFrom)}.\n\n${order.quantity} ${order.unit} · ${order.materialTitle}\n\n${pickupName(order)}${location ? `\n${location.address}` : ""}\nHoraires d’ouverture : ${hours.trim()}\nPrésentez la référence ${orderNumber(order)} à l’équipe.`}
-    </ConfirmSend>}
+    {confirmNotify && order.availableFrom && <div role="dialog" aria-modal="true" aria-labelledby="notify-title" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onKeyDown={event => { if (event.key === "Escape" && !busy) { event.stopPropagation(); setConfirmNotify(false); } }}>
+      <div className="w-full max-w-lg rounded-3xl bg-[var(--card)] p-6 text-[var(--foreground)] shadow-2xl">
+        <div className="flex items-start justify-between gap-3"><h3 id="notify-title" className="text-lg font-bold">Notifier le client</h3><button type="button" disabled={busy} onClick={() => setConfirmNotify(false)} aria-label="Fermer" className="rounded-lg p-1 hover:bg-[var(--accent)]"><X className="h-4 w-4" /></button></div>
+        <p className="mt-3 flex items-start gap-2 text-sm text-[var(--muted-foreground)]"><Mail className="mt-0.5 h-4 w-4 shrink-0" /><span>Email envoyé à <strong className="text-[var(--foreground)]">{order.customer.email}</strong>{order.customerNotifiedAt ? ` · déjà notifié le ${dateTime(order.customerNotifiedAt)}` : ""}</span></p>
+        <label className="mt-4 block text-sm font-medium">Horaires d’ouverture de {pickupName(order)}<textarea rows={2} maxLength={500} value={hours} disabled={busy} onChange={event => setHours(event.target.value)} placeholder="Ex. du mardi au samedi, de 14h00 à 17h00" className="mt-1 block w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5" /></label>
+        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Texte envoyé</p>
+        <div className="mt-1.5 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-xl border border-[var(--border)] bg-[var(--muted)] px-3 py-2.5 text-sm">
+          {`Votre retrait ${orderNumber(order)} est disponible à partir du ${longDate(order.availableFrom)}.\n\n${order.quantity} ${order.unit} · ${order.materialTitle}\n\n${pickupName(order)}${location ? `\n${location.address}` : ""}\nHoraires d’ouverture : ${hours.trim() || "à renseigner"}\nPrésentez la référence ${orderNumber(order)} à l’équipe.`}
+        </div>
+        {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
+        <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" disabled={busy} onClick={() => setConfirmNotify(false)}>Annuler</Button><Button disabled={busy || !hours.trim()} onClick={() => void notify()}><Send className="h-4 w-4" />{busy ? "Envoi…" : "Envoyer"}</Button></div>
+      </div>
+    </div>}
   </div>;
 }
 
