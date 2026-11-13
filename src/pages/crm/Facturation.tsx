@@ -359,11 +359,11 @@ export function Dialog({ title, onClose, children }: { title: string; onClose: (
 type PreviewDoc = BillingDocForPdf & { _id: Id<"btBillingDocs">; sentAt?: number; sentTo?: string };
 
 /** Aperçu du PDF (au lieu d'un téléchargement direct), puis envoi par email. */
-export function PdfPreview({ doc, canUpdate, onClose }: { doc: PreviewDoc; canUpdate: boolean; onClose: () => void }) {
+export function PdfPreview({ doc, canUpdate, onClose, startSending }: { doc: PreviewDoc; canUpdate: boolean; onClose: () => void; startSending?: boolean }) {
   const send = useAction(api.batire.sendBillingDoc);
   const [bytes, setBytes] = useState<Uint8Array | null>(null);
   const [url, setUrl] = useState("");
-  const [sending, setSending] = useState(false);
+  const [sending, setSending] = useState(Boolean(startSending && canUpdate));
   const [to, setTo] = useState(doc.client.email ?? "");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);

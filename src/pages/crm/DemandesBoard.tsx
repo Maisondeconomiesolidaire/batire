@@ -619,6 +619,11 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
   const transit = hasTransit(order);
   const location = pickupLocationById(order.pickupLocation);
   const steps = processSteps(order, canUpdate);
+  const billingDocs = useQuery(api.batire.orderBillingDocs, { orderId: order._id });
+  const invoice = billingDocs?.find(doc => doc.type === "facture");
+  const generateInvoice = useMutation(api.batire.generateOrderInvoice);
+  const [invoicePreview, setInvoicePreview] = useState<string | null>(null);
+  const previewDoc = invoicePreview ? billingDocs?.find(doc => doc._id === invoicePreview) : undefined;
 
   async function run(action: () => Promise<unknown>) {
     setBusy(true); setError("");
@@ -653,7 +658,12 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
     <section>
       <SectionTitle>Process · {isRelay(order) ? `${RELAY} (${pickupName(order)})` : WAREHOUSE}</SectionTitle>
       <ProcessChecklist steps={steps} onStep={step => { setError(""); setDueDate(""); setAvailableFrom(order.availableFrom ?? todayIso()); setStepOpen(step.key); }}
-        below={step => step.key === "ready" && step.done && order.availableFrom && !order.collectedAt && !order.lostAt ? <div className="mt-2 space-y-1 text-center">
+        below={step => step.key === "paid" && step.done ? <div className="mt-2 space-y-1 text-center">
+          {invoice ? <>
+            {canUpdate && <Button size="sm" variant={invoice.sentAt ? "outline" : "primary"} className="w-full justify-center" onClick={() => setInvoicePreview(invoice._id)}><Send className="h-4 w-4" />{invoice.sentAt ? "Renvoyer la facture" : "Envoyer la facture"}</Button>}
+            <p className="text-[11px] text-[var(--muted-foreground)]">Facture {invoice.number}{invoice.sentAt ? ` · envoyée le ${new Date(invoice.sentAt).toLocaleDateString("fr-FR")}` : ""}</p>
+          </> : billingDocs !== undefined && canUpdate ? <Button size="sm" className="w-full justify-center" disabled={busy} onClick={() => void run(async () => { const id = await generateInvoice({ orderId: order._id }); setInvoicePreview(id); })}><Receipt className="h-4 w-4" />Générer la facture</Button> : null}
+        </div> : step.key === "ready" && step.done && order.availableFrom && !order.collectedAt && !order.lostAt ? <div className="mt-2 space-y-1 text-center">
           {canUpdate && <Button size="sm" variant={order.customerNotifiedAt ? "outline" : "primary"} className="w-full justify-center" disabled={busy} onClick={() => { setError(""); setConfirmNotify(true); }}><BellRing className="h-4 w-4" />{order.customerNotifiedAt ? "Notifier à nouveau" : "Notifier le client"}</Button>}
           {order.customerNotifiedAt && <p className="text-[11px] text-[var(--muted-foreground)]">Notifié le {dateTime(order.customerNotifiedAt)}</p>}
         </div> : null} />
@@ -716,6 +726,7 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
       </form>
     </Modal>}
 
+    {previewDoc && <PdfPreview doc={previewDoc} canUpdate={canUpdate} startSending onClose={() => setInvoicePreview(null)} />}
     {confirmNotify && order.availableFrom && <div role="dialog" aria-modal="true" aria-labelledby="notify-title" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onKeyDown={event => { if (event.key === "Escape" && !busy) { event.stopPropagation(); setConfirmNotify(false); } }}>
       <div className="w-full max-w-lg rounded-3xl bg-[var(--card)] p-6 text-[var(--foreground)] shadow-2xl">
         <div className="flex items-start justify-between gap-3"><h3 id="notify-title" className="text-lg font-bold">Notifier le client</h3><button type="button" disabled={busy} onClick={() => setConfirmNotify(false)} aria-label="Fermer" className="rounded-lg p-1 hover:bg-[var(--accent)]"><X className="h-4 w-4" /></button></div>
