@@ -1064,6 +1064,7 @@ function orderBillingLines(order: Order): Omit<BillingLine, "key">[] {
 
 function BillingTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) {
   const docs = useQuery(api.batire.orderBillingDocs, { orderId: order._id });
+  const billingClient = useQuery(api.batire.orderBillingClient, { orderId: order._id });
   const [editing, setEditing] = useState<"devis" | "facture" | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const preview = previewId ? docs?.find(item => item._id === previewId) : undefined;
@@ -1088,7 +1089,7 @@ function BillingTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
         </table>
       </div>}
     {editing && <DocEditor type={editing} orderId={order._id} onClose={() => setEditing(null)} onCreated={id => { setEditing(null); setPreviewId(id); }}
-      initialClient={{ company: order.customer.company, firstName: order.customer.firstName, lastName: order.customer.lastName, email: order.customer.email, phone: order.customer.phone }}
+      initialClient={billingClient ?? { company: order.customer.company, firstName: order.customer.firstName, lastName: order.customer.lastName, email: order.customer.email, phone: order.customer.phone }}
       initialLines={orderBillingLines(order)} initialNotes={`Demande Bâtire #${orderNumber(order)} · retrait ${pickupName(order)}`} />}
     {preview && <PdfPreview doc={preview} canUpdate={canUpdate} onClose={() => setPreviewId(null)} />}
   </div>;
