@@ -16,7 +16,7 @@ import { formatDimensions } from "../../lib/format";
 import { DEFAULT_OPENING_HOURS, PICKUP_LOCATIONS, pickupLocationById, storageLocationId, type PickupLocationId } from "../../lib/pickupLocations";
 
 type Order = FunctionReturnType<typeof api.batire.pickupOperations>["orders"][number];
-type Stage = "nouveau" | "transit" | "disponible" | "retire";
+type Stage = "nouveau" | "en_cours" | "transit" | "disponible" | "retire";
 type Tab = "open" | "closed";
 type Mode = "" | "warehouse" | "relay";
 
@@ -26,6 +26,7 @@ type Mode = "" | "warehouse" | "relay";
  */
 const STAGES: { key: Exclude<Stage, "retire">; label: string; color: string }[] = [
   { key: "nouveau", label: "Nouveau", color: "#64748b" },
+  { key: "en_cours", label: "En cours", color: "#eab308" },
   { key: "transit", label: "En transit", color: "#8b5cf6" },
   { key: "disponible", label: "Disponible pour retrait", color: "#10b981" },
 ];
@@ -43,7 +44,17 @@ function stageOf(order: Order): Stage {
   // Un transit déclaré « Disponible à destination » dans Meslogistic est prêt pour le retrait.
   if (order.readyAt || order.transfer?.status === "receptionnee") return "disponible";
   if (order.transfer && order.transfer.status === "en_transit") return "transit";
-  return "nouveau";
+  return isTouched(order) ? "en_cours" : "nouveau";
+}
+
+/**
+ * L'équipe a déjà agi sur la demande : enlèvement demandé à Meslogistic (même
+ * sans navette), paiement espèces / virement enregistré, client prévenu.
+ * « Nouveau » ne garde que les demandes encore jamais traitées.
+ */
+function isTouched(order: Order) {
+  const offline = order.paymentMethod === "cash" || order.paymentMethod === "bank_transfer";
+  return Boolean((order.transfer && order.transfer.status !== "annulee") || (offline && order.paidAt) || order.customerNotifiedAt || order.availableFrom);
 }
 
 const hasTransit = (order: Order) => Boolean(order.transfer && order.transfer.status !== "annulee");
