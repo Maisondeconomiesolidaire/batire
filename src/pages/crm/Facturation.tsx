@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { Check, CircleCheck, Download, FilePlus2, FileText, ImageOff, Plus, Receipt, Search, Trash2, UserPlus, X, XCircle } from "lucide-react";
+import { Check, CircleCheck, Download, Eye, FilePlus2, FileText, ImageOff, Plus, Receipt, Search, Send, Trash2, UserPlus, X, XCircle } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "../../components/ui/Button";
@@ -12,7 +12,7 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { UnderlineTabs } from "../../components/ui/UnderlineTabs";
 import { canAccess, useAccess } from "../../lib/access";
 import { cn } from "../../lib/cn";
-import { ISSUERS, VAT_RATES, clientName, downloadBillingPdf, euros, frDate, vatBreakdown, type BillingClient, type Issuer } from "../../lib/billing";
+import { ISSUERS, VAT_RATES, buildBillingPdf, bytesToBase64, clientName, downloadBillingPdf, euros, frDate, vatBreakdown, type BillingClient, type BillingDocForPdf, type Issuer } from "../../lib/billing";
 
 type Doc = FunctionReturnType<typeof api.batire.listBillingDocs>[number];
 type DocType = "devis" | "facture";
@@ -46,15 +46,10 @@ export function Facturation() {
   const [tab, setTab] = useState<DocType>("devis");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<DocType | null>(null);
-  const [pendingPdf, setPendingPdf] = useState<string | null>(null);
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const docs = tab === "devis" ? quotes : invoices;
-
-  // Après création, le PDF se télécharge dès que le document apparaît dans la liste.
-  useEffect(() => {
-    if (!pendingPdf) return;
-    const doc = [...(quotes ?? []), ...(invoices ?? [])].find(item => item._id === pendingPdf);
-    if (doc) { setPendingPdf(null); void downloadBillingPdf(doc); }
-  }, [pendingPdf, quotes, invoices]);
+  // Aperçu : après création, il s'ouvre dès que le document apparaît dans la liste.
+  const preview = previewId ? [...(quotes ?? []), ...(invoices ?? [])].find(item => item._id === previewId) : undefined;
 
   const needle = search.trim().toLocaleLowerCase("fr-FR");
   const shown = (docs ?? []).filter(doc => !needle || [doc.number, clientName(doc.client), doc.client.email, doc.client.city, ...doc.lines.map(line => line.label)].some(value => value?.toLocaleLowerCase("fr-FR").includes(needle)));
@@ -81,10 +76,11 @@ export function Facturation() {
             <thead className="border-b border-[var(--border)] text-left text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
               <tr><th className="px-4 py-3 font-semibold">Numéro</th><th className="px-4 py-3 font-semibold">Client</th><th className="px-4 py-3 font-semibold">Date</th><th className="px-4 py-3 text-right font-semibold">Total TTC</th><th className="px-4 py-3 font-semibold">Statut</th><th className="px-4 py-3 text-right font-semibold">Actions</th></tr>
             </thead>
-            <tbody className="divide-y divide-[var(--border)]">{shown.map(doc => <DocRow key={doc._id} doc={doc} canUpdate={canUpdate} onConverted={id => { setTab("facture"); setPendingPdf(id); }} />)}</tbody>
+            <tbody className="divide-y divide-[var(--border)]">{shown.map(doc => <DocRow key={doc._id} doc={doc} canUpdate={canUpdate} onPreview={setPreviewId} onConverted={id => { setTab("facture"); setPreviewId(id); }} />)}</tbody>
           </table>
         </div>}
-    {editing && <DocEditor type={editing} onClose={() => setEditing(null)} onCreated={id => { setEditing(null); setPendingPdf(id); }} />}
+    {editing && <DocEditor type={editing} onClose={() => setEditing(null)} onCreated={id => { setEditing(null); setPreviewId(id); }} />}
+    {preview && <PdfPreview doc={preview} canUpdate={canUpdate} onClose={() => setPreviewId(null)} />}
   </div>;
 }
 
@@ -93,7 +89,7 @@ export function IssuerBadge({ issuer }: { issuer: Issuer }) {
   return <span className="inline-flex rounded-md px-1.5 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: `${item.color}22`, color: item.color }}>{item.short}</span>;
 }
 
-function DocRow({ doc, canUpdate, onConverted }: { doc: Doc; canUpdate: boolean; onConverted: (id: string) => void }) {
+function DocRow({ doc, canUpdate, onConverted, onPreview }: { doc: Doc; canUpdate: boolean; onConverted: (id: string) => void; onPreview: (id: string) => void }) {
   const setQuoteStatus = useMutation(api.batire.setQuoteStatus);
   const convert = useMutation(api.batire.convertQuoteToInvoice);
   const setPaid = useMutation(api.batire.setInvoicePaid);
@@ -112,10 +108,10 @@ function DocRow({ doc, canUpdate, onConverted }: { doc: Doc; canUpdate: boolean;
     <td className="px-4 py-3"><p className="font-medium">{clientName(doc.client)}</p><p className="text-xs text-[var(--muted-foreground)]">{[doc.client.email, doc.client.city].filter(Boolean).join(" · ")}</p><p className="mt-1 line-clamp-1 text-xs text-[var(--muted-foreground)]">{doc.lines.length} ligne{doc.lines.length > 1 ? "s" : ""} · {doc.lines.map(line => line.label).join(", ")}</p></td>
     <td className="px-4 py-3 whitespace-nowrap"><p>{frDate(doc.issueDate)}</p><p className="text-xs text-[var(--muted-foreground)]">{doc.type === "devis" ? `valable → ${frDate(doc.validUntil)}` : doc.status === "payee" ? `payée${doc.paymentMethod ? ` · ${doc.paymentMethod}` : ""}` : `échéance ${frDate(doc.dueDate)}`}</p></td>
     <td className="px-4 py-3 text-right font-semibold tabular-nums whitespace-nowrap">{euros(doc.totalCents)}</td>
-    <td className="px-4 py-3"><span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap", status.className)}>{doc.type === "devis" && doc.invoiceId ? "Facturé" : status.label}</span>{error && <p className="mt-1 max-w-[14rem] text-xs text-red-600">{error}</p>}</td>
+    <td className="px-4 py-3"><span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap", status.className)}>{doc.type === "devis" && doc.invoiceId ? "Facturé" : status.label}</span>{doc.sentAt && <p className="mt-1 text-xs text-[var(--muted-foreground)]">envoyé le {new Date(doc.sentAt).toLocaleDateString("fr-FR")}</p>}{error && <p className="mt-1 max-w-[14rem] text-xs text-red-600">{error}</p>}</td>
     <td className="px-4 py-3">
       <div className="flex flex-wrap justify-end gap-1.5">
-        <Button size="sm" variant="outline" onClick={() => void downloadBillingPdf(doc)}><Download className="h-4 w-4" />PDF</Button>
+        <Button size="sm" variant="outline" onClick={() => onPreview(doc._id)}><Eye className="h-4 w-4" />Aperçu</Button>
         {canUpdate && open && <Button size="sm" onClick={() => { setError(""); setConfirm("convert"); }}><Receipt className="h-4 w-4" />Facturer</Button>}
         {canUpdate && doc.type === "devis" && doc.status === "en_attente" && <>
           <Button size="sm" variant="ghost" onClick={() => void run(() => setQuoteStatus({ id: doc._id, status: "accepte" }))}><CircleCheck className="h-4 w-4" />Accepté</Button>
@@ -127,7 +123,7 @@ function DocRow({ doc, canUpdate, onConverted }: { doc: Doc; canUpdate: boolean;
       </div>
     </td>
     {confirm && createPortal(<Dialog title={confirm === "convert" ? "Convertir en facture ?" : confirm === "paid" ? "Facture payée" : "Devis refusé ?"} onClose={() => { if (!busy) setConfirm(""); }}>
-        {confirm === "convert" && <p className="text-sm text-[var(--muted-foreground)]">Une facture {ISSUERS[doc.issuer].name} de {euros(doc.totalCents)} est créée à partir du devis {doc.number} (mêmes lignes, même client). Le devis passe « Accepté ». Le PDF se télécharge ensuite.</p>}
+        {confirm === "convert" && <p className="text-sm text-[var(--muted-foreground)]">Une facture {ISSUERS[doc.issuer].name} de {euros(doc.totalCents)} est créée à partir du devis {doc.number} (mêmes lignes, même client). Le devis passe « Accepté ». L’aperçu s’ouvre ensuite.</p>}
         {confirm === "refuse" && <p className="text-sm text-[var(--muted-foreground)]">Le devis {doc.number} sera marqué refusé. Il pourra être rouvert.</p>}
         {confirm === "paid" && <div className="space-y-3 text-sm"><p className="text-[var(--muted-foreground)]">Facture {doc.number} · {euros(doc.totalCents)}</p><Field label="Moyen de paiement"><select value={method} onChange={event => setMethod(event.target.value)} className="w-full rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2.5">{PAYMENT_METHODS.map(item => <option key={item}>{item}</option>)}</select></Field></div>}
         {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
@@ -246,7 +242,7 @@ export function DocEditor({ type, onClose, onCreated, orderId, initialClient, in
       </div>
       <footer className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] px-6 py-4">
         <p role="alert" className="text-sm text-red-600">{error}</p>
-        <div className="flex gap-2"><Button type="button" variant="ghost" disabled={busy} onClick={onClose}>Annuler</Button><Button type="submit" disabled={busy || !client || !valid}><FileText className="h-4 w-4" />{busy ? "Création…" : type === "devis" ? "Créer le devis (PDF)" : "Créer la facture (PDF)"}</Button></div>
+        <div className="flex gap-2"><Button type="button" variant="ghost" disabled={busy} onClick={onClose}>Annuler</Button><Button type="submit" disabled={busy || !client || !valid}><FileText className="h-4 w-4" />{busy ? "Création…" : type === "devis" ? "Créer et prévisualiser le devis" : "Créer et prévisualiser la facture"}</Button></div>
       </footer>
     </form>
   </div>;
@@ -347,11 +343,81 @@ function ClientPicker({ onPick }: { onPick: (client: { clientId?: Id<"btBillingC
   </div>;
 }
 
-function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return <div role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } }}>
     <div className="w-full max-w-md rounded-3xl bg-[var(--card)] p-6 text-left text-[var(--foreground)] shadow-2xl">
       <div className="flex items-start justify-between gap-3"><h3 className="text-lg font-bold">{title}</h3><button type="button" onClick={onClose} aria-label="Fermer" className="rounded-lg p-1 hover:bg-[var(--accent)]"><X className="h-4 w-4" /></button></div>
       <div className="mt-3">{children}</div>
     </div>
   </div>;
+}
+
+/* ------------------------------------------------------------------ */
+/* Aperçu PDF et envoi au client                                        */
+/* ------------------------------------------------------------------ */
+
+type PreviewDoc = BillingDocForPdf & { _id: Id<"btBillingDocs">; sentAt?: number; sentTo?: string };
+
+/** Aperçu du PDF (au lieu d'un téléchargement direct), puis envoi par email. */
+export function PdfPreview({ doc, canUpdate, onClose }: { doc: PreviewDoc; canUpdate: boolean; onClose: () => void }) {
+  const send = useAction(api.batire.sendBillingDoc);
+  const [bytes, setBytes] = useState<Uint8Array | null>(null);
+  const [url, setUrl] = useState("");
+  const [sending, setSending] = useState(false);
+  const [to, setTo] = useState(doc.client.email ?? "");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [sent, setSent] = useState("");
+  // Le PDF est régénéré si le document change (statut payé, etc.).
+  const signature = JSON.stringify([doc.status, doc.paidAt, doc.paymentMethod, doc.number]);
+  useEffect(() => {
+    let revoked = "";
+    let cancelled = false;
+    void buildBillingPdf(doc).then(result => {
+      if (cancelled) return;
+      setBytes(result);
+      revoked = URL.createObjectURL(new Blob([result as BlobPart], { type: "application/pdf" }));
+      setUrl(revoked);
+    });
+    return () => { cancelled = true; if (revoked) URL.revokeObjectURL(revoked); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature]);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!bytes) return;
+    setBusy(true); setError("");
+    try { await send({ id: doc._id, to, message: message.trim() || undefined, pdfBase64: bytesToBase64(bytes) }); setSent(to); setSending(false); }
+    catch (caught) { setError(errorText(caught, "Envoi impossible.")); }
+    finally { setBusy(false); }
+  }
+  const label = doc.type === "devis" ? "devis" : "facture";
+  return createPortal(<div role="dialog" aria-modal="true" aria-labelledby="pdf-preview-title" className="fixed inset-0 z-[60] flex items-stretch justify-center bg-black/70 p-3 sm:p-6" onKeyDown={event => { if (event.key === "Escape" && !busy) { event.stopPropagation(); onClose(); } }}>
+    <div className="flex w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-[var(--card)] text-[var(--foreground)] shadow-2xl">
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-5 py-3" style={{ borderTop: `6px solid ${ISSUERS[doc.issuer].color}` }}>
+        <div className="min-w-0">
+          <h2 id="pdf-preview-title" className="font-bold">{doc.type === "devis" ? "Devis" : "Facture"} {doc.number}</h2>
+          <p className="text-xs text-[var(--muted-foreground)]">{ISSUERS[doc.issuer].name} · {clientName(doc.client)} · {euros(doc.totalCents)}{(sent || doc.sentAt) ? ` · envoyé${sent ? ` à ${sent}` : doc.sentTo ? ` à ${doc.sentTo}` : ""}${!sent && doc.sentAt ? ` le ${new Date(doc.sentAt).toLocaleDateString("fr-FR")}` : ""}` : ""}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" disabled={!bytes} onClick={() => bytes && void downloadBillingPdf(doc, bytes)}><Download className="h-4 w-4" />Télécharger</Button>
+          {canUpdate && <Button size="sm" disabled={!bytes} onClick={() => { setError(""); setSending(true); }}><Send className="h-4 w-4" />{sent || doc.sentAt ? "Renvoyer au client" : "Envoyer au client"}</Button>}
+          <button type="button" onClick={onClose} disabled={busy} aria-label="Fermer" className="rounded-lg p-1.5 hover:bg-[var(--accent)]"><X className="h-5 w-5" /></button>
+        </div>
+      </header>
+      {sent && <p className="shrink-0 bg-emerald-500/10 px-5 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-300"><Check className="mr-1 inline h-4 w-4" />Le {label} a été envoyé à {sent}.</p>}
+      <div className="min-h-0 flex-1 bg-zinc-200 dark:bg-zinc-800">
+        {url ? <iframe title={`Aperçu ${doc.number}`} src={url} className="h-full w-full border-0" /> : <FullSpinner label="Génération du PDF…" />}
+      </div>
+    </div>
+    {sending && <Dialog title={`Envoyer le ${label} au client`} onClose={() => { if (!busy) setSending(false); }}>
+      <form onSubmit={submit} className="space-y-3 text-sm">
+        <p className="text-[var(--muted-foreground)]">Le PDF {doc.number} part en pièce jointe, avec le montant et {doc.type === "devis" ? "la date de validité" : "l’échéance"}.</p>
+        <Field label="Email du client" required><Input type="email" required autoFocus value={to} onChange={event => setTo(event.target.value)} /></Field>
+        <Field label="Message (facultatif)"><Textarea rows={3} maxLength={2000} value={message} onChange={event => setMessage(event.target.value)} placeholder="Ajouté dans l’email" /></Field>
+        {error && <p role="alert" className="text-red-600">{error}</p>}
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" disabled={busy} onClick={() => setSending(false)}>Annuler</Button><Button type="submit" disabled={busy || !to.trim()}><Send className="h-4 w-4" />{busy ? "Envoi…" : "Envoyer"}</Button></div>
+      </form>
+    </Dialog>}
+  </div>, document.body);
 }

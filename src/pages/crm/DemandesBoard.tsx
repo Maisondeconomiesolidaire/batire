@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { AlertTriangle, BellRing, Check, CircleCheck, Download, ExternalLink, FilePlus2, FileText, ImageOff, Inbox, Lock, Mail, MapPin, MessageSquare, Pencil, Phone, Plus, Receipt, RefreshCw, RotateCcw, Search, Send, Tag, Trash2, Truck, X, XCircle, Copy } from "lucide-react";
+import { AlertTriangle, BellRing, Check, CircleCheck, Download, ExternalLink, Eye, FilePlus2, FileText, ImageOff, Inbox, Lock, Mail, MapPin, MessageSquare, Pencil, Phone, Plus, Receipt, RefreshCw, RotateCcw, Search, Send, Tag, Trash2, Truck, X, XCircle, Copy } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { LogisticsCard, ON_SITE_COLOR, TRANSIT_COLOR, shortDate } from "../../components/crm/LogisticsCard";
 import { Button } from "../../components/ui/Button";
@@ -10,8 +10,8 @@ import { Field, Input } from "../../components/ui/Field";
 import { PhoneInput } from "../../components/ui/PhoneInput";
 import { FullSpinner } from "../../components/ui/Spinner";
 import { UnderlineTabs } from "../../components/ui/UnderlineTabs";
-import { DocEditor, IssuerBadge, PAYMENT_METHODS, STATUS as BILLING_STATUS, type Line as BillingLine } from "./Facturation";
-import { downloadBillingPdf, issuerOfCategory, euros as billingEuros, frDate } from "../../lib/billing";
+import { DocEditor, IssuerBadge, PAYMENT_METHODS, PdfPreview, STATUS as BILLING_STATUS, type Line as BillingLine } from "./Facturation";
+import { issuerOfCategory, euros as billingEuros, frDate } from "../../lib/billing";
 import { canAccess, useAccess } from "../../lib/access";
 import { cn } from "../../lib/cn";
 import { formatDimensions } from "../../lib/format";
@@ -1045,12 +1045,8 @@ function orderBillingLines(order: Order): Omit<BillingLine, "key">[] {
 function BillingTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) {
   const docs = useQuery(api.batire.orderBillingDocs, { orderId: order._id });
   const [editing, setEditing] = useState<"devis" | "facture" | null>(null);
-  const [pendingPdf, setPendingPdf] = useState<string | null>(null);
-  useEffect(() => {
-    if (!pendingPdf) return;
-    const doc = docs?.find(item => item._id === pendingPdf);
-    if (doc) { setPendingPdf(null); void downloadBillingPdf(doc); }
-  }, [pendingPdf, docs]);
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const preview = previewId ? docs?.find(item => item._id === previewId) : undefined;
   return <div className="max-w-5xl space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -1068,18 +1064,19 @@ function BillingTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
           <thead className="border-b border-[var(--border)] bg-[var(--muted)] text-left text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
             <tr><th className="px-3 py-2.5 font-semibold">Document</th><th className="px-3 py-2.5 font-semibold">Date</th><th className="px-3 py-2.5 text-right font-semibold">Total TTC</th><th className="px-3 py-2.5 font-semibold">Statut</th><th className="px-3 py-2.5 text-right font-semibold" /></tr>
           </thead>
-          <tbody className="divide-y divide-[var(--border)]">{docs.map(doc => <BillingRow key={doc._id} doc={doc} canUpdate={canUpdate} onInvoiced={setPendingPdf} />)}</tbody>
+          <tbody className="divide-y divide-[var(--border)]">{docs.map(doc => <BillingRow key={doc._id} doc={doc} canUpdate={canUpdate} onPreview={setPreviewId} />)}</tbody>
         </table>
       </div>}
-    {editing && <DocEditor type={editing} orderId={order._id} onClose={() => setEditing(null)} onCreated={id => { setEditing(null); setPendingPdf(id); }}
+    {editing && <DocEditor type={editing} orderId={order._id} onClose={() => setEditing(null)} onCreated={id => { setEditing(null); setPreviewId(id); }}
       initialClient={{ company: order.customer.company, firstName: order.customer.firstName, lastName: order.customer.lastName, email: order.customer.email, phone: order.customer.phone }}
       initialLines={orderBillingLines(order)} initialNotes={`Demande Bâtire #${orderNumber(order)} · retrait ${pickupName(order)}`} />}
+    {preview && <PdfPreview doc={preview} canUpdate={canUpdate} onClose={() => setPreviewId(null)} />}
   </div>;
 }
 
 type BillingDoc = FunctionReturnType<typeof api.batire.orderBillingDocs>[number];
 
-function BillingRow({ doc, canUpdate, onInvoiced }: { doc: BillingDoc; canUpdate: boolean; onInvoiced: (id: string) => void }) {
+function BillingRow({ doc, canUpdate, onPreview }: { doc: BillingDoc; canUpdate: boolean; onPreview: (id: string) => void }) {
   const setQuoteStatus = useMutation(api.batire.setQuoteStatus);
   const setPaid = useMutation(api.batire.setInvoicePaid);
   const convert = useMutation(api.batire.convertQuoteToInvoice);
@@ -1102,7 +1099,7 @@ function BillingRow({ doc, canUpdate, onInvoiced }: { doc: BillingDoc; canUpdate
   const tone = BILLING_STATUS[doc.status]?.className ?? "";
   return <tr className="align-middle">
     <td className="px-3 py-2.5"><p className="flex flex-wrap items-center gap-2"><span className="text-xs font-semibold uppercase text-[var(--muted-foreground)]">{doc.type === "devis" ? "Devis" : "Facture"}</span><span className="font-mono font-semibold">{doc.number}</span><IssuerBadge issuer={doc.issuer} /></p>{doc.linkedNumber && <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{doc.type === "devis" ? "→ facture" : "← devis"} {doc.linkedNumber}</p>}</td>
-    <td className="px-3 py-2.5 whitespace-nowrap">{frDate(doc.issueDate)}<p className="text-xs text-[var(--muted-foreground)]">{doc.type === "devis" ? `valable → ${frDate(doc.validUntil)}` : `échéance ${frDate(doc.dueDate)}`}</p></td>
+    <td className="px-3 py-2.5 whitespace-nowrap">{frDate(doc.issueDate)}<p className="text-xs text-[var(--muted-foreground)]">{doc.type === "devis" ? `valable → ${frDate(doc.validUntil)}` : `échéance ${frDate(doc.dueDate)}`}</p>{doc.sentAt && <p className="text-xs text-[var(--muted-foreground)]">envoyé le {new Date(doc.sentAt).toLocaleDateString("fr-FR")}</p>}</td>
     <td className="px-3 py-2.5 text-right font-semibold tabular-nums whitespace-nowrap">{billingEuros(doc.totalCents)}</td>
     <td className="px-3 py-2.5">
       <select aria-label={`Statut ${doc.number}`} value={value} disabled={!canUpdate || busy || invoiced} onChange={event => change(event.target.value)} className={cn("rounded-lg border border-[var(--border)] px-2 py-1.5 text-xs font-semibold disabled:opacity-80", invoiced ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : tone)}>
@@ -1111,8 +1108,8 @@ function BillingRow({ doc, canUpdate, onInvoiced }: { doc: BillingDoc; canUpdate
       {error && <p className="mt-1 max-w-[14rem] text-xs text-red-600">{error}</p>}
     </td>
     <td className="px-3 py-2.5"><div className="flex justify-end gap-1.5">
-      <Button size="sm" variant="outline" onClick={() => void downloadBillingPdf(doc)}><Download className="h-4 w-4" />PDF</Button>
-      {canUpdate && doc.type === "devis" && !invoiced && (doc.status === "en_attente" || doc.status === "accepte") && <Button size="sm" disabled={busy} onClick={() => void run(async () => { const result = await convert({ id: doc._id }); onInvoiced(result.id); })}><Receipt className="h-4 w-4" />Facturer</Button>}
+      <Button size="sm" variant="outline" onClick={() => onPreview(doc._id)}><Eye className="h-4 w-4" />Aperçu</Button>
+      {canUpdate && doc.type === "devis" && !invoiced && (doc.status === "en_attente" || doc.status === "accepte") && <Button size="sm" disabled={busy} onClick={() => void run(async () => { const result = await convert({ id: doc._id }); onPreview(result.id); })}><Receipt className="h-4 w-4" />Facturer</Button>}
     </div></td>
   </tr>;
 }

@@ -7,7 +7,8 @@ export const ISSUERS: Record<Issuer, { name: string; short: string; color: strin
   recyclerie: {
     name: "Recyclerie du Pays de Bray",
     short: "Recyclerie",
-    color: "#16a34a",
+    // Orange de la Recyclerie (Recycapp).
+    color: "#ff7700",
     address: ["4 rue de la Prairie, ZA du Grand Pré", "60650 Lachapelle-aux-Pots"],
     siret: "503 123 044 00011",
     vat: "FR62503123044",
@@ -17,6 +18,7 @@ export const ISSUERS: Record<Issuer, { name: string; short: string; color: strin
   materiosol: {
     name: "MATERIOSOL",
     short: "MATERIOSOL",
+    // Bleu BâtiRe.
     color: "#2795b3",
     address: ["4 rue de la Prairie", "60650 Lachapelle-aux-Pots"],
     siret: "921 005 526 00014",
@@ -217,8 +219,14 @@ export async function buildBillingPdf(doc: BillingDocForPdf) {
   return await pdf.save();
 }
 
-export async function downloadBillingPdf(doc: BillingDocForPdf) {
-  const bytes = await buildBillingPdf(doc);
+export function bytesToBase64(bytes: Uint8Array) {
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  return btoa(binary);
+}
+
+export async function downloadBillingPdf(doc: BillingDocForPdf, existing?: Uint8Array) {
+  const bytes = existing ?? await buildBillingPdf(doc);
   const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/pdf" }));
   const link = document.createElement("a");
   link.href = url;
