@@ -13,6 +13,7 @@ import {
   Store,
   Sun,
   Tag,
+  Receipt,
 } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -28,6 +29,7 @@ const NAV = [
   { to: "/crm/demandes", label: "Demandes", icon: ClipboardList, page: "batire:demandes" },
   { to: "/crm/messagerie", label: "Messagerie", icon: MessageSquare, page: "batire:demandes" },
   { to: "/crm/codes-promo", label: "Codes promo", icon: Tag, page: "batire:demandes" },
+  { to: "/crm/facturation", label: "Facturation", icon: Receipt, page: "batire:demandes" },
   { to: "/crm/emplacements", label: "Emplacements", icon: MapPinned, page: "batire:materiaux" },
   { to: "/crm/qr", label: "QR codes", icon: QrCode, page: "batire:materiaux" },
 ];
