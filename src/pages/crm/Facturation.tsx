@@ -16,9 +16,9 @@ import { ISSUERS, VAT_RATES, clientName, downloadBillingPdf, euros, frDate, vatB
 
 type Doc = FunctionReturnType<typeof api.batire.listBillingDocs>[number];
 type DocType = "devis" | "facture";
-type Line = { key: number; materialId?: Id<"btMaterials">; issuer?: Issuer; label: string; quantity: string; unit: string; price: string };
+export type Line = { key: number; materialId?: Id<"btMaterials">; issuer?: Issuer; label: string; quantity: string; unit: string; price: string };
 
-const STATUS: Record<Doc["status"], { label: string; className: string }> = {
+export const STATUS: Record<Doc["status"], { label: string; className: string }> = {
   en_attente: { label: "En attente", className: "bg-amber-500/15 text-amber-700 dark:text-amber-300" },
   accepte: { label: "Accepté", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" },
   refuse: { label: "Refusé", className: "bg-red-500/15 text-red-700 dark:text-red-300" },
@@ -26,7 +26,7 @@ const STATUS: Record<Doc["status"], { label: string; className: string }> = {
   a_regler: { label: "À régler", className: "bg-amber-500/15 text-amber-700 dark:text-amber-300" },
   payee: { label: "Payée", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" },
 };
-const PAYMENT_METHODS = ["Virement", "Carte bancaire", "Espèces", "Chèque", "Mandat administratif"];
+export const PAYMENT_METHODS = ["Virement", "Carte bancaire", "Espèces", "Chèque", "Mandat administratif"];
 
 const errorText = (caught: unknown, fallback: string) => {
   const data = (caught as { data?: unknown })?.data;
@@ -88,7 +88,7 @@ export function Facturation() {
   </div>;
 }
 
-function IssuerBadge({ issuer }: { issuer: Issuer }) {
+export function IssuerBadge({ issuer }: { issuer: Issuer }) {
   const item = ISSUERS[issuer];
   return <span className="inline-flex rounded-md px-1.5 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: `${item.color}22`, color: item.color }}>{item.short}</span>;
 }
@@ -147,21 +147,26 @@ function DocRow({ doc, canUpdate, onConverted }: { doc: Doc; canUpdate: boolean;
 
 let lineKey = 0;
 
-function DocEditor({ type, onClose, onCreated }: { type: DocType; onClose: () => void; onCreated: (id: string) => void }) {
+export function DocEditor({ type, onClose, onCreated, orderId, initialClient, initialLines, initialNotes }: {
+  type: DocType; onClose: () => void; onCreated: (id: string) => void;
+  /** Depuis la popup d'une demande : client et lignes pré-remplis, document rattaché à la demande. */
+  orderId?: Id<"btOrders">; initialClient?: BillingClient; initialLines?: Omit<Line, "key">[]; initialNotes?: string;
+}) {
   const create = useMutation(api.batire.createBillingDoc);
-  const [client, setClient] = useState<{ clientId?: Id<"btBillingClients">; data: BillingClient } | null>(null);
-  const [lines, setLines] = useState<Line[]>([]);
+  const [client, setClient] = useState<{ clientId?: Id<"btBillingClients">; data: BillingClient } | null>(initialClient ? { data: initialClient } : null);
+  const [lines, setLines] = useState<Line[]>(() => (initialLines ?? []).map(line => ({ ...line, key: ++lineKey })));
   const [freeIssuer, setFreeIssuer] = useState<Issuer>("materiosol");
   const [vatRate, setVatRate] = useState<number>(20);
   const [days, setDays] = useState("30");
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(initialNotes ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const lockedIssuer = lines.find(line => line.issuer)?.issuer;
   const issuer = lockedIssuer ?? freeIssuer;
   const parsed = lines.map(line => ({ materialId: line.materialId, label: line.label.trim(), quantity: parseQuantity(line.quantity), unit: line.unit.trim() || undefined, unitPriceCents: parseEuros(line.price) }));
-  const valid = parsed.length > 0 && parsed.every(line => line.label && line.quantity > 0 && Number.isFinite(line.unitPriceCents) && line.unitPriceCents >= 0);
-  const total = valid ? parsed.reduce((sum, line) => sum + Math.round(line.quantity * line.unitPriceCents), 0) : NaN;
+  const valid = parsed.length > 0 && parsed.every(line => line.label && line.quantity > 0 && Number.isFinite(line.unitPriceCents) && (line.unitPriceCents >= 0 || !line.materialId));
+  const sum = valid ? parsed.reduce((acc, line) => acc + Math.round(line.quantity * line.unitPriceCents), 0) : NaN;
+  const total = sum >= 0 ? sum : NaN;
   const breakdown = Number.isFinite(total) ? vatBreakdown(total, vatRate) : null;
   const setLine = (key: number, patch: Partial<Line>) => setLines(current => current.map(line => line.key === key ? { ...line, ...patch } : line));
 
@@ -179,7 +184,7 @@ function DocEditor({ type, onClose, onCreated }: { type: DocType; onClose: () =>
     if (!valid) { setError("Vérifiez les lignes : désignation, quantité et prix."); return; }
     setBusy(true); setError("");
     try {
-      const result = await create({ type, issuer, clientId: client.clientId, client: client.data, lines: parsed, vatRate, notes: notes.trim() || undefined, ...(type === "devis" ? { validityDays: Number(days) || 30 } : { dueDays: Number(days) || 0 }) });
+      const result = await create({ type, issuer, orderId, clientId: client.clientId, client: client.data, lines: parsed, vatRate, notes: notes.trim() || undefined, ...(type === "devis" ? { validityDays: Number(days) || 30 } : { dueDays: Number(days) || 0 }) });
       onCreated(result.id);
     } catch (caught) { setError(errorText(caught, "Création impossible.")); }
     finally { setBusy(false); }
@@ -214,7 +219,7 @@ function DocEditor({ type, onClose, onCreated }: { type: DocType; onClose: () =>
                 <Input className="col-span-2 md:col-span-1" aria-label="Désignation" required maxLength={300} value={line.label} onChange={event => setLine(line.key, { label: event.target.value })} placeholder="Désignation" />
                 <Input aria-label="Quantité" inputMode="decimal" required value={line.quantity} onChange={event => setLine(line.key, { quantity: event.target.value.replace(/[^\d.,]/g, "") })} />
                 <Input aria-label="Unité" maxLength={20} value={line.unit} onChange={event => setLine(line.key, { unit: event.target.value })} placeholder="u" />
-                <Input aria-label="Prix unitaire TTC" inputMode="decimal" required value={line.price} onChange={event => setLine(line.key, { price: event.target.value.replace(/[^\d.,]/g, "") })} />
+                <Input aria-label="Prix unitaire TTC" inputMode="decimal" required value={line.price} onChange={event => setLine(line.key, { price: line.materialId ? event.target.value.replace(/[^\d.,]/g, "") : event.target.value.replace(/[^\d.,-]/g, "") })} />
                 <span className="text-right text-sm font-semibold tabular-nums">{Number.isFinite(amount) ? euros(Math.round(amount)) : "—"}</span>
                 <button type="button" onClick={() => setLines(current => current.filter(item => item.key !== line.key))} aria-label="Supprimer la ligne" className="justify-self-end rounded-lg p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
               </div>;

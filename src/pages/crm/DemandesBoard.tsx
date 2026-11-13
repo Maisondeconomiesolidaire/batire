@@ -10,6 +10,8 @@ import { Field, Input } from "../../components/ui/Field";
 import { PhoneInput } from "../../components/ui/PhoneInput";
 import { FullSpinner } from "../../components/ui/Spinner";
 import { UnderlineTabs } from "../../components/ui/UnderlineTabs";
+import { DocEditor, IssuerBadge, PAYMENT_METHODS, STATUS as BILLING_STATUS, type Line as BillingLine } from "./Facturation";
+import { downloadBillingPdf, issuerOfCategory, euros as billingEuros, frDate } from "../../lib/billing";
 import { canAccess, useAccess } from "../../lib/access";
 import { cn } from "../../lib/cn";
 import { formatDimensions } from "../../lib/format";
@@ -190,12 +192,13 @@ function OrderCard({ order, onOpen }: { order: Order; onOpen: () => void }) {
   />;
 }
 
-type DetailTab = "demande" | "gestion" | "devis" | "promo" | "client" | "messages";
+type DetailTab = "demande" | "gestion" | "devis" | "facturation" | "promo" | "client" | "messages";
 const DETAIL_TABS: { key: DetailTab; label: string }[] = [
   { key: "demande", label: "Demande" },
   { key: "gestion", label: "Gestion" },
   // Onglet Devis masqué : les devis Stripe exigent l’offre Invoicing Plus.
   // { key: "devis", label: "Devis" },
+  { key: "facturation", label: "Facturation" },
   { key: "promo", label: "Code promo" },
   { key: "client", label: "Client" },
   { key: "messages", label: "Messages" },
@@ -233,6 +236,7 @@ function OrderDetail({ order, canUpdate, onClose }: { order: Order; canUpdate: b
         {tab === "demande" ? <DemandeTab order={order} canUpdate={canUpdate} />
           : tab === "gestion" ? <GestionTab order={order} canUpdate={canUpdate} />
           : tab === "devis" ? <DevisTab key={order._id} order={order} canUpdate={canUpdate} />
+          : tab === "facturation" ? <BillingTab key={order._id} order={order} canUpdate={canUpdate} />
           : tab === "promo" ? <PromoTab key={order._id} order={order} canUpdate={canUpdate} />
           : tab === "client" ? <ClientTab key={order._id} order={order} canUpdate={canUpdate} />
           : <MessagerieTab order={order} canUpdate={canUpdate} />}
@@ -1021,4 +1025,94 @@ function PromoCard({ promo, order, canUpdate }: { promo: Promo; order: Order; ca
       <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" disabled={busy} onClick={() => setConfirm("")}>Non</Button><Button variant={confirm === "cancel" ? "danger" : "primary"} disabled={busy} onClick={() => void run()}>{busy ? "…" : confirm === "cancel" ? "Annuler le code" : "Réactiver"}</Button></div>
     </Modal>}
   </article>;
+}
+
+/* ------------------------------------------------------------------ */
+/* Onglet Facturation : devis / factures rattachés à la demande         */
+/* ------------------------------------------------------------------ */
+
+const centsText = (cents: number) => (cents / 100).toFixed(2).replace(".", ",");
+
+/** Lignes pré-remplies : le lot de la demande, le transfert, la remise du code promo. */
+function orderBillingLines(order: Order): Omit<BillingLine, "key">[] {
+  const issuer = issuerOfCategory(order.material?.category ?? "");
+  const lines: Omit<BillingLine, "key">[] = [{ materialId: order.materialId, issuer, label: order.materialTitle, quantity: String(order.quantity).replace(".", ","), unit: order.unit, price: centsText(Math.round(order.unitPrice * 100)) }];
+  if (order.pickupFeeCents) lines.push({ label: `Transfert vers ${pickupName(order)}`, quantity: "1", unit: "", price: centsText(order.pickupFeeCents) });
+  if (order.discountCents) lines.push({ label: `Remise${order.promoCode ? ` · code ${order.promoCode}` : ""}`, quantity: "1", unit: "", price: centsText(-order.discountCents) });
+  return lines;
+}
+
+function BillingTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) {
+  const docs = useQuery(api.batire.orderBillingDocs, { orderId: order._id });
+  const [editing, setEditing] = useState<"devis" | "facture" | null>(null);
+  const [pendingPdf, setPendingPdf] = useState<string | null>(null);
+  useEffect(() => {
+    if (!pendingPdf) return;
+    const doc = docs?.find(item => item._id === pendingPdf);
+    if (doc) { setPendingPdf(null); void downloadBillingPdf(doc); }
+  }, [pendingPdf, docs]);
+  return <div className="max-w-5xl space-y-5">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <SectionTitle>Devis et factures de la demande</SectionTitle>
+        <p className="-mt-2 text-sm text-[var(--muted-foreground)]">Client et lignes pré-remplis depuis la demande, modifiables avant création. Retrouvés aussi dans la page Facturation.</p>
+      </div>
+      {canUpdate && <div className="flex flex-wrap gap-2">
+        <Button variant="outline" onClick={() => setEditing("devis")}><FilePlus2 className="h-4 w-4" />Générer un devis</Button>
+        <Button onClick={() => setEditing("facture")}><Receipt className="h-4 w-4" />Générer une facture</Button>
+      </div>}
+    </div>
+    {docs === undefined ? <FullSpinner label="Chargement…" /> : docs.length === 0 ? <p className="rounded-2xl border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--muted-foreground)]">Aucun devis ni facture pour cette demande.</p>
+      : <div className="overflow-x-auto rounded-2xl border border-[var(--border)]">
+        <table className="w-full min-w-[640px] text-sm">
+          <thead className="border-b border-[var(--border)] bg-[var(--muted)] text-left text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
+            <tr><th className="px-3 py-2.5 font-semibold">Document</th><th className="px-3 py-2.5 font-semibold">Date</th><th className="px-3 py-2.5 text-right font-semibold">Total TTC</th><th className="px-3 py-2.5 font-semibold">Statut</th><th className="px-3 py-2.5 text-right font-semibold" /></tr>
+          </thead>
+          <tbody className="divide-y divide-[var(--border)]">{docs.map(doc => <BillingRow key={doc._id} doc={doc} canUpdate={canUpdate} onInvoiced={setPendingPdf} />)}</tbody>
+        </table>
+      </div>}
+    {editing && <DocEditor type={editing} orderId={order._id} onClose={() => setEditing(null)} onCreated={id => { setEditing(null); setPendingPdf(id); }}
+      initialClient={{ company: order.customer.company, firstName: order.customer.firstName, lastName: order.customer.lastName, email: order.customer.email, phone: order.customer.phone }}
+      initialLines={orderBillingLines(order)} initialNotes={`Demande Bâtire #${orderNumber(order)} · retrait ${pickupName(order)}`} />}
+  </div>;
+}
+
+type BillingDoc = FunctionReturnType<typeof api.batire.orderBillingDocs>[number];
+
+function BillingRow({ doc, canUpdate, onInvoiced }: { doc: BillingDoc; canUpdate: boolean; onInvoiced: (id: string) => void }) {
+  const setQuoteStatus = useMutation(api.batire.setQuoteStatus);
+  const setPaid = useMutation(api.batire.setInvoicePaid);
+  const convert = useMutation(api.batire.convertQuoteToInvoice);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function run(task: () => Promise<unknown>) {
+    setBusy(true); setError("");
+    try { await task(); } catch (caught) { setError(errorText(caught, "Opération impossible.")); } finally { setBusy(false); }
+  }
+  const invoiced = doc.type === "devis" && Boolean(doc.invoiceId);
+  const value = doc.type === "facture" ? (doc.status === "payee" ? `payee:${doc.paymentMethod ?? ""}` : "a_regler") : invoiced ? "facture" : doc.status;
+  const options = doc.type === "facture"
+    ? [{ value: "a_regler", label: "À régler" }, ...PAYMENT_METHODS.map(method => ({ value: `payee:${method}`, label: `Payée · ${method}` })), ...(doc.status === "payee" && !PAYMENT_METHODS.includes(doc.paymentMethod ?? "") ? [{ value, label: "Payée" }] : [])]
+    : invoiced ? [{ value: "facture", label: "Facturé" }]
+      : [{ value: "en_attente", label: "En attente" }, { value: "accepte", label: "Accepté" }, { value: "refuse", label: "Refusé" }, { value: "annule", label: "Annulé" }];
+  function change(next: string) {
+    if (doc.type === "facture") void run(() => next === "a_regler" ? setPaid({ id: doc._id, paid: false }) : setPaid({ id: doc._id, paid: true, paymentMethod: next.slice("payee:".length) || undefined }));
+    else void run(() => setQuoteStatus({ id: doc._id, status: next as "en_attente" | "accepte" | "refuse" | "annule" }));
+  }
+  const tone = BILLING_STATUS[doc.status]?.className ?? "";
+  return <tr className="align-middle">
+    <td className="px-3 py-2.5"><p className="flex flex-wrap items-center gap-2"><span className="text-xs font-semibold uppercase text-[var(--muted-foreground)]">{doc.type === "devis" ? "Devis" : "Facture"}</span><span className="font-mono font-semibold">{doc.number}</span><IssuerBadge issuer={doc.issuer} /></p>{doc.linkedNumber && <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{doc.type === "devis" ? "→ facture" : "← devis"} {doc.linkedNumber}</p>}</td>
+    <td className="px-3 py-2.5 whitespace-nowrap">{frDate(doc.issueDate)}<p className="text-xs text-[var(--muted-foreground)]">{doc.type === "devis" ? `valable → ${frDate(doc.validUntil)}` : `échéance ${frDate(doc.dueDate)}`}</p></td>
+    <td className="px-3 py-2.5 text-right font-semibold tabular-nums whitespace-nowrap">{billingEuros(doc.totalCents)}</td>
+    <td className="px-3 py-2.5">
+      <select aria-label={`Statut ${doc.number}`} value={value} disabled={!canUpdate || busy || invoiced} onChange={event => change(event.target.value)} className={cn("rounded-lg border border-[var(--border)] px-2 py-1.5 text-xs font-semibold disabled:opacity-80", invoiced ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : tone)}>
+        {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
+      {error && <p className="mt-1 max-w-[14rem] text-xs text-red-600">{error}</p>}
+    </td>
+    <td className="px-3 py-2.5"><div className="flex justify-end gap-1.5">
+      <Button size="sm" variant="outline" onClick={() => void downloadBillingPdf(doc)}><Download className="h-4 w-4" />PDF</Button>
+      {canUpdate && doc.type === "devis" && !invoiced && (doc.status === "en_attente" || doc.status === "accepte") && <Button size="sm" disabled={busy} onClick={() => void run(async () => { const result = await convert({ id: doc._id }); onInvoiced(result.id); })}><Receipt className="h-4 w-4" />Facturer</Button>}
+    </div></td>
+  </tr>;
 }
