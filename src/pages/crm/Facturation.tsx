@@ -37,7 +37,7 @@ const parseEuros = (value: string) => { const number = Number(value.replace(/\s/
 const parseQuantity = (value: string) => { const number = Number(value.replace(",", ".")); return Number.isFinite(number) && value.trim() !== "" ? number : NaN; };
 const centsInput = (cents: number) => (cents / 100).toFixed(2).replace(".", ",");
 
-/** Devis et factures Bâtire (Recyclerie pour le mobilier, MatériauSol pour le reste). */
+/** Devis et factures Bâtire (Recyclerie pour le mobilier, MATERIOSOL pour le reste). */
 export function Facturation() {
   const access = useAccess();
   const canUpdate = canAccess(access, "batire:demandes", "update");
@@ -63,7 +63,7 @@ export function Facturation() {
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Facturation</h1>
-        <p className="text-sm text-[var(--muted-foreground)]">Mobilier facturé par la Recyclerie, autres matériaux par MatériauSol.</p>
+        <p className="text-sm text-[var(--muted-foreground)]">Mobilier facturé par la Recyclerie, autres matériaux par MATERIOSOL.</p>
       </div>
       {canUpdate && <Button onClick={() => setEditing(tab)}><FilePlus2 className="h-4 w-4" />{tab === "devis" ? "Nouveau devis" : "Nouvelle facture"}</Button>}
     </div>

@@ -2,7 +2,7 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf
 
 export type Issuer = "recyclerie" | "materiosol";
 
-/** Émetteurs des devis et factures : mobilier → Recyclerie, le reste → MatériauSol. */
+/** Émetteurs des devis et factures : mobilier → Recyclerie, le reste → MATERIOSOL. */
 export const ISSUERS: Record<Issuer, { name: string; short: string; color: string; address: string[]; siret: string; vat: string; rna: string; legal: string }> = {
   recyclerie: {
     name: "Recyclerie du Pays de Bray",
@@ -15,8 +15,8 @@ export const ISSUERS: Record<Issuer, { name: string; short: string; color: strin
     legal: "Association déclarée — SIREN 503 123 044",
   },
   materiosol: {
-    name: "MatériauSol",
-    short: "MatériauSol",
+    name: "MATERIOSOL",
+    short: "MATERIOSOL",
     color: "#2795b3",
     address: ["4 rue de la Prairie", "60650 Lachapelle-aux-Pots"],
     siret: "921 005 526 00014",
