@@ -543,7 +543,9 @@ function processSteps(order: Order, canUpdate: boolean): ProcessStep[] {
   if (!isRelay(order)) return [ready, paid, collected];
   return [
     { key: "requested", label: "Enlèvement demandé", done: transit, at: steps?.requested.at, by: steps?.requested.by, detail: order.transfer?.dueDate ? `Échéance ${shortDate(order.transfer.dueDate)}` : undefined, actionable: editable && !transit },
-    { key: "assigned", label: "Navette assignée", done: Boolean(steps?.assigned), at: steps?.assigned?.at, by: steps?.assigned?.by, detail: steps?.shuttleName, actionable: false, hint: "Coché par Meslogistic quand la demande est mise dans une navette." },
+    { key: "assigned", label: "Navette assignée", done: Boolean(steps?.assigned), at: steps?.assigned?.at, by: steps?.assigned?.by, detail: steps?.shuttleName, actionable: false,
+      note: !steps?.assigned && steps?.awaitingDriver ? `Proposée à ${steps.awaitingDriver}` : undefined,
+      hint: steps?.awaitingDriver ? `Transfert proposé à ${steps.awaitingDriver} pour son trajet : l'étape se coche quand il ou elle l'accepte.` : "Coché par Meslogistic quand la demande est mise dans une navette." },
     { key: "transit", label: "En transit", done: Boolean(steps?.transit), at: steps?.transit?.at, by: steps?.transit?.by, actionable: false, hint: "Coché par Meslogistic au départ de la navette." },
     ready,
     paid,
@@ -680,7 +682,8 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
         <Route from={order.transfer!.origin} to={order.transfer!.destination} />
         <p className="flex flex-wrap gap-x-4 gap-y-1">
           {order.transfer!.dueDate && <span>Échéance : <strong>{longDate(order.transfer!.dueDate)}</strong></span>}
-          {order.transfer!.scheduledDate && <span>Navette {order.transitSteps?.shuttleName ? `« ${order.transitSteps.shuttleName} » ` : ""}prévue le {longDate(order.transfer!.scheduledDate)}</span>}
+          {order.transfer!.scheduledDate && order.transitSteps?.awaitingDriver && <span>Transfert proposé à {order.transitSteps.awaitingDriver} pour son trajet du {longDate(order.transfer!.scheduledDate)} · en attente de son accord</span>}
+          {order.transfer!.scheduledDate && !order.transitSteps?.awaitingDriver && <span>Navette {order.transitSteps?.shuttleName ? `« ${order.transitSteps.shuttleName} » ` : ""}prévue le {longDate(order.transfer!.scheduledDate)}</span>}
         </p>
       </div>
     </section>}
