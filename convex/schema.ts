@@ -531,7 +531,20 @@ export default defineSchema(
     status: v.optional(v.union(v.literal("planifiee"), v.literal("en_route"), v.literal("terminee"))),
     departedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
-  }),
+    /** Navette née d'une réservation de véhicule Mes Outils (onglet Navettes). */
+    vehicleReservationId: v.optional(v.id("vehicleReservations")),
+    /** Conducteur : la personne qui a pris les objets sur son trajet. */
+    driverName: v.optional(v.string()),
+    driverClerkId: v.optional(v.string()),
+    vehicleName: v.optional(v.string()),
+    /** Conducteur assigné par la logistique (salarié @eco-solidaire.fr). */
+    driverEmail: v.optional(v.string()),
+    /** Navette finalisée : le conducteur a reçu son QR code par e-mail. */
+    finalizedAt: v.optional(v.number()),
+    finalizedBy: v.optional(v.string()),
+    /** QR code (PNG) envoyé au conducteur : ouvre la page de ramassage /scan/<id>. */
+    qrStorageId: v.optional(v.id("_storage")),
+  }).index("by_vehicleReservationId", ["vehicleReservationId"]),
   mlRequests: defineTable({
     shuttleId: v.optional(v.id("mlShuttles")),
     receivedQuantity: v.optional(v.number()),
@@ -548,6 +561,14 @@ export default defineSchema(
     /** Chargement confirmé dans sa navette (v2) : condition du départ. */
     loadedAt: v.optional(v.number()),
     loadedBy: v.optional(v.string()),
+    /**
+     * Objet proposé au conducteur d'un trajet Mes Outils (navette née d'une
+     * réservation de véhicule) : « a_confirmer » tant que la logistique n'a
+     * pas envoyé sa proposition (bouton « Confirmer »), « proposee » tant
+     * qu'il n'a pas répondu, « acceptee » quand il accepte. Un refus le
+     * retire de la navette.
+     */
+    driverDecision: v.optional(v.union(v.literal("a_confirmer"), v.literal("proposee"), v.literal("acceptee"))),
   }).index("by_orderId", ["orderId"]).index("by_status", ["status"]).index("by_shuttleId", ["shuttleId"]),
   mlEvents: defineTable({
     requestId: v.id("mlRequests"), actor: v.string(), message: v.string(), createdAt: v.number(),
@@ -1450,6 +1471,7 @@ export default defineSchema(
       v.literal("post_commented"),
       v.literal("deal_interest"),
       v.literal("vehicle_reservation_request"),
+      v.literal("navette_proposal"),
     ),
     title: v.string(),
     body: v.optional(v.string()),
@@ -1500,8 +1522,13 @@ export default defineSchema(
     attendees: v.optional(v.number()),
     start: v.number(),
     end: v.number(),
-    status: v.optional(v.union(v.literal("confirmed"), v.literal("cancelled"))),
+    /** « pending » : date d'une série récurrente en attente de validation (Salles › Réservations). */
+    status: v.optional(v.union(v.literal("confirmed"), v.literal("cancelled"), v.literal("pending"))),
     notes: v.optional(v.string()),
+    /** Réservation récurrente : toutes les dates d'une série partagent cet identifiant. */
+    recurrenceId: v.optional(v.string()),
+    /** Règle lisible de la série, ex. « tous les 1 semaine jusqu'au 30/06/2027 ». */
+    recurrenceLabel: v.optional(v.string()),
     createdAt: v.number(),
     // Retour (« remarques ») demandé automatiquement après le créneau.
     feedbackRequestedAt: v.optional(v.number()),
@@ -1517,7 +1544,8 @@ export default defineSchema(
     .index("by_roomId", ["roomId"])
     .index("by_clerkId", ["clerkId"])
     .index("by_bookedForClerkId", ["bookedForClerkId"])
-    .index("by_start", ["start"]),
+    .index("by_start", ["start"])
+    .index("by_recurrenceId", ["recurrenceId"]),
 
   /** Équipements réservables (mêmes règles que les salles : créneau libre = confirmé). */
   equipments: defineTable({
@@ -1570,6 +1598,23 @@ export default defineSchema(
     // Transport d'objets/matériel (déménagement, collecte volumineuse…).
     willTransport: v.optional(v.boolean()),
     transportDetails: v.optional(v.string()),
+    /**
+     * Destination du trajet (lieu ou adresse choisi via la recherche Mapbox).
+     * Le départ est toujours le Solidarium (4 rue de la Prairie, Lachapelle-aux-Pots)
+     * et le trajet est un aller-retour.
+     */
+    destination: v.optional(v.object({
+      label: v.string(),
+      address: v.optional(v.string()),
+      longitude: v.number(),
+      latitude: v.number(),
+    })),
+    /** Kilométrage aller-retour calculé (Solidarium → destination × 2), en km. */
+    routeKm: v.optional(v.number()),
+    /** L'utilisateur a confirmé (ou corrigé) le kilométrage, repris dans `expectedKm`. */
+    kmConfirmed: v.optional(v.boolean()),
+    /** Sites logistiques sur la route (clés Meslogistic : comptoir_c, esspace_150…). */
+    sitesOnRoute: v.optional(v.array(v.string())),
     start: v.number(),
     end: v.number(),
     status: v.union(
@@ -1607,13 +1652,17 @@ export default defineSchema(
         }),
       ),
     ),
+    /** Réservation récurrente : toutes les dates d'une série partagent cet identifiant. */
+    recurrenceId: v.optional(v.string()),
+    recurrenceLabel: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("by_vehicleId", ["vehicleId"])
     .index("by_clerkId", ["clerkId"])
     .index("by_bookedForClerkId", ["bookedForClerkId"])
     .index("by_status", ["status"])
-    .index("by_start", ["start"]),
+    .index("by_start", ["start"])
+    .index("by_recurrenceId", ["recurrenceId"]),
 
   vehicleMaintenanceTasks: defineTable({
     vehicleId: v.id("vehicles"),
@@ -3345,6 +3394,18 @@ export default defineSchema(
     promoCode: v.optional(v.string()),
     userId: v.optional(v.string()),
     createdAt: v.number(),
+    /** Facture Stripe émise au paiement (Checkout pour la carte, payée hors Stripe sinon). */
+    stripeInvoiceId: v.optional(v.string()),
+    stripeInvoiceProvider: v.optional(v.union(v.literal("recycapp"), v.literal("bennespro"))),
+    stripeInvoiceNumber: v.optional(v.string()),
+    stripeInvoiceStatus: v.optional(v.string()),
+    stripeInvoiceUrl: v.optional(v.string()),
+    stripeInvoicePdfUrl: v.optional(v.string()),
+    stripeInvoiceTotalCents: v.optional(v.number()),
+    stripeInvoicePendingAt: v.optional(v.number()),
+    stripeInvoiceError: v.optional(v.string()),
+    invoiceSentAt: v.optional(v.number()),
+    invoiceSentTo: v.optional(v.string()),
   })
     .index("by_status", ["status"])
     .index("by_reference", ["reference"])

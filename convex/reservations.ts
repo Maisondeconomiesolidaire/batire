@@ -22,6 +22,7 @@ import {
 import { vehicleBusyReason } from "./fleet";
 import { createMesoutilsNotification } from "./mesoutilsNotifications";
 import { awardEngagementPoints } from "./points";
+import { cleanTrip, completeTripShuttle, destinationValidator, releaseTripTransits, syncTripShuttle } from "./navettes";
 
 /** Photo de profil de l'identité Clerk courante, si présente. */
 function pictureUrl(identity: unknown): string | undefined {
@@ -38,6 +39,8 @@ function assetImageArgs(asset: { photo?: unknown; photoUrl?: string }) {
 }
 
 const PAGE_KEY = "mesoutils:reservations";
+/** Une occurrence d'une réservation récurrente (calculée côté client, heure locale). */
+export const slotValidator = v.object({ start: v.number(), end: v.number() });
 /** Gestion des salles : ses responsables annulent aussi les créneaux posés. */
 const ROOMS_PAGE_KEY = "mesoutils:salles";
 
@@ -364,6 +367,9 @@ export const bookRoom = mutation({
     notes: v.optional(v.string()),
     forClerkId: v.optional(v.string()),
     forName: v.optional(v.string()),
+    /** Réservation récurrente : toutes les dates (la première = start/end). */
+    slots: v.optional(v.array(slotValidator)),
+    recurrenceLabel: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireCrmPermission(ctx, PAGE_KEY, "create");
@@ -379,6 +385,77 @@ export const bookRoom = mutation({
       if (room.capacity && args.attendees > room.capacity) {
         throw new Error(`Cette salle accueille ${room.capacity} personnes maximum.`);
       }
+    }
+
+    // Récurrente : chaque date libre est enregistrée « en attente » et la série
+    // doit être validée dans Salles › Réservations (pas d'acceptation auto).
+    if (args.slots && args.slots.length > 1) {
+      const slots = cleanSlots({ start: args.start, end: args.end }, args.slots);
+      const conflicts = await roomSlotConflicts(ctx, args.roomId, slots);
+      const free = slots.filter((slot) => !conflicts.some((conflict) => conflict.start === slot.start));
+      if (!free.length) throw new Error("Toutes les dates de la récurrence sont déjà réservées.");
+      const target = await resolveReservationTarget(ctx, identity, args.forClerkId, args.forName);
+      const recurrenceId = newRecurrenceId();
+      const recurrenceLabel = args.recurrenceLabel?.trim().slice(0, 120) || undefined;
+      let firstId: Id<"roomReservations"> | null = null;
+      for (const slot of free) {
+        const insertedId = await ctx.db.insert("roomReservations", {
+          roomId: args.roomId,
+          clerkId: identity.subject,
+          userName: target.name,
+          bookedByName: target.onBehalf ? displayName(identity) : undefined,
+          bookedForClerkId: target.clerkId,
+          title: args.title.trim(),
+          usageType: args.usageType?.trim() || undefined,
+          attendees: args.attendees,
+          start: slot.start,
+          end: slot.end,
+          notes: args.notes?.trim() || undefined,
+          status: "pending",
+          recurrenceId,
+          recurrenceLabel,
+          createdAt: Date.now(),
+        });
+        firstId ??= insertedId;
+      }
+      if (!firstId) throw new Error("Réservation impossible.");
+      await awardEngagementPoints(ctx, {
+        clerkId: target.clerkId ?? identity.subject,
+        displayName: target.name,
+        eventKey: `room-reservation:${firstId}`,
+      });
+      const seriesLabel = `${args.title.trim()} (récurrente${recurrenceLabel ? ` · ${recurrenceLabel}` : ""} · ${free.length} dates)`;
+      const requesterPhotoUrl =
+        (target.onBehalf ? await photoForClerkId(ctx, target.clerkId) : pictureUrl(identity)) ?? undefined;
+      const roomImageUrl = (room.photo ? await ctx.storage.getUrl(room.photo) : room.photoUrl) ?? undefined;
+      const email = target.onBehalf
+        ? await emailForClerkId(ctx, target.clerkId)
+        : identity.email ?? await emailForClerkId(ctx, identity.subject);
+      if (email) {
+        await ctx.scheduler.runAfter(0, internal.mesoutilsEmails.sendReservationEmail, {
+          email,
+          name: target.name,
+          assetKind: "room",
+          assetName: room.name,
+          label: seriesLabel,
+          start: free[0].start,
+          end: free[0].end,
+          state: "submitted",
+          photoUrl: requesterPhotoUrl,
+          assetImageUrl: roomImageUrl,
+        });
+      }
+      await ctx.scheduler.runAfter(1200, internal.mesoutilsEmails.sendRoomReservationToManagers, {
+        requesterName: target.name,
+        requesterPhotoUrl,
+        roomName: room.name,
+        roomImageUrl,
+        label: `${seriesLabel} — à valider dans Salles › Réservations`,
+        start: free[0].start,
+        end: free[0].end,
+        note: args.notes?.trim() || undefined,
+      });
+      return firstId;
     }
 
     const existing = await ctx.db
@@ -792,6 +869,9 @@ export const listMyReservations = query({
           status: reservation.status,
           feedbackSubmittedAt: reservation.feedbackSubmittedAt,
           lastRecordedMileage: lastMileageByVehicleId.get(String(reservation.vehicleId)),
+          /** Trajet calculé (onglet Navettes) : confirmé ou corrigé au retour. */
+          routeKm: reservation.routeKm,
+          destinationLabel: reservation.destination?.label,
         })),
       // Les équipements se réservent depuis la même page que salles et
       // véhicules : « Mes réservations » doit donc tout regrouper, sinon
@@ -820,6 +900,8 @@ export const submitVehicleFeedback = mutation({
   args: {
     reservationId: v.id("vehicleReservations"),
     mileage: v.number(),
+    /** Kilométrage aller-retour du trajet, confirmé ou corrigé au retour du véhicule. */
+    tripKm: v.optional(v.number()),
     fuelRestored: v.optional(v.boolean()),
     vehicleEmpty: v.boolean(),
     vehicleClean: v.boolean(),
@@ -869,7 +951,11 @@ export const submitVehicleFeedback = mutation({
       );
     }
 
+    if (args.tripKm !== undefined && (!Number.isFinite(args.tripKm) || args.tripKm < 0 || args.tripKm > 20000)) {
+      throw new Error("Kilométrage du trajet invalide.");
+    }
     await ctx.db.patch(args.reservationId, {
+      ...(args.tripKm !== undefined ? { expectedKm: Math.round(args.tripKm), kmConfirmed: true } : {}),
       feedbackSubmittedAt: Date.now(),
       feedbackMileage: Math.round(args.mileage),
       feedbackFuelRestored:
@@ -891,6 +977,8 @@ export const submitVehicleFeedback = mutation({
       odometerKm: Math.round(args.mileage),
       odometerUpdatedAt: new Date().toISOString(),
     });
+    // Retour effectué : la navette Meslogistic du trajet est terminée.
+    await completeTripShuttle(ctx, args.reservationId, displayName(identity));
     await awardEngagementPoints(ctx, {
       clerkId: identity.subject,
       displayName: displayName(identity),
@@ -926,6 +1014,7 @@ export const markVehicleReturned = mutation({
       feedbackManualReturnBy: displayName(identity),
       feedbackNotes: [reservation.feedbackNotes, "Retour confirmé manuellement par l'équipe."].filter(Boolean).join("\n"),
     });
+    await completeTripShuttle(ctx, reservationId, displayName(identity));
   },
 });
 
@@ -1050,6 +1139,8 @@ export const requestRoomFeedbackForPastReservations = internalMutation({
     for (const reservation of reservations) {
       if (reservation.end > now) continue;
       if (reservation.feedbackRequestedAt || reservation.feedbackSubmittedAt) continue;
+      // Date récurrente jamais validée : pas de retour à demander.
+      if (reservation.status === "pending") continue;
 
       const recipientClerkId = reservation.bookedForClerkId ?? reservation.clerkId;
       const email = await emailForClerkId(ctx, recipientClerkId);
@@ -1299,10 +1390,19 @@ export const requestVehicle = mutation({
     expectedKm: v.optional(v.number()),
     willTransport: v.optional(v.boolean()),
     transportDetails: v.optional(v.string()),
+    /** Trajet (onglet Navettes) : destination, aller-retour calculé, sites sur la route. */
+    destination: v.optional(destinationValidator),
+    routeKm: v.optional(v.number()),
+    sitesOnRoute: v.optional(v.array(v.string())),
+    /** Le kilométrage `expectedKm` a été confirmé ou corrigé par l'utilisateur. */
+    kmConfirmed: v.optional(v.boolean()),
     start: v.number(),
     end: v.number(),
     forClerkId: v.optional(v.string()),
     forName: v.optional(v.string()),
+    /** Réservation récurrente : toutes les dates (la première = start/end). */
+    slots: v.optional(v.array(slotValidator)),
+    recurrenceLabel: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireCrmPermission(ctx, PAGE_KEY, "create");
@@ -1334,14 +1434,30 @@ export const requestVehicle = mutation({
       throw new Error("Kilométrage estimé invalide.");
     }
 
-    await ensureVehicleAvailable(ctx, args.vehicleId, args.start, args.end);
+    // Récurrente : les dates déjà prises sont sautées (signalées avant l'envoi).
+    const recurring = (args.slots?.length ?? 0) > 1;
+    let slots = [{ start: args.start, end: args.end }];
+    if (recurring) {
+      const all = cleanSlots({ start: args.start, end: args.end }, args.slots!);
+      const conflicts = await vehicleSlotConflicts(ctx, args.vehicleId, all);
+      slots = all.filter((slot) => !conflicts.some((conflict) => conflict.start === slot.start));
+      if (!slots.length) throw new Error("Toutes les dates de la récurrence sont déjà prises pour ce véhicule.");
+    } else {
+      await ensureVehicleAvailable(ctx, args.vehicleId, args.start, args.end);
+    }
+    const recurrenceId = recurring ? newRecurrenceId() : undefined;
+    const recurrenceLabel = recurring ? args.recurrenceLabel?.trim().slice(0, 120) || undefined : undefined;
+    const seriesNote = recurring ? ` (récurrente${recurrenceLabel ? ` · ${recurrenceLabel}` : ""} · ${slots.length} dates)` : "";
 
     const target = await resolveReservationTarget(ctx, identity, args.forClerkId, args.forName);
     const willTransport = args.willTransport ?? false;
     const transportDetails = willTransport
       ? args.transportDetails?.trim() || undefined
       : undefined;
-    const reservationId = await ctx.db.insert("vehicleReservations", {
+    const trip = cleanTrip(args);
+    let firstReservationId: Id<"vehicleReservations"> | null = null;
+    for (const slot of slots) {
+    const insertedId = await ctx.db.insert("vehicleReservations", {
       vehicleId: args.vehicleId,
       clerkId: identity.subject,
       userName: target.name,
@@ -1352,11 +1468,23 @@ export const requestVehicle = mutation({
       expectedKm: args.expectedKm,
       willTransport,
       transportDetails,
-      start: args.start,
-      end: args.end,
+      destination: trip.destination,
+      routeKm: trip.destination ? trip.routeKm : undefined,
+      sitesOnRoute: trip.destination ? trip.sitesOnRoute : undefined,
+      kmConfirmed: args.kmConfirmed,
+      start: slot.start,
+      end: slot.end,
       status: "pending",
+      recurrenceId,
+      recurrenceLabel,
       createdAt: Date.now(),
     });
+    // Le trajet apparaît aussitôt dans le calendrier Meslogistic (navette à son nom).
+    await syncTripShuttle(ctx, insertedId);
+    firstReservationId ??= insertedId;
+    }
+    if (!firstReservationId) throw new Error("Réservation impossible.");
+    const reservationId = firstReservationId;
     await awardEngagementPoints(ctx, {
       clerkId: target.clerkId ?? identity.subject,
       displayName: target.name,
@@ -1394,7 +1522,7 @@ export const requestVehicle = mutation({
       requesterPhotoUrl,
       vehicleName: vehicle.name,
       vehicleImageUrl: assetImageUrl,
-      label: args.purpose.trim(),
+      label: `${args.purpose.trim()}${seriesNote}`,
       start: args.start,
       end: args.end,
     });
@@ -1407,7 +1535,7 @@ export const requestVehicle = mutation({
         requesterPhotoUrl,
         vehicleName: vehicle.name,
         vehicleImageUrl: assetImageUrl,
-        label: args.purpose.trim(),
+        label: `${args.purpose.trim()}${seriesNote}`,
         start: args.start,
         end: args.end,
       });
@@ -1422,7 +1550,7 @@ export const requestVehicle = mutation({
         name: requesterName,
         assetKind: "vehicle",
         assetName: vehicle.name,
-        label: args.purpose.trim(),
+        label: `${args.purpose.trim()}${seriesNote}`,
         start: args.start,
         end: args.end,
         state: "submitted",
@@ -1448,7 +1576,7 @@ async function applyVehicleReservationDecision(
     decision: "approved" | "rejected";
     note?: string;
   },
-  opts: { requireRecyclerie?: boolean } = {},
+  opts: { requireRecyclerie?: boolean; quiet?: boolean } = {},
 ) {
   const reservation = await ctx.db.get(args.reservationId);
   if (!reservation) throw new Error("Réservation introuvable.");
@@ -1472,12 +1600,18 @@ async function applyVehicleReservationDecision(
     );
   }
 
+  // Refusée : les objets pris sur ce trajet redeviennent disponibles.
+  if (args.decision === "rejected") await releaseTripTransits(ctx, reservation._id, "réservation refusée");
+
   await ctx.db.patch(args.reservationId, {
     status: args.decision,
     decisionNote: args.note?.trim() || undefined,
     decidedBy: displayName(identity),
     decidedAt: Date.now(),
   });
+
+  // Autres dates d'une série récurrente : une seule notification (la première).
+  if (opts.quiet) return;
 
   await createMesoutilsNotification(ctx, {
     recipientClerkId: reservation.bookedForClerkId ?? reservation.clerkId,
@@ -1529,8 +1663,34 @@ export const decideVehicleReservation = mutation({
     await requireCrmPermission(ctx, PAGE_KEY, "manage");
     const identity = await requireUser(ctx);
     await applyVehicleReservationDecision(ctx, identity, args);
+    await applySeriesDecision(ctx, identity, args);
   },
 });
+
+/**
+ * Réservation récurrente : la décision prise sur une date vaut pour toutes les
+ * dates encore en attente de la série. Une date devenue indisponible reste en
+ * attente (à trancher à part).
+ */
+async function applySeriesDecision(
+  ctx: MutationCtx,
+  identity: Awaited<ReturnType<typeof requireUser>>,
+  args: { reservationId: Id<"vehicleReservations">; decision: "approved" | "rejected"; note?: string },
+  opts: { requireRecyclerie?: boolean } = {},
+) {
+  const reservation = await ctx.db.get(args.reservationId);
+  const recurrenceId = reservation?.recurrenceId;
+  if (!recurrenceId) return;
+  const others = (await ctx.db.query("vehicleReservations").withIndex("by_recurrenceId", (q) => q.eq("recurrenceId", recurrenceId)).collect())
+    .filter((other) => other._id !== args.reservationId && other.status === "pending");
+  for (const other of others) {
+    try {
+      await applyVehicleReservationDecision(ctx, identity, { ...args, reservationId: other._id }, { ...opts, quiet: true });
+    } catch {
+      // Date devenue indisponible : elle reste en attente.
+    }
+  }
+}
 
 /**
  * Décision côté Recyclerie (recycapp) : réservée aux véhicules mis à disposition
@@ -1546,6 +1706,7 @@ export const decideRecyclerieVehicleReservation = mutation({
     await requireCrmPermission(ctx, "reservations", "manage");
     const identity = await requireUser(ctx);
     await applyVehicleReservationDecision(ctx, identity, args, { requireRecyclerie: true });
+    await applySeriesDecision(ctx, identity, args, { requireRecyclerie: true });
   },
 });
 
@@ -1598,6 +1759,8 @@ export const cancelRecyclerieVehicleReservation = mutation({
     if (vehicle?.recycappEnabled !== true) {
       throw new Error("Ce véhicule n'est pas rattaché à la Recyclerie.");
     }
+    // Annulée : les objets pris sur ce trajet redeviennent disponibles.
+    await releaseTripTransits(ctx, args.reservationId, "réservation annulée");
     if (canPermanentlyDelete(identity)) {
       await ctx.db.delete(args.reservationId);
       return;
@@ -1656,6 +1819,8 @@ export const cancelVehicleReservation = mutation({
       throw new Error("Annulation non autorisée.");
     }
     const vehicle = await ctx.db.get(reservation.vehicleId);
+    // Annulée : les objets pris sur ce trajet redeviennent disponibles.
+    await releaseTripTransits(ctx, args.reservationId, "réservation annulée");
     if (canPermanentlyDelete(identity)) {
       await ctx.db.delete(args.reservationId);
       return;
@@ -1697,5 +1862,142 @@ export const cancelVehicleReservation = mutation({
       end: reservation.end,
       note: "Demande annulée",
     });
+  },
+});
+
+// ─── Réservations récurrentes (salles et véhicules) ──────────────────────────
+
+const MAX_RECURRENCE_SLOTS = 60;
+
+/** Vérifie et trie les occurrences ; la première doit être le créneau choisi. */
+function cleanSlots(first: { start: number; end: number }, slots: Array<{ start: number; end: number }>) {
+  if (slots.length > MAX_RECURRENCE_SLOTS) throw new Error(`Une réservation récurrente compte au plus ${MAX_RECURRENCE_SLOTS} dates.`);
+  const unique = new Map<number, { start: number; end: number }>();
+  for (const slot of slots) {
+    ensureRange(slot.start, slot.end);
+    if (slot.end - slot.start !== first.end - first.start) throw new Error("Toutes les dates doivent avoir la même durée.");
+    unique.set(slot.start, { start: slot.start, end: slot.end });
+  }
+  const sorted = [...unique.values()].sort((a, b) => a.start - b.start);
+  if (sorted[0]?.start !== first.start) throw new Error("La première date doit être le créneau choisi.");
+  if (sorted[sorted.length - 1].start - first.start > 400 * 86_400_000) throw new Error("La récurrence ne peut pas dépasser un an.");
+  return sorted;
+}
+
+function newRecurrenceId() {
+  return `rec_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
+
+type SlotConflict = { start: number; end: number; userName: string | null; reason: string | null };
+
+async function roomSlotConflicts(ctx: QueryCtx | MutationCtx, roomId: Id<"rooms">, slots: Array<{ start: number; end: number }>) {
+  const existing = (await ctx.db.query("roomReservations").withIndex("by_roomId", (q) => q.eq("roomId", roomId)).collect())
+    .filter((reservation) => reservation.status !== "cancelled");
+  const conflicts: SlotConflict[] = [];
+  for (const slot of slots) {
+    const hit = existing.find((reservation) => overlaps(reservation.start, reservation.end, slot.start, slot.end));
+    if (hit) conflicts.push({ ...slot, userName: hit.userName, reason: null });
+  }
+  return conflicts;
+}
+
+async function vehicleSlotConflicts(ctx: QueryCtx | MutationCtx, vehicleId: Id<"vehicles">, slots: Array<{ start: number; end: number }>) {
+  const now = Date.now();
+  const reservations = (await ctx.db.query("vehicleReservations").withIndex("by_vehicleId", (q) => q.eq("vehicleId", vehicleId)).collect())
+    .filter((reservation) => reservation.status === "approved" || reservation.status === "pending");
+  const conflicts: SlotConflict[] = [];
+  const dayMs = 86_400_000;
+  for (const slot of slots) {
+    let reason: string | null = null;
+    for (let cursor = Math.floor(slot.start / dayMs) * dayMs; cursor < slot.end && !reason; cursor += dayMs) {
+      reason = await vehicleBusyReason(ctx, vehicleId, cursor, { ignoreReservations: true });
+    }
+    if (reason) { conflicts.push({ ...slot, userName: null, reason }); continue; }
+    const hit = conflictingVehicleReservation(reservations, slot.start, slot.end, now);
+    if (hit) conflicts.push({ ...slot, userName: hit.userName, reason: null });
+  }
+  return conflicts;
+}
+
+/** Dates d'une récurrence déjà prises : « Ce jour-ci, déjà réservé par X ». */
+export const recurrenceConflicts = query({
+  args: {
+    roomId: v.optional(v.id("rooms")),
+    vehicleId: v.optional(v.id("vehicles")),
+    slots: v.array(slotValidator),
+  },
+  handler: async (ctx, args) => {
+    await requireCrmPermission(ctx, PAGE_KEY, "read");
+    const slots = args.slots.slice(0, MAX_RECURRENCE_SLOTS);
+    if (args.roomId) return await roomSlotConflicts(ctx, args.roomId, slots);
+    if (args.vehicleId) return await vehicleSlotConflicts(ctx, args.vehicleId, slots);
+    return [];
+  },
+});
+
+async function canDecideRoomSeries(ctx: MutationCtx | QueryCtx) {
+  return (await hasCrmPermission(ctx, "mesoutils:salles", "update")) || (await hasCrmPermission(ctx, PAGE_KEY, "manage"));
+}
+
+/**
+ * Salles › Réservations : valide ou refuse une série récurrente en attente.
+ * À la validation, une date devenue indisponible entre-temps est annulée.
+ */
+export const decideRoomSeries = mutation({
+  args: {
+    recurrenceId: v.string(),
+    decision: v.union(v.literal("approved"), v.literal("rejected")),
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    if (!(await canDecideRoomSeries(ctx))) throw new Error("Accès insuffisant pour valider les réservations de salle.");
+    const identity = await requireUser(ctx);
+    const series = (await ctx.db.query("roomReservations").withIndex("by_recurrenceId", (q) => q.eq("recurrenceId", args.recurrenceId)).collect())
+      .filter((reservation) => reservation.status === "pending")
+      .sort((a, b) => a.start - b.start);
+    if (!series.length) throw new Error("Cette demande a déjà été traitée.");
+    const first = series[0];
+    const room = await ctx.db.get(first.roomId);
+    let confirmed = 0;
+    if (args.decision === "approved") {
+      const others = (await ctx.db.query("roomReservations").withIndex("by_roomId", (q) => q.eq("roomId", first.roomId)).collect())
+        .filter((reservation) => reservation.status === "confirmed" && reservation.recurrenceId !== args.recurrenceId);
+      for (const reservation of series) {
+        const taken = others.some((other) => overlaps(other.start, other.end, reservation.start, reservation.end));
+        await ctx.db.patch(reservation._id, { status: taken ? "cancelled" : "confirmed" });
+        if (!taken) confirmed += 1;
+      }
+    } else {
+      for (const reservation of series) await ctx.db.patch(reservation._id, { status: "cancelled" });
+    }
+    const recipientClerkId = first.bookedForClerkId ?? first.clerkId;
+    const roomImageUrl = (room?.photo ? await ctx.storage.getUrl(room.photo) : room?.photoUrl) ?? undefined;
+    const label = `${first.title} (récurrente${first.recurrenceLabel ? ` · ${first.recurrenceLabel}` : ""} · ${args.decision === "approved" ? confirmed : series.length} date${(args.decision === "approved" ? confirmed : series.length) > 1 ? "s" : ""})`;
+    await createMesoutilsNotification(ctx, {
+      recipientClerkId,
+      kind: "room_reservation_confirmed",
+      title: args.decision === "approved" ? "Votre réservation récurrente de salle est validée" : "Votre réservation récurrente de salle est refusée",
+      body: [room?.name ?? "Salle", label, args.note?.trim()].filter(Boolean).join(" · "),
+      actorName: displayName(identity),
+      assetImageUrl: roomImageUrl,
+      href: "/reservations?v=mine",
+    });
+    const email = await emailForClerkId(ctx, recipientClerkId);
+    if (email) {
+      await ctx.scheduler.runAfter(0, internal.mesoutilsEmails.sendReservationEmail, {
+        email,
+        name: first.userName,
+        assetKind: "room",
+        assetName: room?.name ?? "Salle",
+        label,
+        start: first.start,
+        end: first.end,
+        state: args.decision === "approved" ? "approved" : "rejected",
+        note: args.note?.trim() || undefined,
+        photoUrl: (await photoForClerkId(ctx, recipientClerkId)) ?? undefined,
+        assetImageUrl: roomImageUrl,
+      });
+    }
+    return { confirmed, total: series.length };
   },
 });
