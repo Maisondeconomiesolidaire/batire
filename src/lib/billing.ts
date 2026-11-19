@@ -32,6 +32,9 @@ export const issuerOfCategory = (category: string): Issuer => category.trim().to
 
 export const VAT_RATES = [20, 10, 5.5, 0] as const;
 
+/** Montant TTC → HT (au centime) pour un taux de TVA donné. */
+export const htCents = (ttcCents: number, vatRate: number) => Math.round(ttcCents * 100 / (100 + vatRate));
+
 /** Montants TTC → HT / TVA (prix catalogue Bâtire affichés TTC). */
 export function vatBreakdown(totalCents: number, vatRate: number) {
   const vatCents = Math.round(totalCents * vatRate / (100 + vatRate));
@@ -146,26 +149,32 @@ export async function buildBillingPdf(doc: BillingDocForPdf) {
   y = y - boxH - 26;
 
   // Tableau des lignes.
-  const cols = { label: M + 8, qty: W - M - 190, unit: W - M - 95, total: W - M - 8 };
+  const cols = { label: M + 8, qty: W - M - 290, unitHt: W - M - 228, unit: W - M - 162, totalHt: W - M - 86, total: W - M - 8 };
   const header = () => {
     page.drawRectangle({ x: M, y: y - 20, width: W - 2 * M, height: 20, color: accent });
-    text("Désignation", cols.label, y - 13.5, { size: 9, font: bold, color: rgb(1, 1, 1) });
-    text("Quantité", cols.qty, y - 13.5, { size: 9, font: bold, color: rgb(1, 1, 1), align: "right" });
-    text("Prix unit. TTC", cols.unit, y - 13.5, { size: 9, font: bold, color: rgb(1, 1, 1), align: "right" });
-    text("Total TTC", cols.total, y - 13.5, { size: 9, font: bold, color: rgb(1, 1, 1), align: "right" });
+    const head = { size: 8.5, font: bold, color: rgb(1, 1, 1) };
+    text("Désignation", cols.label, y - 13.5, head);
+    text("Quantité", cols.qty, y - 13.5, { ...head, align: "right" });
+    text("PU HT", cols.unitHt, y - 13.5, { ...head, align: "right" });
+    text("PU TTC", cols.unit, y - 13.5, { ...head, align: "right" });
+    text("Total HT", cols.totalHt, y - 13.5, { ...head, align: "right" });
+    text("Total TTC", cols.total, y - 13.5, { ...head, align: "right" });
     y -= 20;
   };
   const newPage = () => { page = pdf.addPage([W, H]); page.drawRectangle({ x: 0, y: H - 8, width: W, height: 8, color: accent }); y = H - M; };
   header();
   for (const [index, row] of doc.lines.entries()) {
-    const labelLines = wrap(row.label, font, 9.5, cols.qty - 70 - cols.label);
+    const labelLines = wrap(row.label, font, 9.5, cols.qty - 55 - cols.label);
     const rowH = Math.max(22, 10 + labelLines.length * 12);
     if (y - rowH < bottom + 20) { newPage(); header(); }
     if (index % 2 === 1) page.drawRectangle({ x: M, y: y - rowH, width: W - 2 * M, height: rowH, color: rgb(0.97, 0.975, 0.98) });
     labelLines.forEach((part, at) => text(part, cols.label, y - 14 - at * 12));
     text(quantityText(row.quantity, row.unit), cols.qty, y - 14, { align: "right" });
-    text(euros(row.unitPriceCents), cols.unit, y - 14, { align: "right" });
-    text(euros(Math.round(row.quantity * row.unitPriceCents)), cols.total, y - 14, { font: bold, align: "right" });
+    const lineTtc = Math.round(row.quantity * row.unitPriceCents);
+    text(euros(htCents(row.unitPriceCents, doc.vatRate)), cols.unitHt, y - 14, { size: 9, color: muted, align: "right" });
+    text(euros(row.unitPriceCents), cols.unit, y - 14, { size: 9, align: "right" });
+    text(euros(htCents(lineTtc, doc.vatRate)), cols.totalHt, y - 14, { size: 9, color: muted, align: "right" });
+    text(euros(lineTtc), cols.total, y - 14, { size: 9, font: bold, align: "right" });
     y -= rowH;
   }
   page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 1, color: line });

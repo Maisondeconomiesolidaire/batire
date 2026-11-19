@@ -13,7 +13,7 @@ import { UnderlineTabs } from "../../components/ui/UnderlineTabs";
 import { canAccess, useAccess } from "../../lib/access";
 import { cn } from "../../lib/cn";
 import { StripeInvoicesTable } from "./StripeInvoice";
-import { ISSUERS, VAT_RATES, buildBillingPdf, bytesToBase64, clientName, downloadBillingPdf, euros, frDate, vatBreakdown, type BillingClient, type BillingDocForPdf, type Issuer } from "../../lib/billing";
+import { ISSUERS, VAT_RATES, buildBillingPdf, bytesToBase64, clientName, downloadBillingPdf, euros, frDate, htCents, vatBreakdown, type BillingClient, type BillingDocForPdf, type Issuer } from "../../lib/billing";
 
 type Doc = FunctionReturnType<typeof api.batire.listBillingDocs>[number];
 type DocType = "devis" | "facture";
@@ -61,7 +61,7 @@ export function Facturation() {
         <h1 className="text-2xl font-bold tracking-tight">Facturation</h1>
         <p className="text-sm text-[var(--muted-foreground)]">Mobilier facturé par la Recyclerie, autres matériaux par MATERIOSOL.</p>
       </div>
-      {canUpdate && tab === "devis" && <Button onClick={() => setEditing("devis")}><FilePlus2 className="h-4 w-4" />Nouveau devis</Button>}
+      {canUpdate && <Button onClick={() => setEditing(tab)}><FilePlus2 className="h-4 w-4" />{tab === "devis" ? "Nouveau devis" : "Nouvelle facture"}</Button>}
     </div>
     <div className="flex flex-wrap items-end justify-between gap-3">
       <UnderlineTabs value={tab} onChange={setTab} items={[{ key: "devis", label: "Devis" }, { key: "facture", label: "Factures" }]} counts={quotes && invoices ? { devis: quotes.length, facture: invoices.length } : undefined} />
@@ -70,21 +70,20 @@ export function Facturation() {
         <Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Numéro, client, article…" aria-label="Rechercher" className="pl-9" />
       </label>
     </div>
-    {tab === "facture" && <>
-      <p className="text-sm text-[var(--muted-foreground)]">Les factures sont émises uniquement par Stripe, automatiquement quand une demande passe en « Payé » (carte, espèces ou virement), puis envoyées au client.</p>
-      <StripeInvoicesTable search={search} />
-      {(invoices?.length ?? 0) > 0 && <h2 className="pt-2 text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Anciennes factures (avant Stripe)</h2>}
-    </>}
-    {tab === "facture" && (invoices?.length ?? 0) === 0 ? null : docs === undefined ? <FullSpinner label="Chargement…" />
+    {docs === undefined ? <FullSpinner label="Chargement…" />
       : shown.length === 0 ? <EmptyState icon={tab === "devis" ? <FileText className="h-6 w-6" /> : <Receipt className="h-6 w-6" />} title={needle ? "Aucun résultat" : tab === "devis" ? "Aucun devis" : "Aucune facture"} description={needle ? "Aucun document ne correspond à la recherche." : tab === "devis" ? "Créez un devis en cherchant les articles et le client." : "Les factures se créent directement ou depuis un devis accepté."} />
         : <div className="overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--card)]">
           <table className="w-full min-w-[760px] text-sm">
             <thead className="border-b border-[var(--border)] text-left text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
               <tr><th className="px-4 py-3 font-semibold">Numéro</th><th className="px-4 py-3 font-semibold">Client</th><th className="px-4 py-3 font-semibold">Date</th><th className="px-4 py-3 text-right font-semibold">Total TTC</th><th className="px-4 py-3 font-semibold">Statut</th><th className="px-4 py-3 text-right font-semibold">Actions</th></tr>
             </thead>
-            <tbody className="divide-y divide-[var(--border)]">{shown.map(doc => <DocRow key={doc._id} doc={doc} canUpdate={canUpdate} onPreview={setPreviewId} />)}</tbody>
+            <tbody className="divide-y divide-[var(--border)]">{shown.map(doc => <DocRow key={doc._id} doc={doc} canUpdate={canUpdate} onPreview={setPreviewId} onConverted={id => { setTab("facture"); setPreviewId(id); }} />)}</tbody>
           </table>
         </div>}
+    {tab === "facture" && <>
+      <h2 className="pt-2 text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Factures Stripe (tenues en parallèle)</h2>
+      <StripeInvoicesTable search={search} />
+    </>}
     {editing && <DocEditor type={editing} onClose={() => setEditing(null)} onCreated={id => { setEditing(null); setPreviewId(id); }} />}
     {preview && <PdfPreview doc={preview} canUpdate={canUpdate} onClose={() => setPreviewId(null)} />}
   </div>;
@@ -95,8 +94,9 @@ export function IssuerBadge({ issuer }: { issuer: Issuer }) {
   return <span className="inline-flex rounded-md px-1.5 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: `${item.color}22`, color: item.color }}>{item.short}</span>;
 }
 
-function DocRow({ doc, canUpdate, onPreview }: { doc: Doc; canUpdate: boolean; onPreview: (id: string) => void }) {
+function DocRow({ doc, canUpdate, onConverted, onPreview }: { doc: Doc; canUpdate: boolean; onConverted: (id: string) => void; onPreview: (id: string) => void }) {
   const setQuoteStatus = useMutation(api.batire.setQuoteStatus);
+  const convert = useMutation(api.batire.convertQuoteToInvoice);
   const setPaid = useMutation(api.batire.setInvoicePaid);
   const [confirm, setConfirm] = useState<"" | "convert" | "paid" | "refuse" | "cancel">("");
   const [method, setMethod] = useState(PAYMENT_METHODS[0]!);
@@ -107,6 +107,7 @@ function DocRow({ doc, canUpdate, onPreview }: { doc: Doc; canUpdate: boolean; o
     try { await task(); setConfirm(""); } catch (caught) { setError(errorText(caught, "Opération impossible.")); } finally { setBusy(false); }
   }
   const status = STATUS[doc.status];
+  const open = doc.type === "devis" && !doc.invoiceId && (doc.status === "en_attente" || doc.status === "accepte");
   return <tr className="align-top">
     <td className="px-4 py-3"><p className="font-mono font-semibold">{doc.number}</p><IssuerBadge issuer={doc.issuer} />{doc.linkedNumber && <p className="mt-1 text-xs text-[var(--muted-foreground)]">{doc.type === "devis" ? "Facture" : "Devis"} {doc.linkedNumber}</p>}</td>
     <td className="px-4 py-3"><p className="font-medium">{clientName(doc.client)}</p><p className="text-xs text-[var(--muted-foreground)]">{[doc.client.email, doc.client.city].filter(Boolean).join(" · ")}</p><p className="mt-1 line-clamp-1 text-xs text-[var(--muted-foreground)]">{doc.lines.length} ligne{doc.lines.length > 1 ? "s" : ""} · {doc.lines.map(line => line.label).join(", ")}</p></td>
@@ -116,6 +117,7 @@ function DocRow({ doc, canUpdate, onPreview }: { doc: Doc; canUpdate: boolean; o
     <td className="px-4 py-3">
       <div className="flex flex-wrap justify-end gap-1.5">
         <Button size="sm" variant="outline" onClick={() => onPreview(doc._id)}><Eye className="h-4 w-4" />Aperçu</Button>
+        {canUpdate && open && <Button size="sm" onClick={() => { setError(""); setConfirm("convert"); }}><Receipt className="h-4 w-4" />Facturer</Button>}
         {canUpdate && doc.type === "devis" && doc.status === "en_attente" && <>
           <Button size="sm" variant="ghost" onClick={() => void run(() => setQuoteStatus({ id: doc._id, status: "accepte" }))}><CircleCheck className="h-4 w-4" />Accepté</Button>
           <Button size="sm" variant="ghost" onClick={() => { setError(""); setConfirm("refuse"); }}><XCircle className="h-4 w-4" />Refusé</Button>
@@ -125,12 +127,14 @@ function DocRow({ doc, canUpdate, onPreview }: { doc: Doc; canUpdate: boolean; o
         {canUpdate && doc.type === "facture" && doc.status === "payee" && <Button size="sm" variant="ghost" onClick={() => void run(() => setPaid({ id: doc._id, paid: false }))}>Annuler le paiement</Button>}
       </div>
     </td>
-    {confirm && createPortal(<Dialog title={confirm === "paid" ? "Facture payée" : "Devis refusé ?"} onClose={() => { if (!busy) setConfirm(""); }}>
+    {confirm && createPortal(<Dialog title={confirm === "convert" ? "Convertir en facture ?" : confirm === "paid" ? "Facture payée" : "Devis refusé ?"} onClose={() => { if (!busy) setConfirm(""); }}>
+        {confirm === "convert" && <p className="text-sm text-[var(--muted-foreground)]">Une facture {ISSUERS[doc.issuer].name} de {euros(doc.totalCents)} est créée à partir du devis {doc.number} (mêmes lignes, même client). Le devis passe « Accepté ». L’aperçu s’ouvre ensuite.</p>}
         {confirm === "refuse" && <p className="text-sm text-[var(--muted-foreground)]">Le devis {doc.number} sera marqué refusé. Il pourra être rouvert.</p>}
         {confirm === "paid" && <div className="space-y-3 text-sm"><p className="text-[var(--muted-foreground)]">Facture {doc.number} · {euros(doc.totalCents)}</p><Field label="Moyen de paiement"><select value={method} onChange={event => setMethod(event.target.value)} className="w-full rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2.5">{PAYMENT_METHODS.map(item => <option key={item}>{item}</option>)}</select></Field></div>}
         {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="ghost" disabled={busy} onClick={() => setConfirm("")}>Annuler</Button>
+          {confirm === "convert" && <Button disabled={busy} onClick={() => void run(async () => { const result = await convert({ id: doc._id }); onConverted(result.id); })}><Receipt className="h-4 w-4" />{busy ? "Création…" : "Créer la facture"}</Button>}
           {confirm === "refuse" && <Button variant="danger" disabled={busy} onClick={() => void run(() => setQuoteStatus({ id: doc._id, status: "refuse" }))}>Marquer refusé</Button>}
           {confirm === "paid" && <Button disabled={busy} onClick={() => void run(() => setPaid({ id: doc._id, paid: true, paymentMethod: method }))}><Check className="h-4 w-4" />Marquer payée</Button>}
         </div>
@@ -209,15 +213,18 @@ export function DocEditor({ type, onClose, onCreated, orderId, initialClient, in
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Articles</h3>
           <MaterialSearch lockedIssuer={lockedIssuer} onAdd={addMaterial} />
           <div className="mt-3 space-y-2">
-            {lines.length > 0 && <div className="hidden grid-cols-[minmax(0,1fr)_6rem_5rem_7rem_7rem_2rem] gap-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)] md:grid"><span>Désignation</span><span>Quantité</span><span>Unité</span><span>PU TTC (€)</span><span className="text-right">Total TTC</span><span /></div>}
+            {lines.length > 0 && <div className="hidden grid-cols-[minmax(0,1fr)_5rem_4rem_6.5rem_5.5rem_6rem_6rem_2rem] gap-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)] md:grid"><span>Désignation</span><span>Quantité</span><span>Unité</span><span>PU TTC (€)</span><span className="text-right">PU HT</span><span className="text-right">Total HT</span><span className="text-right">Total TTC</span><span /></div>}
             {lines.map(line => {
               const amount = parseQuantity(line.quantity) * parseEuros(line.price);
-              return <div key={line.key} className="grid grid-cols-2 gap-2 rounded-xl border border-[var(--border)] p-2 md:grid-cols-[minmax(0,1fr)_6rem_5rem_7rem_7rem_2rem] md:items-center md:border-0 md:p-0">
+              const unitHt = parseEuros(line.price);
+              return <div key={line.key} className="grid grid-cols-2 gap-2 rounded-xl border border-[var(--border)] p-2 md:grid-cols-[minmax(0,1fr)_5rem_4rem_6.5rem_5.5rem_6rem_6rem_2rem] md:items-center md:border-0 md:p-0">
                 <Input className="col-span-2 md:col-span-1" aria-label="Désignation" required maxLength={300} value={line.label} onChange={event => setLine(line.key, { label: event.target.value })} placeholder="Désignation" />
                 <Input aria-label="Quantité" inputMode="decimal" required value={line.quantity} onChange={event => setLine(line.key, { quantity: event.target.value.replace(/[^\d.,]/g, "") })} />
                 <Input aria-label="Unité" maxLength={20} value={line.unit} onChange={event => setLine(line.key, { unit: event.target.value })} placeholder="u" />
                 <Input aria-label="Prix unitaire TTC" inputMode="decimal" required value={line.price} onChange={event => setLine(line.key, { price: line.materialId ? event.target.value.replace(/[^\d.,]/g, "") : event.target.value.replace(/[^\d.,-]/g, "") })} />
-                <span className="text-right text-sm font-semibold tabular-nums">{Number.isFinite(amount) ? euros(Math.round(amount)) : "—"}</span>
+                <span className="text-right text-sm tabular-nums text-[var(--muted-foreground)]"><span className="md:hidden">PU HT </span>{Number.isFinite(unitHt) ? euros(htCents(unitHt, vatRate)) : "—"}</span>
+                <span className="text-right text-sm tabular-nums text-[var(--muted-foreground)]"><span className="md:hidden">Total HT </span>{Number.isFinite(amount) ? euros(htCents(Math.round(amount), vatRate)) : "—"}</span>
+                <span className="text-right text-sm font-semibold tabular-nums"><span className="font-normal text-[var(--muted-foreground)] md:hidden">Total TTC </span>{Number.isFinite(amount) ? euros(Math.round(amount)) : "—"}</span>
                 <button type="button" onClick={() => setLines(current => current.filter(item => item.key !== line.key))} aria-label="Supprimer la ligne" className="justify-self-end rounded-lg p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
               </div>;
             })}

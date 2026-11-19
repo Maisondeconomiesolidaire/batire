@@ -638,9 +638,14 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
   const [error, setError] = useState("");
   const transit = hasTransit(order);
   const location = pickupLocationById(order.pickupLocation);
-  // Facture Stripe : émise et envoyée automatiquement au passage en « Payé ».
-  const invoice = useQuery(api.batireStripeInvoices.orderInvoice, { orderId: order._id });
+  // Facture Bâtire : émise automatiquement au passage en « Payé », envoyée depuis l'étape Payé.
+  const billingDocs = useQuery(api.batire.orderBillingDocs, { orderId: order._id });
+  const invoice = billingDocs?.find(doc => doc.type === "facture");
   const steps = processSteps(order, canUpdate).map(step => step.key === "paid" && invoice?.sentAt ? { ...step, note: `Facture envoyée le ${sentLabel(invoice.sentAt)}` } : step);
+  const [confirmResend, setConfirmResend] = useState(false);
+  const generateInvoice = useMutation(api.batire.generateOrderInvoice);
+  const [invoicePreview, setInvoicePreview] = useState<string | null>(null);
+  const previewDoc = invoicePreview ? billingDocs?.find(doc => doc._id === invoicePreview) : undefined;
 
   async function run(action: () => Promise<unknown>) {
     setBusy(true); setError("");
@@ -675,7 +680,12 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
     <section>
       <SectionTitle>Process · {isRelay(order) ? `${RELAY} (${pickupName(order)})` : WAREHOUSE}</SectionTitle>
       <ProcessChecklist steps={steps} onStep={step => { setError(""); setDueDate(""); setAvailableFrom(order.availableFrom ?? todayIso()); setStepOpen(step.key); }}
-        below={step => step.key === "paid" && step.done ? <div className="mt-2"><OrderStripeInvoice orderId={order._id} canUpdate={canUpdate} paid={isPaid(order)} compact /></div> : step.key === "ready" && step.done && order.availableFrom && !order.collectedAt && !order.lostAt ? <div className="mt-2 space-y-1 text-center">
+        below={step => step.key === "paid" && step.done ? <div className="mt-2 space-y-1 text-center">
+          {invoice ? <>
+            {canUpdate && <Button size="sm" variant={invoice.sentAt ? "outline" : "primary"} className="w-full justify-center" onClick={() => invoice.sentAt ? setConfirmResend(true) : setInvoicePreview(invoice._id)}><Send className="h-4 w-4" />{invoice.sentAt ? "Renvoyer la facture" : "Envoyer la facture"}</Button>}
+            <p className="text-[11px] text-[var(--muted-foreground)]">Facture {invoice.number}</p>
+          </> : billingDocs !== undefined && canUpdate ? <Button size="sm" className="w-full justify-center" disabled={busy} onClick={() => void run(async () => { const id = await generateInvoice({ orderId: order._id }); setInvoicePreview(id); })}><Receipt className="h-4 w-4" />Générer la facture</Button> : null}
+        </div> : step.key === "ready" && step.done && order.availableFrom && !order.collectedAt && !order.lostAt ? <div className="mt-2 space-y-1 text-center">
           {canUpdate && <Button size="sm" variant={order.customerNotifiedAt ? "outline" : "primary"} className="w-full justify-center" disabled={busy} onClick={() => { setError(""); setConfirmNotify(true); }}><BellRing className="h-4 w-4" />{order.customerNotifiedAt ? "Notifier à nouveau" : "Notifier le client"}</Button>}
           {order.customerNotifiedAt && <p className="text-[11px] text-[var(--muted-foreground)]">Notifié le {dateTime(order.customerNotifiedAt)}</p>}
         </div> : null} />
@@ -739,6 +749,11 @@ function GestionTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) 
       </form>
     </Modal>}
 
+    {confirmResend && invoice?.sentAt && <Modal title="Facture déjà envoyée" onClose={() => setConfirmResend(false)}>
+      <p className="text-sm text-[var(--muted-foreground)]">La facture {invoice.number} a déjà été envoyée le {sentLabel(invoice.sentAt)}{invoice.sentTo ? ` à ${invoice.sentTo}` : ""}. Êtes-vous sûr(e) de vouloir la renvoyer ?</p>
+      <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" onClick={() => setConfirmResend(false)}>Non</Button><Button autoFocus onClick={() => { setConfirmResend(false); setInvoicePreview(invoice._id); }}><Send className="h-4 w-4" />Oui, renvoyer</Button></div>
+    </Modal>}
+    {previewDoc && <PdfPreview doc={previewDoc} canUpdate={canUpdate} startSending onClose={() => setInvoicePreview(null)} />}
     {confirmNotify && order.availableFrom && <div role="dialog" aria-modal="true" aria-labelledby="notify-title" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onKeyDown={event => { if (event.key === "Escape" && !busy) { event.stopPropagation(); setConfirmNotify(false); } }}>
       <div className="w-full max-w-lg rounded-3xl bg-[var(--card)] p-6 text-[var(--foreground)] shadow-2xl">
         <div className="flex items-start justify-between gap-3"><h3 id="notify-title" className="text-lg font-bold">Notifier le client</h3><button type="button" disabled={busy} onClick={() => setConfirmNotify(false)} aria-label="Fermer" className="rounded-lg p-1 hover:bg-[var(--accent)]"><X className="h-4 w-4" /></button></div>
@@ -1068,21 +1083,22 @@ function orderBillingLines(order: Order): Omit<BillingLine, "key">[] {
 function BillingTab({ order, canUpdate }: { order: Order; canUpdate: boolean }) {
   const docs = useQuery(api.batire.orderBillingDocs, { orderId: order._id });
   const billingClient = useQuery(api.batire.orderBillingClient, { orderId: order._id });
-  const [editing, setEditing] = useState<"devis" | null>(null);
+  const [editing, setEditing] = useState<"devis" | "facture" | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const preview = previewId ? docs?.find(item => item._id === previewId) : undefined;
   return <div className="max-w-5xl space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <SectionTitle>Devis et factures de la demande</SectionTitle>
-        <p className="-mt-2 text-sm text-[var(--muted-foreground)]">La facture est émise par Stripe et envoyée au client dès que la demande passe en « Payé ». Les devis restent générables ici.</p>
+        <p className="-mt-2 text-sm text-[var(--muted-foreground)]">Client et lignes pré-remplis depuis la demande, modifiables avant création. La facture est émise automatiquement au passage en « Payé ». Retrouvés aussi dans la page Facturation.</p>
       </div>
       {canUpdate && <div className="flex flex-wrap gap-2">
         <Button variant="outline" onClick={() => setEditing("devis")}><FilePlus2 className="h-4 w-4" />Générer un devis</Button>
+        <Button onClick={() => setEditing("facture")}><Receipt className="h-4 w-4" />Générer une facture</Button>
       </div>}
     </div>
-    {isPaid(order) ? <OrderStripeInvoice orderId={order._id} canUpdate={canUpdate} paid /> : <p className="rounded-2xl border border-[var(--border)] p-4 text-sm text-[var(--muted-foreground)]"><Receipt className="mr-1.5 inline h-4 w-4" />La facture Stripe sera émise et envoyée au client au passage en « Payé ».</p>}
-    {docs === undefined ? <FullSpinner label="Chargement…" /> : docs.length === 0 ? <p className="rounded-2xl border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--muted-foreground)]">Aucun devis pour cette demande.</p>
+    {isPaid(order) && <div className="space-y-2"><p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">Facture Stripe (tenue en parallèle)</p><OrderStripeInvoice orderId={order._id} canUpdate={canUpdate} paid /></div>}
+    {docs === undefined ? <FullSpinner label="Chargement…" /> : docs.length === 0 ? <p className="rounded-2xl border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--muted-foreground)]">Aucun devis ni facture pour cette demande.</p>
       : <div className="overflow-x-auto rounded-2xl border border-[var(--border)]">
         <table className="w-full min-w-[640px] text-sm">
           <thead className="border-b border-[var(--border)] bg-[var(--muted)] text-left text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
@@ -1103,6 +1119,7 @@ type BillingDoc = FunctionReturnType<typeof api.batire.orderBillingDocs>[number]
 function BillingRow({ doc, canUpdate, onPreview }: { doc: BillingDoc; canUpdate: boolean; onPreview: (id: string) => void }) {
   const setQuoteStatus = useMutation(api.batire.setQuoteStatus);
   const setPaid = useMutation(api.batire.setInvoicePaid);
+  const convert = useMutation(api.batire.convertQuoteToInvoice);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function run(task: () => Promise<unknown>) {
@@ -1132,6 +1149,7 @@ function BillingRow({ doc, canUpdate, onPreview }: { doc: BillingDoc; canUpdate:
     </td>
     <td className="px-3 py-2.5"><div className="flex justify-end gap-1.5">
       <Button size="sm" variant="outline" onClick={() => onPreview(doc._id)}><Eye className="h-4 w-4" />Aperçu</Button>
+      {canUpdate && doc.type === "devis" && !invoiced && (doc.status === "en_attente" || doc.status === "accepte") && <Button size="sm" disabled={busy} onClick={() => void run(async () => { const result = await convert({ id: doc._id }); onPreview(result.id); })}><Receipt className="h-4 w-4" />Facturer</Button>}
     </div></td>
   </tr>;
 }
