@@ -34,6 +34,11 @@ import { CATEGORIES, familiesOf, subFamiliesOf } from "../../lib/taxonomy";
 import { PICKUP_LOCATIONS, storageLocationId } from "../../lib/pickupLocations";
 import { slotKindLabel } from "../../lib/storageSlots";
 
+/** TVA Bâtire : 20 %. Prix arrondis au centime. */
+const round2 = (value: number) => Math.round(value * 100) / 100;
+const htOf = (ttc: number) => round2(ttc / 1.2);
+const ttcOf = (ht: number) => round2(ht * 1.2);
+
 type FormState = {
   title: string;
   description: string;
@@ -44,6 +49,7 @@ type FormState = {
   unit: Unit;
   quantity: string;
   price: string;
+  priceHt: string;
   originalPrice: string;
   packaging: string;
   lengthCm: string;
@@ -99,6 +105,7 @@ const EMPTY: FormState = {
   unit: "unité",
   quantity: "",
   price: "",
+  priceHt: "",
   originalPrice: "",
   packaging: "",
   lengthCm: "",
@@ -256,6 +263,7 @@ export function MaterialForm() {
       unit: existing.unit,
       quantity: String(existing.quantity ?? ""),
       price: String(existing.price ?? ""),
+      priceHt: existing.price ? String(existing.priceHt ?? htOf(existing.price)) : "",
       originalPrice: existing.originalPrice ? String(existing.originalPrice) : "",
       packaging: existing.packaging ?? "",
       lengthCm: existing.lengthCm ? String(existing.lengthCm) : "",
@@ -314,6 +322,13 @@ export function MaterialForm() {
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
+  // Prix TTC et HT liés (TVA 20 %) : on saisit l'un, l'autre se recalcule.
+  const setPrice = (side: "price" | "priceHt", value: string) =>
+    setForm((current) => {
+      const amount = Number(value.replace(",", "."));
+      const other = !value.trim() || !Number.isFinite(amount) ? "" : String(side === "price" ? htOf(amount) : ttcOf(amount));
+      return { ...current, [side]: value, [side === "price" ? "priceHt" : "price"]: other };
+    });
 
   // Emplacements du lieu choisi (onglet Emplacements). Une valeur saisie avant
   // cette liste reste affichée, pour ne rien perdre en rouvrant une fiche.
@@ -368,6 +383,7 @@ export function MaterialForm() {
         unit: (result.unit as Unit) || current.unit,
         quantity: result.quantity ? String(result.quantity) : current.quantity,
         price: result.price ? String(result.price) : current.price,
+        priceHt: result.price ? String(htOf(result.price)) : current.priceHt,
         packaging: result.packaging ?? current.packaging,
         lengthCm: result.lengthCm ? String(result.lengthCm) : current.lengthCm,
         widthCm: result.widthCm ? String(result.widthCm) : current.widthCm,
@@ -416,6 +432,7 @@ export function MaterialForm() {
         unit: form.unit,
         quantity: Number(form.quantity.replace(",", ".")) || 0,
         price: price || 0,
+        priceHt: Number(form.priceHt.replace(",", ".")) || 0,
         originalPrice: form.originalPrice.trim()
           ? Number(form.originalPrice.replace(",", ".")) || undefined
           : undefined,
@@ -760,8 +777,11 @@ export function MaterialForm() {
                 }))}
               />
             </Field>
-            <Field label={`Prix par ${form.unit}`} required>
-              <Input inputMode="decimal" value={form.price} onChange={(e) => set("price", e.target.value)} />
+            <Field label={`Prix HT par ${form.unit}`} hint="TVA 20 %">
+              <Input inputMode="decimal" value={form.priceHt} onChange={(e) => setPrice("priceHt", e.target.value)} />
+            </Field>
+            <Field label={`Prix TTC par ${form.unit}`} required hint="prix payé en boutique">
+              <Input inputMode="decimal" value={form.price} onChange={(e) => setPrice("price", e.target.value)} />
             </Field>
             {/* Le prix barré situe l'économie du réemploi : il n'est affiché
                 en boutique que s'il dépasse le prix de vente. */}
