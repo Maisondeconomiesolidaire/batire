@@ -283,18 +283,21 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   </div>;
 }
 
-/** Paiement de la demande, avec remboursement Stripe pour un paiement par carte (comme la boutique Recycapp). */
+/** Paiement de la demande, avec remboursement (carte via Stripe, espèces / virement enregistré) et avoir Stripe. */
 function PaymentSection({ order, canUpdate }: { order: Order; canUpdate: boolean }) {
   const refund = useAction(api.batire.refundOrder);
+  const invoice = useQuery(api.batireStripeInvoices.orderInvoice, { orderId: order._id });
   const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const card = !order.paymentMethod || order.paymentMethod === "card";
-  const refunded = Boolean(order.stripeRefundId);
-  const canRefund = canUpdate && card && isPaid(order) && Boolean(order.stripePaymentIntentId) && !refunded && !order.collectedAt;
+  const refunded = Boolean(order.stripeRefundId || order.refundedAt);
+  const canRefund = canUpdate && isPaid(order) && order.amountCents > 0 && !refunded && (!card || Boolean(order.stripePaymentIntentId));
+  const refundMethodLabel = order.refundMethod === "cash" ? "Espèces (rendu en main propre)" : order.refundMethod === "bank_transfer" ? "Virement (rendu hors Stripe)" : "Carte bancaire (Stripe)";
   async function submit() {
     setBusy(true); setError("");
-    try { await refund({ orderId: order._id }); setOpen(false); }
+    try { await refund({ orderId: order._id, reason: reason.trim() || undefined }); setOpen(false); setReason(""); }
     catch (caught) { setError(errorText(caught, "Remboursement impossible.")); }
     finally { setBusy(false); }
   }
@@ -308,24 +311,35 @@ function PaymentSection({ order, canUpdate }: { order: Order; canUpdate: boolean
         {order.discountCents ? <Row label={`Remise · code ${order.promoCode ?? ""}`} value={`− ${euros(order.discountCents)}`} /> : null}
         {order.pickupFeeCents ? <Row label="Frais de transfert" value={euros(order.pickupFeeCents)} /> : null}
         <div className="flex items-baseline justify-between gap-4 border-t border-[var(--border)] pt-2 text-base"><span className="font-semibold">Total</span><span className="font-bold">{euros(order.amountCents)}</span></div>
+        {canRefund && <div className="flex justify-end">
+          <button type="button" onClick={() => { setError(""); setOpen(true); }} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-500/10 dark:text-red-400"><RotateCcw className="h-3.5 w-3.5" />Rembourser</button>
+        </div>}
+        {error && !open && <p className="text-right text-xs text-red-600">{error}</p>}
+        {refunded && <div className="flex items-baseline justify-between gap-4 text-sm text-red-600 dark:text-red-400"><span className="font-semibold">Remboursé</span><span className="font-bold">− {euros(order.refundedAmountCents ?? order.amountCents)}</span></div>}
         <Row label="Date d'encaissement" value={order.paidAt ? dateTime(order.paidAt) : undefined} />
         {card && <Row label="Prestataire" value={order.stripePaymentIntentId || order.stripeSessionId ? "Stripe" : undefined} />}
         {card && <Row label="Payment Intent" value={order.stripePaymentIntentId} mono />}
         {refunded && <>
           <Row label="Remboursé le" value={order.refundedAt ? dateTime(order.refundedAt) : undefined} />
-          <Row label="Montant remboursé" value={order.refundedAmountCents !== undefined ? euros(order.refundedAmountCents) : undefined} />
+          <Row label="Moyen" value={refundMethodLabel} />
+          <Row label="Motif" value={order.refundReason} />
           <Row label="Remboursé par" value={order.refundedBy} />
           <Row label="Remboursement Stripe" value={order.stripeRefundId} mono />
+          {invoice?.creditNote ? <Row label="Avoir Stripe" value={invoice.creditNote.pdfUrl ? <a href={invoice.creditNote.pdfUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand-600 hover:underline">{invoice.creditNote.number ?? "PDF"}<ExternalLink className="h-3 w-3" /></a> : invoice.creditNote.number ?? "Émis"} />
+            : invoice?.creditNoteError ? <Row label="Avoir Stripe" value={<span className="text-red-600">Non émis : {invoice.creditNoteError}</span>} />
+            : invoice?.id ? <Row label="Avoir Stripe" value="En cours…" /> : null}
         </>}
       </div>
-      {canRefund && <div className="mt-4 border-t border-[var(--border)] pt-4">
-        <Button variant="outline" className="text-red-600 dark:text-red-400" onClick={() => { setError(""); setOpen(true); }}><RotateCcw className="h-4 w-4" />Effectuer un remboursement</Button>
-        <p className="mt-2 text-xs text-[var(--muted-foreground)]">Le montant de cette demande ({euros(order.amountCents)}) est rendu au client sur sa carte. La demande passe en « perdue » et le lot revient en stock.</p>
-        {error && !open && <p className="mt-2 text-xs text-red-600">{error}</p>}
-      </div>}
     </div>
     {open && <Modal title="Effectuer un remboursement" onClose={() => { if (!busy) setOpen(false); }}>
-      <p className="text-sm text-[var(--muted-foreground)]">Rembourser {euros(order.amountCents)} pour la demande #{orderNumber(order)} ? Le client sera recrédité sur sa carte via Stripe. Cette opération est définitive.</p>
+      <p className="text-sm text-[var(--muted-foreground)]">Rembourser <strong className="text-[var(--foreground)]">{euros(order.amountCents)}</strong> pour la demande #{orderNumber(order)} ?</p>
+      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-[var(--muted-foreground)]">
+        {card ? <li>Le client est recrédité sur sa carte via Stripe.</li> : <li>Paiement {order.paymentMethod === "cash" ? "en espèces" : "par virement"} : rendez l'argent au client, le CRM enregistre le remboursement.</li>}
+        <li>{order.collectedAt ? "Lot déjà remis : le stock n'est pas modifié." : "La demande passe en « perdue » et le lot revient en stock."}</li>
+        {invoice?.id && <li>Un avoir est émis sur la facture Stripe {invoice.number ?? ""}.</li>}
+      </ul>
+      <label className="mt-4 block text-sm font-medium">Motif (facultatif)<textarea rows={2} maxLength={300} value={reason} disabled={busy} onChange={event => setReason(event.target.value)} placeholder="Ex. article endommagé, annulation client…" className="mt-1 block w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5 text-sm" /></label>
+      <p className="mt-2 text-xs text-[var(--muted-foreground)]">Cette opération est définitive.</p>
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
       <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" disabled={busy} onClick={() => setOpen(false)}>Annuler</Button><Button variant="danger" disabled={busy} onClick={() => void submit()}><RotateCcw className="h-4 w-4" />{busy ? "Remboursement…" : "Rembourser"}</Button></div>
     </Modal>}
