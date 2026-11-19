@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft, Camera, FileText, ImagePlus, ScanLine, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Camera, FileText, ImagePlus, ScanLine, Sparkles, Trash2, X } from "lucide-react";
+import { DeleteMaterialDialog } from "./DeleteMaterialDialog";
+import { canAccess, useAccess } from "../../lib/access";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "../ui/Button";
@@ -165,6 +167,8 @@ export function MaterialForm() {
   // a décrit et photographié, l'équipe n'a plus qu'à chiffrer et ranger.
   const donationId = params.get("don") as Id<"btDonations"> | null;
   const onClose = () => navigate(donationId ? "/crm/dons" : "/crm");
+  const canDelete = canAccess(useAccess(), "batire:materiaux", "delete");
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const existing = useQuery(
     api.batire.getMaterial,
@@ -993,7 +997,12 @@ export function MaterialForm() {
 
           {error ? <p role="alert" className="text-sm text-red-500">{error}</p> : null}
 
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
+            {materialId && existing && canDelete ? (
+              <Button variant="danger" className="mr-auto" onClick={() => setConfirmDelete(true)}>
+                <Trash2 className="h-4 w-4" /> Supprimer
+              </Button>
+            ) : null}
             <Button variant="ghost" onClick={onClose}>
               Annuler
             </Button>
@@ -1004,6 +1013,13 @@ export function MaterialForm() {
               {saving ? "Enregistrement…" : materialId ? "Enregistrer" : "Créer le matériau"}
             </Button>
           </div>
+          {confirmDelete && materialId && existing ? (
+            <DeleteMaterialDialog
+              material={{ _id: materialId, title: existing.title, reference: existing.reference ?? existing.qrReference }}
+              onClose={() => setConfirmDelete(false)}
+              onDeleted={() => navigate("/crm")}
+            />
+          ) : null}
         </div>
       </div>
     </div>

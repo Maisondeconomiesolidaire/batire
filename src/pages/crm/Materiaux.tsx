@@ -16,6 +16,8 @@ import {
   Upload,
 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
+import { DeleteMaterialDialog } from "../../components/crm/DeleteMaterialDialog";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Field";
 import { Dropdown } from "../../components/ui/Dropdown";
@@ -44,7 +46,7 @@ export function Materiaux() {
   const importMaterials = useMutation(api.batire.importMaterials);
   const [importing, setImporting] = useState(false);
   const [importReport, setImportReport] = useState<string | null>(null);
-  const remove = useMutation(api.batire.removeMaterial);
+  const [deleting, setDeleting] = useState<{ _id: Id<"btMaterials">; title: string; reference?: string | null } | null>(null);
 
   const canCreate = canAccess(access, "batire:materiaux", "create");
   const canUpdate = canAccess(access, "batire:materiaux", "update");
@@ -290,11 +292,7 @@ export function Materiaux() {
                       {canDelete ? (
                         <button
                           type="button"
-                          onClick={() => {
-                            if (confirm(`Supprimer « ${material.title} » ?`)) {
-                              void remove({ id: material._id });
-                            }
-                          }}
+                          onClick={() => setDeleting({ _id: material._id, title: material.title, reference: material.reference ?? material.qrReference })}
                           className="rounded-lg p-2 text-[var(--muted-foreground)] hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
                           aria-label="Supprimer"
                         >
@@ -310,6 +308,7 @@ export function Materiaux() {
         </div>
       )}
 
+      {deleting ? <DeleteMaterialDialog material={deleting} onClose={() => setDeleting(null)} /> : null}
     </div>
   );
 }
