@@ -32,6 +32,15 @@ export const EMPTY_DONOR: DonorForm = {
   city: "",
 };
 
+/** Adresse de facturation complète : obligatoire pour commander, imprimée sur nos factures. */
+export function billingAddressMissing(donor: DonorForm) {
+  return {
+    address: !donor.address.trim(),
+    postalCode: !/^\d{5}$/.test(donor.postalCode.trim()),
+    city: !donor.city.trim(),
+  };
+}
+
 /** Ce que la fiche donateur doit porter pour qu'un don parte. */
 export function donorReady(donor: DonorForm) {
   return Boolean(donor.firstName.trim() && donor.lastName.trim() && isFrPhone(donor.phone));
@@ -48,6 +57,8 @@ export function DonorFieldset({
   showSiret = true,
   showProfiles = true,
   customerType,
+  billingRequired = false,
+  showBillingErrors = false,
 }: {
   donor: DonorForm;
   set: <K extends keyof DonorForm>(key: K, value: DonorForm[K]) => void;
@@ -57,7 +68,11 @@ export function DonorFieldset({
   showProfiles?: boolean;
   /** When supplied by the account page, show only fields for this client type. */
   customerType?: "particulier" | "professionnel" | "collectivite";
+  /** Espace client : adresse de facturation obligatoire, champs vides surlignés après une tentative d'enregistrement. */
+  billingRequired?: boolean;
+  showBillingErrors?: boolean;
 }) {
+  const missing = billingRequired && showBillingErrors ? billingAddressMissing(donor) : { address: false, postalCode: false, city: false };
   const phoneInvalid = donor.phone.trim().length > 0 && !isFrPhone(donor.phone);
 
   return (
@@ -117,7 +132,7 @@ export function DonorFieldset({
         ) : null}
       </div>
       <div className="sm:col-span-2">
-        <Field label="Adresse">
+        <Field label="Adresse de facturation" required={billingRequired} invalid={missing.address} hint={billingRequired ? "figure sur vos factures" : undefined}>
           <AddressAutocomplete
             value={donor.address}
             onValueChange={(value) => set("address", value)}
@@ -132,7 +147,7 @@ export function DonorFieldset({
           />
         </Field>
       </div>
-      <Field label="Code postal">
+      <Field label="Code postal" required={billingRequired} invalid={missing.postalCode}>
         <Input
           value={donor.postalCode}
           inputMode="numeric"
@@ -142,7 +157,7 @@ export function DonorFieldset({
           placeholder="60650"
         />
       </Field>
-      <Field label="Ville">
+      <Field label="Ville" required={billingRequired} invalid={missing.city}>
         <Input
           value={donor.city}
           onChange={(event) => set("city", event.target.value)}

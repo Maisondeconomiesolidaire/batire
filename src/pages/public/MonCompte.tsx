@@ -29,6 +29,7 @@ import { DonationBadge } from "../../components/ui/Badge";
 import { UnderlineTabs } from "../../components/ui/UnderlineTabs";
 import {
   DonorFieldset,
+  billingAddressMissing,
   EMPTY_DONOR,
   type DonorForm,
 } from "../../components/public/DonorFieldset";
@@ -196,7 +197,15 @@ export function MonCompte() {
     setDonor((current) => ({ ...current, ...values }));
   };
 
+  const [showBillingErrors, setShowBillingErrors] = useState(false);
   async function submit() {
+    // Adresse de facturation obligatoire pour tous (particulier, pro, collectivité).
+    setShowBillingErrors(true);
+    if (Object.values(billingAddressMissing(donor)).some(Boolean)) {
+      setError("Renseignez votre adresse de facturation complète (adresse, code postal à 5 chiffres, ville) : elle figure sur vos factures.");
+      window.requestAnimationFrame(() => document.querySelector("[data-invalid]")?.scrollIntoView({ behavior: "smooth", block: "center" }));
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -434,11 +443,11 @@ export function MonCompte() {
             proposition de don.
           </p>
           {tab === "infos" && <fieldset className="space-y-3"><legend className="font-semibold">Vous êtes</legend>{([
-            ["particulier", "Particulier", "Paiement par carte"],
+            ["particulier", "Particulier", "Carte ou espèces au retrait"],
             ["professionnel", "Professionnel / entreprise", "Carte ou espèces au retrait"],
             ["collectivite", "Collectivité / PP / Assos", "Carte, espèces au retrait ou virement"],
           ] as const).map(([value, label, description]) => <label key={value} className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--border)] p-3"><input type="radio" name="customerType" checked={customerType === value} onChange={() => { editingProfile.current = true; setCustomerType(value); setSaved(false); }} /><span><strong className="block text-sm">{label}</strong><span className="text-xs text-[var(--muted-foreground)]">{description}</span></span></label>)}</fieldset>}
-          <DonorFieldset donor={donor} set={set} patch={patch} customerType={customerType} showProfiles={tab === "donateur"} />
+          <DonorFieldset donor={donor} set={set} patch={patch} customerType={customerType} showProfiles={tab === "donateur"} billingRequired showBillingErrors={showBillingErrors} />
           {error ? (
             <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
               {error}
