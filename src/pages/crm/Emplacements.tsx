@@ -8,7 +8,7 @@ import { Field, Input } from "../../components/ui/Field";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { FullSpinner } from "../../components/ui/Spinner";
 import { useAccess, canAccess } from "../../lib/access";
-import { PICKUP_LOCATIONS, type PickupLocationId } from "../../lib/pickupLocations";
+import { STORAGE_LOCATIONS, type StorageLocationId } from "../../lib/pickupLocations";
 import { SLOT_KINDS, slotKindOf, type SlotKind } from "../../lib/storageSlots";
 import { cn } from "../../lib/cn";
 
@@ -29,7 +29,7 @@ export function Emplacements() {
   const slots = useQuery(api.batire.listStorageSlots, {});
   const create = useMutation(api.batire.createStorageSlot);
   const canEdit = canAccess(access, "batire:materiaux", "update");
-  const [location, setLocation] = useState<PickupLocationId | "">("");
+  const [location, setLocation] = useState<StorageLocationId | "">("");
   const [label, setLabel] = useState("");
   const [kind, setKind] = useState<SlotKind>("stockage");
   const [busy, setBusy] = useState(false);
@@ -53,7 +53,7 @@ export function Emplacements() {
     {canEdit && <form onSubmit={submit} className="grid gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:grid-cols-[16rem_1fr_auto] sm:items-end">
       <div className="sm:col-span-3"><p className="mb-1.5 text-sm font-medium">Type d’emplacement</p><KindPicker value={kind} onChange={setKind} /></div>
       <Field label="Lieu" required>
-        <Dropdown value={location} onChange={value => setLocation(value as PickupLocationId)} placeholder="Choisir le lieu" options={PICKUP_LOCATIONS.map(item => ({ value: item.id, label: item.name }))} />
+        <Dropdown value={location} onChange={value => setLocation(value as StorageLocationId)} placeholder="Choisir le lieu" options={STORAGE_LOCATIONS.map(item => ({ value: item.id, label: item.name }))} />
       </Field>
       <Field label="Emplacement" required>
         <Input value={label} maxLength={80} onChange={event => setLabel(event.target.value)} placeholder="Ex. Allée B3, étagère 2" />
@@ -63,7 +63,7 @@ export function Emplacements() {
     </form>}
 
     {slots === undefined ? <FullSpinner label="Chargement des emplacements…" /> : <div className="grid gap-4 lg:grid-cols-3">
-      {PICKUP_LOCATIONS.map(place => {
+      {STORAGE_LOCATIONS.map(place => {
         const order = (slot: Slot) => SLOT_KINDS.findIndex(item => item.key === slotKindOf(slot));
         const own = slots.filter(slot => slot.location === place.id).sort((a, b) => order(a) - order(b) || a.label.localeCompare(b.label, "fr", { numeric: true }));
         return <section key={place.id} className="rounded-2xl border border-[var(--border)] bg-[var(--card)]">
@@ -108,7 +108,7 @@ function SlotRow({ slot, canEdit }: { slot: Slot; canEdit: boolean }) {
 
   if (editing) return <li className="px-4 py-3">
     <form onSubmit={save} className="space-y-2">
-      <Dropdown value={location} onChange={setLocation} options={PICKUP_LOCATIONS.map(item => ({ value: item.id, label: item.name }))} />
+      <Dropdown value={location} onChange={setLocation} options={STORAGE_LOCATIONS.map(item => ({ value: item.id, label: item.name }))} />
       <KindPicker value={kind} onChange={setKind} />
       <Input autoFocus value={label} maxLength={80} onChange={event => setLabel(event.target.value)} aria-label="Emplacement" />
       <p className="text-xs text-[var(--muted-foreground)]">Les matériaux rangés à cet emplacement suivent la modification.</p>

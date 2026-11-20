@@ -24,6 +24,23 @@ export const PICKUP_LOCATIONS = [
 
 export type PickupLocationId = (typeof PICKUP_LOCATIONS)[number]["id"];
 
+/** Lieux de stockage internes : CRM seulement (emplacements, fiche matériau), jamais proposés en boutique. */
+export const INTERNAL_STORAGE_LOCATIONS = [
+  { id: "usine_agile", name: "Usine Agile" },
+  { id: "dechet_lab", name: "Déchet'Lab" },
+] as const;
+/** Tous les lieux de stockage du CRM : les lieux de retrait, puis les sites internes. */
+export const STORAGE_LOCATIONS = [...PICKUP_LOCATIONS.map(({ id, name }) => ({ id, name })), ...INTERNAL_STORAGE_LOCATIONS] as const;
+export type StorageLocationId = PickupLocationId | (typeof INTERNAL_STORAGE_LOCATIONS)[number]["id"];
+
+/** Lieu de stockage tel que le CRM le classe : les sites internes gardent leur propre lieu. */
+export function storageSiteId(depot?: string): StorageLocationId | undefined {
+  const value = depot?.trim().toLocaleLowerCase("fr-FR") ?? "";
+  if (value.includes("usine agile")) return "usine_agile";
+  if (value.includes("dechet") || value.includes("déchet")) return "dechet_lab";
+  return storageLocationId(depot);
+}
+
 /**
  * Horaires proposés par défaut dans l'avis « retrait disponible ». Seuls ceux
  * de la Recyclerie du Pays de Bray sont connus : les autres se saisissent une
@@ -44,7 +61,8 @@ export function storageLocationId(depot?: string): PickupLocationId | undefined 
   const value = depot?.trim().toLocaleLowerCase("fr-FR") ?? "";
   if (!value) return undefined;
   if (value.includes("comptoir")) return "comptoir_c";
-  if (value.includes("solidarium") || value.includes("usine") || value.includes("pays de bray") || value.includes("lachapelle")) return "recyclerie_pays_de_bray";
+  // Usine Agile et Déchet'Lab : stockage interne rattaché au site de Lachapelle-aux-Pots pour la vente et les transferts.
+  if (value.includes("solidarium") || value.includes("usine") || value.includes("pays de bray") || value.includes("lachapelle") || value.includes("dechet") || value.includes("déchet")) return "recyclerie_pays_de_bray";
   if (value.includes("esspace") || value.includes("gournay")) return "esspace_150";
   return undefined;
 }

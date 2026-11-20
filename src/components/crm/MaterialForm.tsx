@@ -31,11 +31,8 @@ import {
   type Unit,
 } from "../../lib/constants";
 import { CATEGORIES, familiesOf, subFamiliesOf } from "../../lib/taxonomy";
-import { PICKUP_LOCATIONS, storageLocationId } from "../../lib/pickupLocations";
+import { STORAGE_LOCATIONS, storageSiteId } from "../../lib/pickupLocations";
 import { slotKindLabel } from "../../lib/storageSlots";
-
-/** Lieux de stockage internes : proposés comme emplacement, jamais comme lieu de retrait en boutique. */
-const INTERNAL_STORAGE = ["Usine Agile", "Déchet'Lab"];
 
 /** Champs marqués « * » : vérifiés à l'enregistrement. */
 type RequiredKey = "depot" | "title" | "description" | "category" | "unit" | "price" | "quantity" | "condition";
@@ -355,11 +352,8 @@ export function MaterialForm() {
   // Emplacements du lieu choisi (onglet Emplacements). Une valeur saisie avant
   // cette liste reste affichée, pour ne rien perdre en rouvrant une fiche.
   const storageSlots = useQuery(api.batire.listStorageSlots, {});
-  const depotId = storageLocationId(form.depot);
-  const slotOptions = [
-    ...INTERNAL_STORAGE.map((value) => ({ value, label: `${value} · stockage interne` })),
-    ...(storageSlots ?? []).filter((slot) => slot.location === depotId).map((slot) => ({ value: slot.label, label: `${slot.label} · ${slotKindLabel(slot.kind)}` })),
-  ];
+  const depotId = storageSiteId(form.depot);
+  const slotOptions = (storageSlots ?? []).filter((slot) => slot.location === depotId).map((slot) => ({ value: slot.label, label: `${slot.label} · ${slotKindLabel(slot.kind)}` }));
   if (form.location && !slotOptions.some((option) => option.value === form.location)) slotOptions.unshift({ value: form.location, label: `${form.location} (hors liste)` });
 
   async function addPhotos(files: FileList | null) {
@@ -668,13 +662,13 @@ export function MaterialForm() {
                 onChange={(value) => {
                   set("depot", value);
                   // Un emplacement appartient à un lieu : il ne suit pas un changement de lieu.
-                  if (form.location && !INTERNAL_STORAGE.includes(form.location) && !(storageSlots ?? []).some((slot) => slot.location === storageLocationId(value) && slot.label === form.location)) set("location", "");
+                  if (form.location && !(storageSlots ?? []).some((slot) => slot.location === storageSiteId(value) && slot.label === form.location)) set("location", "");
                 }}
                 placeholder="Choisir le lieu"
-                options={PICKUP_LOCATIONS.map((location) => ({ value: location.name, label: location.name }))}
+                options={STORAGE_LOCATIONS.map((location) => ({ value: location.name, label: location.name }))}
               />
             </Field>
-            <Field label="Emplacement" hint={form.depot && slotOptions.length === INTERNAL_STORAGE.length ? "aucun autre pour ce lieu — voir Emplacements" : undefined}>
+            <Field label="Emplacement" hint={form.depot && slotOptions.length === 0 ? "aucun pour ce lieu — voir Emplacements" : undefined}>
               <Dropdown
                 value={form.location}
                 onChange={(value) => set("location", value)}

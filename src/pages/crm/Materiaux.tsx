@@ -29,7 +29,7 @@ import { MATERIAL_STATUSES, STATUS_LABELS, type MaterialStatus } from "../../lib
 import { useAccess, canAccess } from "../../lib/access";
 import { exportMaterials, parseWorkbook } from "../../lib/excel";
 import { taxonomyPath } from "../../lib/taxonomy";
-import { PICKUP_LOCATIONS, storageLocationId, type PickupLocationId } from "../../lib/pickupLocations";
+import { STORAGE_LOCATIONS, storageSiteId, type StorageLocationId } from "../../lib/pickupLocations";
 import { CameraScanner } from "../../components/ui/CameraScanner";
 
 export function Materiaux() {
@@ -39,13 +39,13 @@ export function Materiaux() {
   const [scanning, setScanning] = useState(false);
   const [status, setStatus] = useState<"" | MaterialStatus>("");
   const [stockView, setStockView] = useState<"grid" | "table">("grid");
-  const [place, setPlace] = useState<"" | "none" | PickupLocationId>("");
+  const [place, setPlace] = useState<"" | "none" | StorageLocationId>("");
   const allMaterials = useQuery(api.batire.listMaterials, {
     search: search.trim() || undefined,
     status: status || undefined,
   });
   // Filtre par lieu de stockage (les anciens libellés libres sont rattachés à leur lieu).
-  const materials = allMaterials?.filter((material) => !place || (place === "none" ? !storageLocationId(material.depot ?? undefined) : storageLocationId(material.depot ?? undefined) === place));
+  const materials = allMaterials?.filter((material) => !place || (place === "none" ? !storageSiteId(material.depot ?? undefined) : storageSiteId(material.depot ?? undefined) === place));
   const setPublished = useMutation(api.batire.setMaterialPublished);
   const importMaterials = useMutation(api.batire.importMaterials);
   const [importing, setImporting] = useState(false);
@@ -177,7 +177,7 @@ export function Materiaux() {
           placeholder="Tous les lieux"
           options={[
             { value: "", label: "Tous les lieux" },
-            ...PICKUP_LOCATIONS.map((location) => ({ value: location.id, label: location.name })),
+            ...STORAGE_LOCATIONS.map((location) => ({ value: location.id, label: location.name })),
             { value: "none", label: "Lieu non renseigné" },
           ]}
         />
