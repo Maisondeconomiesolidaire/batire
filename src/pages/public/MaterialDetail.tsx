@@ -496,15 +496,24 @@ function BuyBlock({
     setQuantityText(cleaned);
   }
 
-  function addToCart() {
+  const [adding, setAdding] = useState(false);
+  async function addToCart() {
     if (cart.hasOtherVendor(vendor)) {
       setCartNotice(`Votre panier contient déjà des articles vendus par ${vendor === "recyclerie" ? "Déchet’Lab / MATERIOSOL" : "la Recyclerie"}. Cet article est vendu par ${vendorName} et doit être payé séparément : finalisez ce panier avant d’en commencer un autre.`);
       return;
     }
-    cart.add(materialId, quantity, vendor);
-    setCartNotice(null);
-    // L'aperçu du panier de l'en-tête s'ouvre : le client voit l'ajout et peut commander.
-    openCartPreview();
+    setAdding(true);
+    try {
+      // Le stock est bloqué 30 minutes pour ce panier : un autre client ne peut plus le prendre.
+      await cart.add(materialId, quantity, vendor);
+      setCartNotice(null);
+      // L'aperçu du panier de l'en-tête s'ouvre : le client voit l'ajout et peut commander.
+      openCartPreview();
+    } catch (caught) {
+      setCartNotice(caught instanceof Error ? caught.message : "Ajout au panier impossible.");
+    } finally {
+      setAdding(false);
+    }
   }
 
   return (
@@ -556,8 +565,8 @@ function BuyBlock({
           </p>
         ) : null}
       </div>
-      <Button className="w-full" onClick={addToCart} disabled={stock <= 0 || quantity <= 0 || quantity > stock}>
-        {stock > 0 ? "Ajouter au panier" : upcoming ? "Bientôt disponible" : "Épuisé"}
+      <Button className="w-full" onClick={() => void addToCart()} disabled={adding || stock <= 0 || quantity <= 0 || quantity > stock}>
+        {adding ? "Ajout…" : stock > 0 ? "Ajouter au panier" : upcoming ? "Bientôt disponible" : "Épuisé"}
       </Button>
       {cartNotice ? <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">{cartNotice}</p> : null}
       <a href="tel:+33375150475" className="flex items-center justify-center gap-2 text-sm font-semibold text-brand-700 hover:text-brand-900">

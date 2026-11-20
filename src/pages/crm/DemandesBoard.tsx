@@ -13,6 +13,7 @@ import { UnderlineTabs } from "../../components/ui/UnderlineTabs";
 import { DocEditor, IssuerBadge, PAYMENT_METHODS, PdfPreview, STATUS as BILLING_STATUS, type Line as BillingLine } from "./Facturation";
 import { issuerOfCategory, euros as billingEuros, frDate } from "../../lib/billing";
 import { OrderStripeInvoice, sentLabel } from "./StripeInvoice";
+import { OtherRequests } from "./OtherRequests";
 import { canAccess, useAccess } from "../../lib/access";
 import { cn } from "../../lib/cn";
 import { formatDimensions } from "../../lib/format";
@@ -20,7 +21,7 @@ import { DEFAULT_OPENING_HOURS, PICKUP_LOCATIONS, pickupLocationById, storageLoc
 
 type Order = FunctionReturnType<typeof api.batire.pickupOperations>["orders"][number];
 type Stage = "nouveau" | "en_cours" | "disponible" | "retire";
-type Tab = "open" | "closed";
+type Tab = "open" | "closed" | "livraisons";
 type Mode = "" | "warehouse" | "relay";
 
 /**
@@ -92,7 +93,10 @@ export function Demandes() {
   const data = useQuery(api.batire.pickupOperations, {});
   const access = useAccess();
   const canUpdate = canAccess(access, "batire:demandes", "update");
-  const [tab, setTab] = useState<Tab>("open");
+  // Lien de l'e-mail « devis livraison » : /crm/demandes?vue=livraisons.
+  const [tab, setTab] = useState<Tab>(() => new URLSearchParams(window.location.search).get("vue") === "livraisons" ? "livraisons" : "open");
+  const deliveryRequests = useQuery(api.batire.listRequests, {});
+  const openDeliveries = deliveryRequests?.filter(request => request.outcome === "nouveau" || request.outcome === "en_cours").length;
   const [search, setSearch] = useState("");
   const [mode, setMode] = useState<Mode>("");
   const [sort, setSort] = useState<"desc" | "asc">("desc");
@@ -116,8 +120,8 @@ export function Demandes() {
       <h1 className="text-xl font-bold tracking-tight">Demandes</h1>
       <p className="mt-1 text-sm text-[var(--muted-foreground)]">Carte orange : retrait en point relais (enlèvement à organiser) · Carte bleue : retrait sur le lieu de stockage.</p>
     </header>
-    <UnderlineTabs className="mt-4" value={tab} onChange={setTab} items={[{ key: "open", label: "Demandes en cours" }, { key: "closed", label: "Gagnées / Perdues" }]} counts={data ? { open: openCount, closed: orders.length - openCount } : undefined} />
-    <>
+    <UnderlineTabs className="mt-4" value={tab} onChange={setTab} items={[{ key: "open", label: "Demandes en cours" }, { key: "closed", label: "Gagnées / Perdues" }, { key: "livraisons", label: "Devis livraison" }]} counts={data ? { open: openCount, closed: orders.length - openCount, livraisons: openDeliveries ?? 0 } : undefined} />
+    {tab === "livraisons" ? <div className="pt-4"><OtherRequests /></div> : <>
       <div className="border-b border-[var(--border)] py-3">
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <label><span className="sr-only">Ordre des demandes</span><select value={sort} onChange={event => setSort(event.target.value as "desc" | "asc")} className="h-9 rounded-xl border border-[var(--border)] bg-[var(--muted)] px-3 text-xs font-medium"><option value="desc">Plus récent</option><option value="asc">Plus ancien</option></select></label>
@@ -154,7 +158,7 @@ export function Demandes() {
           </div>
         )}
       </div>
-    </>
+    </>}
     {current && <OrderDetail key={current._id} order={current} canUpdate={canUpdate} onClose={() => setOpenId(null)} />}
   </div>;
 }
@@ -338,7 +342,8 @@ function PaymentSection({ order, canUpdate }: { order: Order; canUpdate: boolean
         <li>{order.collectedAt ? "Lot déjà remis : le stock n'est pas modifié." : "La demande passe en « perdue » et le lot revient en stock."}</li>
         {invoice?.id && <li>Un avoir est émis sur la facture Stripe {invoice.number ?? ""}.</li>}
       </ul>
-      <label className="mt-4 block text-sm font-medium">Motif (facultatif)<textarea rows={2} maxLength={300} value={reason} disabled={busy} onChange={event => setReason(event.target.value)} placeholder="Ex. article endommagé, annulation client…" className="mt-1 block w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5 text-sm" /></label>
+      <label className="mt-4 block text-sm font-medium">Motif (facultatif)<textarea rows={2} maxLength={300} value={reason} disabled={busy} onChange={event => setReason(event.target.value)} placeholder="Ex. article endommagé, annulation à votre demande…" className="mt-1 block w-full rounded-xl border border-[var(--border)] bg-[var(--card)] p-2.5 text-sm" /></label>
+      <p className="mt-2 flex items-start gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span><strong>Le motif est visible par le client</strong> : il figure tel quel dans l’e-mail de remboursement qu’il reçoit. Rédigez-le comme un message au client.</span></p>
       <p className="mt-2 text-xs text-[var(--muted-foreground)]">Cette opération est définitive.</p>
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
       <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" disabled={busy} onClick={() => setOpen(false)}>Annuler</Button><Button variant="danger" disabled={busy} onClick={() => void submit()}><RotateCcw className="h-4 w-4" />{busy ? "Remboursement…" : "Rembourser"}</Button></div>

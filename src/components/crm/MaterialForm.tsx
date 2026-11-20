@@ -34,6 +34,23 @@ import { CATEGORIES, familiesOf, subFamiliesOf } from "../../lib/taxonomy";
 import { PICKUP_LOCATIONS, storageLocationId } from "../../lib/pickupLocations";
 import { slotKindLabel } from "../../lib/storageSlots";
 
+/** Champs marqués « * » : vérifiés à l'enregistrement. */
+type RequiredKey = "depot" | "title" | "description" | "category" | "unit" | "price" | "quantity" | "condition";
+const REQUIRED_LABELS: Record<RequiredKey, string> = { depot: "lieu de stockage", title: "titre", description: "description", category: "catégorie", unit: "unité de vente", price: "prix TTC", quantity: "stock", condition: "état" };
+function missingFields(form: { depot: string; title: string; description: string; category: string; unit: string; price: string; quantity: string; condition: string; published: boolean }) {
+  const missing = new Set<RequiredKey>();
+  if (!form.depot) missing.add("depot");
+  if (!form.title.trim()) missing.add("title");
+  if (!form.description.trim()) missing.add("description");
+  if (!form.category) missing.add("category");
+  if (!form.unit) missing.add("unit");
+  const price = Number(form.price.replace(",", "."));
+  if (!form.price.trim() || !Number.isFinite(price) || (form.published && price <= 0)) missing.add("price");
+  if (!form.quantity.trim() || !Number.isFinite(Number(form.quantity.replace(",", ".")))) missing.add("quantity");
+  if (!form.condition) missing.add("condition");
+  return missing;
+}
+
 /** TVA Bâtire : 20 %. Prix arrondis au centime. */
 const round2 = (value: number) => Math.round(value * 100) / 100;
 const htOf = (ttc: number) => round2(ttc / 1.2);
@@ -197,6 +214,8 @@ export function MaterialForm() {
   const [aiNotes, setAiNotes] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showMissing, setShowMissing] = useState(false);
+  const missing = showMissing ? missingFields(form) : new Set<RequiredKey>();
   const [error, setError] = useState<string | null>(null);
   const [extraDetails, setExtraDetails] = useState("");
   const [scanning, setScanning] = useState(false);
@@ -407,8 +426,12 @@ export function MaterialForm() {
   }
 
   async function save() {
-    if (!form.depot) {
-      setError("Choisissez le lieu de stockage du matériau.");
+    // Champs obligatoires vides : surlignés, et la page défile jusqu'au premier.
+    const missing = missingFields(form);
+    setShowMissing(true);
+    if (missing.size) {
+      setError(`Champ${missing.size > 1 ? "s" : ""} obligatoire${missing.size > 1 ? "s" : ""} manquant${missing.size > 1 ? "s" : ""} : ${[...missing].map((key) => REQUIRED_LABELS[key]).join(", ")}.`);
+      window.requestAnimationFrame(() => document.querySelector("[data-invalid]")?.scrollIntoView({ behavior: "smooth", block: "center" }));
       return;
     }
     const price = Number(form.price.replace(",", "."));
@@ -633,7 +656,7 @@ export function MaterialForm() {
           {/* ── Stockage et publication ──────────────────────────────────── */}
           <section className="grid gap-4 rounded-2xl border border-[var(--border)] p-4 sm:grid-cols-3">
             <p className="text-sm font-semibold sm:col-span-3">Dépôt et mise en ligne</p>
-            <Field label="Lieu de stockage" required>
+            <Field label="Lieu de stockage" required invalid={missing.has("depot")}>
               <Dropdown
                 value={form.depot}
                 onChange={(value) => {
@@ -676,12 +699,12 @@ export function MaterialForm() {
           {/* ── Identité ─────────────────────────────────────────────────── */}
           <section className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <Field label="Titre" required>
+              <Field label="Titre" required invalid={missing.has("title")}>
                 <Input value={form.title} onChange={(e) => set("title", e.target.value)} />
               </Field>
             </div>
             <div className="sm:col-span-2">
-              <Field label="Description" required>
+              <Field label="Description" required invalid={missing.has("description")}>
                 <Textarea
                   value={form.description}
                   onChange={(e) => set("description", e.target.value)}
@@ -695,7 +718,7 @@ export function MaterialForm() {
                 placeholder="Référence interne du dépôt"
               />
             </Field>
-            <Field label="Catégorie" required>
+            <Field label="Catégorie" required invalid={missing.has("category")}>
               <Dropdown
                 searchable
                 value={form.category}
@@ -766,7 +789,7 @@ export function MaterialForm() {
           {/* ── Vente ────────────────────────────────────────────────────── */}
           <section className="grid gap-4 rounded-2xl border border-[var(--border)] p-4 sm:grid-cols-3">
             <p className="text-sm font-semibold sm:col-span-3">Vente</p>
-            <Field label="Unité de vente" required>
+            <Field label="Unité de vente" required invalid={missing.has("unit")}>
               <Dropdown
                 value={form.unit}
                 onChange={(value) => set("unit", value as Unit)}
@@ -780,7 +803,7 @@ export function MaterialForm() {
             <Field label={`Prix HT par ${form.unit}`} hint="TVA 20 %">
               <Input inputMode="decimal" value={form.priceHt} onChange={(e) => setPrice("priceHt", e.target.value)} />
             </Field>
-            <Field label={`Prix TTC par ${form.unit}`} required hint="prix payé en boutique">
+            <Field label={`Prix TTC par ${form.unit}`} required hint="prix payé en boutique" invalid={missing.has("price")}>
               <Input inputMode="decimal" value={form.price} onChange={(e) => setPrice("price", e.target.value)} />
             </Field>
             {/* Le prix barré situe l'économie du réemploi : il n'est affiché
@@ -793,14 +816,14 @@ export function MaterialForm() {
                 placeholder="39"
               />
             </Field>
-            <Field label={`Stock (${form.unit})`} required>
+            <Field label={`Stock (${form.unit})`} required invalid={missing.has("quantity")}>
               <Input
                 inputMode="decimal"
                 value={form.quantity}
                 onChange={(e) => set("quantity", e.target.value)}
               />
             </Field>
-            <Field label="État" required>
+            <Field label="État" required invalid={missing.has("condition")}>
               <Dropdown
                 value={form.condition}
                 onChange={(value) => set("condition", value as Condition)}

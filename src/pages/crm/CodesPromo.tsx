@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { Check, Copy, Mail, Plus, RotateCcw, Search, Tag, X, XCircle } from "lucide-react";
+import { Check, Copy, Link2, Mail, MessageCircle, MessageSquare, Plus, RotateCcw, Search, Share2, Tag, X, XCircle } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { Button } from "../../components/ui/Button";
 import { Field, Input } from "../../components/ui/Field";
@@ -72,6 +72,7 @@ function PromoRow({ promo, canUpdate, now }: { promo: Promo; canUpdate: boolean;
   const [confirm, setConfirm] = useState<"" | "email" | "cancel" | "release">("");
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [error, setError] = useState("");
   const active = isActive(promo, now);
   const status = statusOf(promo, now);
@@ -88,6 +89,7 @@ function PromoRow({ promo, canUpdate, now }: { promo: Promo; canUpdate: boolean;
       <div className="flex flex-wrap items-center gap-2">
         <span className={cn("font-mono text-base font-black tracking-wider", !active && "text-[var(--muted-foreground)]")}>{promo.code}</span>
         <button type="button" onClick={() => void copy()} aria-label="Copier le code" className="rounded-lg p-1 text-[var(--muted-foreground)] hover:bg-[var(--accent)]">{copied ? <Check className="h-4 w-4 text-brand-600" /> : <Copy className="h-4 w-4" />}</button>
+        {active && <button type="button" onClick={() => setSharing(true)} aria-label="Partager le code" title="Partager" className="rounded-lg p-1 text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-brand-600"><Share2 className="h-4 w-4" /></button>}
         <span className="font-bold">{promoValue(promo)}</span>
         <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", status.className)}>{status.label}</span>
       </div>
@@ -103,6 +105,7 @@ function PromoRow({ promo, canUpdate, now }: { promo: Promo; canUpdate: boolean;
       {active && <Button size="sm" variant="ghost" className="text-red-600 dark:text-red-400" onClick={() => setConfirm("cancel")}><XCircle className="h-4 w-4" />Annuler</Button>}
       {promo.releasable && <Button size="sm" variant="outline" onClick={() => setConfirm("release")}><RotateCcw className="h-4 w-4" />Réactiver</Button>}
     </div>}
+    {sharing && <ShareDialog promo={promo} canEmail={canUpdate && Boolean(promo.customerEmail)} onEmail={() => { setSharing(false); setConfirm("email"); }} onClose={() => setSharing(false)} />}
     {confirm && <Dialog title={confirm === "email" ? "Envoyer le code promo ?" : confirm === "cancel" ? "Annuler le code promo ?" : "Réactiver le code promo ?"} onClose={() => { if (!busy) setConfirm(""); }}>
       <p className="text-sm text-[var(--muted-foreground)]">{confirm === "email" ? <>Le code {promo.code} ({promoValue(promo)}) sera envoyé par email à <strong className="text-[var(--foreground)]">{promo.customerEmail}</strong>.</> : confirm === "cancel" ? `Le code ${promo.code} ne pourra plus être utilisé.` : `Le code ${promo.code} a servi à une commande jamais réglée. Il redevient utilisable.`}</p>
       <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" disabled={busy} onClick={() => setConfirm("")}>Non</Button><Button variant={confirm === "cancel" ? "danger" : "primary"} disabled={busy} onClick={() => void run()}>{busy ? "…" : confirm === "email" ? "Envoyer" : confirm === "cancel" ? "Annuler le code" : "Réactiver"}</Button></div>
@@ -154,6 +157,33 @@ function NewPromo({ onClose, onCreated }: { onClose: () => void; onCreated: () =
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       <div className="flex justify-end gap-2"><Button type="button" variant="ghost" disabled={busy} onClick={onClose}>Annuler</Button><Button type="submit" disabled={busy || !valid}><Tag className="h-4 w-4" />{busy ? "Génération…" : sendEmail ? "Générer et envoyer" : "Générer le code"}</Button></div>
     </form>
+  </Dialog>;
+}
+
+/** Partage d'un code promo : lien direct (le code s'applique au panier), messageries, e-mail. */
+function ShareDialog({ promo, canEmail, onEmail, onClose }: { promo: Promo; canEmail: boolean; onEmail: () => void; onClose: () => void }) {
+  const [done, setDone] = useState("");
+  const link = `${window.location.origin}/code-promo/${encodeURIComponent(promo.code)}`;
+  const until = promo.expiresAt ? `, valable jusqu’au ${new Date(promo.expiresAt).toLocaleDateString("fr-FR")}` : "";
+  const message = `Votre code promo BâtiRe : ${promo.code} (${promoValue(promo)} de remise${until}). Il s’applique directement à votre panier : ${link}`;
+  async function copy(text: string, label: string) {
+    try { await navigator.clipboard.writeText(text); setDone(label); setTimeout(() => setDone(""), 1800); } catch { setDone("Copie impossible sur ce navigateur."); }
+  }
+  const option = "flex w-full items-center gap-3 rounded-xl border border-[var(--border)] px-3 py-2.5 text-left text-sm font-medium transition hover:border-brand-500 hover:bg-[var(--accent)]";
+  const canNativeShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+  return <Dialog title={`Partager ${promo.code}`} onClose={onClose}>
+    <p className="text-sm text-[var(--muted-foreground)]">{promoValue(promo)} de remise{until}.</p>
+    <div className="mt-4 grid gap-2">
+      <button type="button" className={option} onClick={() => void copy(promo.code, "Code copié")}><Copy className="h-4 w-4 text-brand-600" />Copier le code</button>
+      <button type="button" className={option} onClick={() => void copy(link, "Lien copié")}><Link2 className="h-4 w-4 text-brand-600" />Copier le lien (applique le code au panier)</button>
+      <button type="button" className={option} onClick={() => void copy(message, "Message copié")}><MessageSquare className="h-4 w-4 text-brand-600" />Copier le message complet</button>
+      <a className={option} href={`https://wa.me/?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4 text-emerald-600" />WhatsApp</a>
+      <a className={option} href={`sms:?&body=${encodeURIComponent(message)}`}><MessageSquare className="h-4 w-4 text-sky-600" />SMS</a>
+      {canEmail ? <button type="button" className={option} onClick={onEmail}><Mail className="h-4 w-4 text-brand-600" />E-mail BâtiRe à {promo.customerEmail}</button>
+        : <a className={option} href={`mailto:${promo.customerEmail ?? ""}?subject=${encodeURIComponent(`Votre code promo BâtiRe : ${promoValue(promo)} de remise`)}&body=${encodeURIComponent(message)}`}><Mail className="h-4 w-4 text-brand-600" />Ouvrir dans ma messagerie</a>}
+      {canNativeShare && <button type="button" className={option} onClick={() => void navigator.share({ title: "Code promo BâtiRe", text: message, url: link }).catch(() => undefined)}><Share2 className="h-4 w-4 text-brand-600" />Autres applications…</button>}
+    </div>
+    <p role="status" className="mt-3 h-4 text-xs font-semibold text-brand-700">{done}</p>
   </Dialog>;
 }
 

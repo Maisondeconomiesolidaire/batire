@@ -8,11 +8,14 @@ export function Field({
   label,
   hint,
   required,
+  invalid,
   children,
 }: {
   label: string;
   hint?: string;
   required?: boolean;
+  /** Champ obligatoire laissé vide à l'enregistrement : encadré rouge et message. */
+  invalid?: boolean;
   children: ReactNode;
 }) {
   // Volontairement un <div> et non un <label> : un label réexpédie tout clic
@@ -20,8 +23,8 @@ export function Field({
   // déroulante maison, choisir une option rouvrait aussitôt le menu — et la
   // parade côté React arrive trop tard, le navigateur ayant déjà agi.
   return (
-    <div className="block">
-      <span className="mb-1.5 flex items-baseline gap-1.5 text-sm font-medium text-[var(--foreground)]">
+    <div className={cn("block", invalid && "rounded-xl outline outline-2 outline-offset-4 outline-red-500")} data-invalid={invalid ? "true" : undefined}>
+      <span className={cn("mb-1.5 flex items-baseline gap-1.5 text-sm font-medium", invalid ? "text-red-600" : "text-[var(--foreground)]")}>
         {label}
         {required ? <span className="text-brand-600">*</span> : null}
         {hint ? (
@@ -29,6 +32,7 @@ export function Field({
         ) : null}
       </span>
       {children}
+      {invalid ? <span role="alert" className="mt-1 block text-xs font-medium text-red-600">Champ obligatoire</span> : null}
     </div>
   );
 }

@@ -4,7 +4,8 @@ import { useQuery } from "convex/react";
 import { Minus, PackageOpen, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { formatPrice } from "../../lib/format";
-import { OPEN_CART_EVENT, useCart } from "../../lib/useCart";
+import { OPEN_CART_EVENT, useCart, useCartHoldSync } from "../../lib/useCart";
+import { CartTimer } from "./CartTimer";
 import type { Id } from "../../../convex/_generated/dataModel";
 import type { PublicMaterial } from "./MaterialCard";
 
@@ -13,6 +14,8 @@ export function CartPopover() {
   const [open, setOpen] = useState(false);
   const container = useRef<HTMLDivElement>(null);
   const cart = useCart();
+  // Blocage du stock : le panier suit les échéances du serveur sur toutes les pages publiques.
+  useCartHoldSync();
   // Le catalogue n'est demandé que lorsque l'aperçu est ouvert : le compteur
   // du panier reste instantané sans ajouter une souscription sur chaque page.
   const materials = useQuery(api.batire.listPublicMaterials, open ? {} : "skip") as PublicMaterial[] | undefined;
@@ -94,13 +97,13 @@ export function CartPopover() {
                     <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{formatPrice(material.price)} / {material.unit}</p>
                     <div className="mt-2 flex items-center justify-between gap-2">
                       <div className="flex items-center rounded-lg border border-[var(--border)]">
-                        <button type="button" onClick={() => cart.update(material._id as Id<"btMaterials">, quantity - 1)} className="p-1.5 hover:bg-[var(--muted)]" aria-label={`Retirer une unité de ${material.title}`}><Minus className="h-3.5 w-3.5" /></button>
+                        <button type="button" onClick={() => void cart.update(material._id as Id<"btMaterials">, quantity - 1)} className="p-1.5 hover:bg-[var(--muted)]" aria-label={`Retirer une unité de ${material.title}`}><Minus className="h-3.5 w-3.5" /></button>
                         <span className="min-w-7 text-center text-xs font-bold">{quantity}</span>
-                        <button type="button" onClick={() => cart.update(material._id as Id<"btMaterials">, Math.min(quantity + 1, material.quantity))} disabled={quantity >= material.quantity} className="p-1.5 hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-35" aria-label={`Ajouter une unité de ${material.title}`}><Plus className="h-3.5 w-3.5" /></button>
+                        <button type="button" onClick={() => void cart.update(material._id as Id<"btMaterials">, quantity + 1)} disabled={material.quantity < 1} className="p-1.5 hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-35" aria-label={`Ajouter une unité de ${material.title}`}><Plus className="h-3.5 w-3.5" /></button>
                       </div>
                       <div className="flex items-center gap-2">
                         <strong className="text-sm text-brand-700">{formatPrice(material.price * quantity)}</strong>
-                        <button type="button" onClick={() => cart.remove(material._id as Id<"btMaterials">)} className="rounded-lg p-1.5 text-[var(--muted-foreground)] hover:bg-red-50 hover:text-red-600" aria-label={`Retirer ${material.title} du panier`}><Trash2 className="h-4 w-4" /></button>
+                        <button type="button" onClick={() => void cart.remove(material._id as Id<"btMaterials">)} className="rounded-lg p-1.5 text-[var(--muted-foreground)] hover:bg-red-50 hover:text-red-600" aria-label={`Retirer ${material.title} du panier`}><Trash2 className="h-4 w-4" /></button>
                       </div>
                     </div>
                   </div>
@@ -110,6 +113,8 @@ export function CartPopover() {
           )}
 
           <footer className="border-t border-[var(--border)] bg-[var(--muted)] p-4">
+            {cart.notice ? <p className="mb-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">{cart.notice}</p> : null}
+            {cart.items.length > 0 ? <CartTimer expiresAt={cart.expiresAt} className="mb-2" /> : null}
             {cart.items.length > 0 && materials !== undefined ? <div className="mb-3 flex items-center justify-between text-sm"><span>Sous-total</span><strong>{formatPrice(subtotal)}</strong></div> : null}
             <Link to="/panier" onClick={() => setOpen(false)} className="flex w-full items-center justify-center rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-brand-700">
               Voir le panier

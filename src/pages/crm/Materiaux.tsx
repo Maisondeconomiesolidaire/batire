@@ -29,6 +29,7 @@ import { MATERIAL_STATUSES, STATUS_LABELS, type MaterialStatus } from "../../lib
 import { useAccess, canAccess } from "../../lib/access";
 import { exportMaterials, parseWorkbook } from "../../lib/excel";
 import { taxonomyPath } from "../../lib/taxonomy";
+import { PICKUP_LOCATIONS, storageLocationId, type PickupLocationId } from "../../lib/pickupLocations";
 import { CameraScanner } from "../../components/ui/CameraScanner";
 
 export function Materiaux() {
@@ -38,10 +39,13 @@ export function Materiaux() {
   const [scanning, setScanning] = useState(false);
   const [status, setStatus] = useState<"" | MaterialStatus>("");
   const [stockView, setStockView] = useState<"grid" | "table">("grid");
-  const materials = useQuery(api.batire.listMaterials, {
+  const [place, setPlace] = useState<"" | "none" | PickupLocationId>("");
+  const allMaterials = useQuery(api.batire.listMaterials, {
     search: search.trim() || undefined,
     status: status || undefined,
   });
+  // Filtre par lieu de stockage (les anciens libellés libres sont rattachés à leur lieu).
+  const materials = allMaterials?.filter((material) => !place || (place === "none" ? !storageLocationId(material.depot ?? undefined) : storageLocationId(material.depot ?? undefined) === place));
   const setPublished = useMutation(api.batire.setMaterialPublished);
   const importMaterials = useMutation(api.batire.importMaterials);
   const [importing, setImporting] = useState(false);
@@ -164,6 +168,17 @@ export function Materiaux() {
           options={[
             { value: "", label: "Tous les statuts" },
             ...MATERIAL_STATUSES.map((value) => ({ value, label: STATUS_LABELS[value] })),
+          ]}
+        />
+        <Dropdown
+          className="w-60"
+          value={place}
+          onChange={(value) => setPlace(value as typeof place)}
+          placeholder="Tous les lieux"
+          options={[
+            { value: "", label: "Tous les lieux" },
+            ...PICKUP_LOCATIONS.map((location) => ({ value: location.id, label: location.name })),
+            { value: "none", label: "Lieu non renseigné" },
           ]}
         />
         <div className="ml-auto inline-flex rounded-xl border border-[var(--border)] bg-[var(--card)] p-1">
