@@ -9,6 +9,12 @@ export function formatUnitPrice(price: number, unit: Unit) {
   return `${formatPrice(price)} / ${unit}`;
 }
 
+/** Prix boutique TTC (TVA 20 %) → HT et montant de TVA, au centime. */
+export function vatParts(ttc: number) {
+  const ht = Math.round((ttc / 1.2) * 100) / 100;
+  return { ttc, ht, vat: Math.round((ttc - ht) * 100) / 100 };
+}
+
 
 /** Le nom de l'unité accordé en nombre : 1 palette, 2 palettes, 3 tonnes. */
 export function unitLabel(quantity: number, unit: Unit) {

@@ -27,6 +27,7 @@ import {
   formatPrice,
   formatStock,
   formatUnitPrice,
+  vatParts,
   unitLabel,
 } from "../../lib/format";
 import { PAGE_X, UNIT_LABELS, type Unit } from "../../lib/constants";
@@ -201,7 +202,7 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
             <div className="p-5">
               <div className="flex flex-wrap items-baseline gap-3">
                 <p className="text-3xl font-black text-brand-700">
-                  {formatUnitPrice(material.price, material.unit)}
+                  {formatUnitPrice(material.price, material.unit)} <span className="text-base font-bold">TTC</span>
                 </p>
                 {material.originalPrice && material.originalPrice > material.price ? (
                   <p className="text-lg font-semibold text-[var(--muted-foreground)] line-through">
@@ -209,6 +210,9 @@ export function MaterialDetail({ kiosk = false }: { kiosk?: boolean }) {
                   </p>
                 ) : null}
               </div>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                {formatPrice(vatParts(material.price).ht)} HT · TVA 20 % : {formatPrice(vatParts(material.price).vat)}
+              </p>
               <p className="mt-1 text-sm text-[var(--muted-foreground)]">
                 Vendu {UNIT_LABELS[material.unit]} · {material.condition.toLowerCase()}
               </p>
@@ -554,9 +558,10 @@ function BuyBlock({
         </div>
         <p className="text-xs text-[var(--muted-foreground)]">{formatStock(stock, unit)} en stock</p>
 
-        <div className="flex items-baseline justify-between rounded-xl bg-[var(--muted)] px-3 py-2.5">
-          <span className="text-sm text-[var(--muted-foreground)]">Total</span>
-          <span className="text-lg font-bold text-brand-700">{formatPrice(total)}</span>
+        <div className="space-y-1 rounded-xl bg-[var(--muted)] px-3 py-2.5 text-sm">
+          <div className="flex justify-between text-[var(--muted-foreground)]"><span>Total HT</span><span className="tabular-nums">{formatPrice(vatParts(total).ht)}</span></div>
+          <div className="flex justify-between text-[var(--muted-foreground)]"><span>TVA 20 %</span><span className="tabular-nums">{formatPrice(vatParts(total).vat)}</span></div>
+          <div className="flex items-baseline justify-between"><span className="font-semibold">Total TTC</span><span className="text-lg font-bold text-brand-700">{formatPrice(total)}</span></div>
         </div>
 
         {capped ? (

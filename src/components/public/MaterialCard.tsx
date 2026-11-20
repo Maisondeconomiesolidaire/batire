@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { PackageOpen, UserRound } from "lucide-react";
 import { Pill } from "../ui/Badge";
-import { formatDimensions, formatPrice, formatStock, formatUnitPrice } from "../../lib/format";
+import { formatDimensions, formatPrice, formatStock, formatUnitPrice, vatParts } from "../../lib/format";
 import type { Unit } from "../../lib/constants";
 
 /**
@@ -91,7 +91,7 @@ export function MaterialCard({
         <div className="mt-auto pt-2">
           <div className="flex flex-wrap items-baseline gap-2">
             <p className="text-lg font-bold text-brand-700">
-              {formatUnitPrice(material.price, material.unit)}
+              {formatUnitPrice(material.price, material.unit)} <span className="text-xs font-semibold">TTC</span>
             </p>
             {material.originalPrice && material.originalPrice > material.price ? (
               <p className="text-sm font-semibold text-[var(--muted-foreground)] line-through">
@@ -99,6 +99,9 @@ export function MaterialCard({
               </p>
             ) : null}
           </div>
+          <p className="text-[11px] text-[var(--muted-foreground)]">
+            {formatPrice(vatParts(material.price).ht)} HT · TVA 20 % : {formatPrice(vatParts(material.price).vat)}
+          </p>
           <p className="text-xs text-[var(--muted-foreground)]">
             {/* Un lot pas encore ouvert à la vente n'est ni « en stock » ni
                 « épuisé » : il est simplement à venir. */}
